@@ -60,11 +60,27 @@ const envSchema = z.object({
   BCRYPT_ROUNDS: z.coerce.number().int().min(10).max(15).default(12),
 
   /**
-   * Browser origin allowed to call this API. A single explicit origin, not
-   * "*", because credentialed requests (our refresh cookie) are rejected by
-   * browsers when the origin is a wildcard.
+   * Browser origins allowed to call this API — a comma-separated list.
+   *
+   * Never "*": browsers reject credentialed requests (our refresh cookie)
+   * against a wildcard origin, so login would silently fail.
+   *
+   * A list rather than one value because testing from a phone needs the
+   * machine's LAN address working alongside localhost, e.g.
+   *   http://localhost:5173,http://192.168.1.5:5173
    */
-  CORS_ORIGIN: z.string().url().default("http://localhost:5173"),
+  CORS_ORIGIN: z
+    .string()
+    .default("http://localhost:5173")
+    .transform((value) =>
+      value
+        .split(",")
+        .map((origin) => origin.trim())
+        .filter(Boolean)
+    )
+    .refine((origins) => origins.length > 0, {
+      message: "CORS_ORIGIN must list at least one origin",
+    }),
 
   /**
    * Upload directory, resolved relative to the process working directory.
@@ -128,12 +144,12 @@ export const config = Object.freeze({
 
   security: Object.freeze({
     bcryptRounds: env.BCRYPT_ROUNDS,
-    corsOrigin: env.CORS_ORIGIN,
+    corsOrigins: env.CORS_ORIGIN,
   }),
 
   qr: Object.freeze({
-    /** Falls back to the client origin when not set explicitly. */
-    baseUrl: env.QR_BASE_URL ?? env.CORS_ORIGIN,
+    /** Falls back to the FIRST allowed origin when not set explicitly. */
+    baseUrl: env.QR_BASE_URL ?? env.CORS_ORIGIN[0],
     /** Customer route a scanned code opens: <baseUrl>/t/<token>. */
     scanPath: "t",
   }),

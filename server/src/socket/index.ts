@@ -70,7 +70,7 @@ const joinStaffRooms = (socket: AuthedSocket, user: AccessTokenPayload): void =>
 export const initSocketServer = (httpServer: HttpServer): SocketServer => {
   io = new SocketServer(httpServer, {
     cors: {
-      origin: config.security.corsOrigin,
+      origin: config.security.corsOrigins,
       credentials: true,
     },
     // Kitchen tablets drop Wi-Fi constantly. A longer window lets a brief

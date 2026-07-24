@@ -34,7 +34,7 @@ app.use(compression());
 
 app.use(
   cors({
-    origin: config.security.corsOrigin,
+    origin: config.security.corsOrigins,
     credentials: true,
   })
 );
