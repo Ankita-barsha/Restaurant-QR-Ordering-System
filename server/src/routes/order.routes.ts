@@ -2,6 +2,7 @@ import { Router } from "express";
 
 import { PERMISSIONS } from "../config/permissions.js";
 import * as orderController from "../controllers/order.controller.js";
+import { audit } from "../middleware/audit.js";
 import { authenticate } from "../middleware/authenticate.js";
 import { authorize, authorizeAny } from "../middleware/authorize.js";
 import { validate } from "../middleware/validate.js";
@@ -75,6 +76,7 @@ router.patch(
   authenticate,
   authorize(PERMISSIONS.ORDER_UPDATE_STATUS),
   validate({ params: idParamSchema, body: updateStatusSchema }),
+  audit({ action: "order.updateStatus", entity: "Order" }),
   orderController.updateStatus
 );
 
@@ -87,6 +89,7 @@ router.post(
   authenticate,
   authorize(PERMISSIONS.ORDER_CANCEL),
   validate({ params: idParamSchema, body: cancelOrderSchema }),
+  audit({ action: "order.cancel", entity: "Order" }),
   orderController.cancel
 );
 
@@ -95,6 +98,7 @@ router.patch(
   authenticate,
   authorize(PERMISSIONS.ORDER_UPDATE_STATUS),
   validate({ params: idParamSchema, body: updatePaymentSchema }),
+  audit({ action: "order.updatePayment", entity: "Order" }),
   orderController.updatePayment
 );
 

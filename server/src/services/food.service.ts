@@ -11,6 +11,7 @@ import {
   type PaginationMeta,
 } from "../utils/pagination.js";
 import { uniqueSlug } from "../utils/slug.js";
+import { emitFoodAvailabilityChanged } from "../socket/index.js";
 import { storage } from "../utils/storage.js";
 import type {
   CreateFoodInput,
@@ -195,9 +196,18 @@ export const deleteFood = async (id: string): Promise<void> => {
 export const setAvailability = async (id: string, isAvailable: boolean) => {
   await getFoodById(id);
 
-  return prisma.food.update({
+  const updated = await prisma.food.update({
     where: { id },
     data: { isAvailable },
     include: foodInclude,
   });
+
+  // Broadcast so a diner mid-browse sees the item grey out before ordering it.
+  emitFoodAvailabilityChanged({
+    id: updated.id,
+    name: updated.name,
+    isAvailable: updated.isAvailable,
+  });
+
+  return updated;
 };

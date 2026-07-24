@@ -2,6 +2,7 @@ import { Router } from "express";
 
 import { PERMISSIONS } from "../config/permissions.js";
 import * as categoryController from "../controllers/category.controller.js";
+import { audit } from "../middleware/audit.js";
 import { authenticate } from "../middleware/authenticate.js";
 import { authorize } from "../middleware/authorize.js";
 import { validate } from "../middleware/validate.js";
@@ -46,6 +47,7 @@ router.post(
   authenticate,
   authorize(PERMISSIONS.CATEGORY_CREATE),
   validate({ body: createCategorySchema }),
+  audit({ action: "category.create", entity: "Category" }),
   categoryController.create
 );
 
@@ -54,6 +56,7 @@ router.patch(
   authenticate,
   authorize(PERMISSIONS.CATEGORY_UPDATE),
   validate({ params: idParamSchema, body: updateCategorySchema }),
+  audit({ action: "category.update", entity: "Category" }),
   categoryController.update
 );
 
@@ -62,6 +65,7 @@ router.delete(
   authenticate,
   authorize(PERMISSIONS.CATEGORY_DELETE),
   validate({ params: idParamSchema }),
+  audit({ action: "category.delete", entity: "Category" }),
   categoryController.remove
 );
 

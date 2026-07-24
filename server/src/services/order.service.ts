@@ -21,6 +21,12 @@ import {
   getPagination,
   type PaginationMeta,
 } from "../utils/pagination.js";
+import {
+  emitOrderCancelled,
+  emitOrderCreated,
+  emitOrderStatusChanged,
+  emitOrderUpdated,
+} from "../socket/index.js";
 import type {
   AddItemsInput,
   OrderListQuery,
@@ -206,7 +212,7 @@ const nextOrderNumber = async (tx: TxClient): Promise<string> => {
  * that determines the bill is resolved server-side inside one transaction.
  */
 export const placeOrder = async (input: PlaceOrderInput) => {
-  return prisma.$transaction(async (tx) => {
+  const order = await prisma.$transaction(async (tx) => {
     const charges = await loadCharges(tx);
 
     if (!charges.isAcceptingOrders) {
@@ -289,6 +295,12 @@ export const placeOrder = async (input: PlaceOrderInput) => {
 
     return order;
   });
+
+  // Emitted AFTER the transaction commits. Emitting inside would announce an
+  // order to the kitchen that a later rollback erases.
+  emitOrderCreated(order);
+
+  return order;
 };
 
 /**
@@ -299,7 +311,7 @@ export const placeOrder = async (input: PlaceOrderInput) => {
  * after the food has started cooking.
  */
 export const addItems = async (orderId: string, input: AddItemsInput) => {
-  return prisma.$transaction(async (tx) => {
+  const updated = await prisma.$transaction(async (tx) => {
     const order = await tx.order.findUnique({
       where: { id: orderId },
       include: { items: true },
@@ -338,6 +350,10 @@ export const addItems = async (orderId: string, input: AddItemsInput) => {
       include: orderInclude,
     });
   });
+
+  emitOrderUpdated(updated);
+
+  return updated;
 };
 
 /**
@@ -406,6 +422,8 @@ export const updateStatus = async (
     }
   }
 
+  emitOrderStatusChanged(updated);
+
   return updated;
 };
 
@@ -415,13 +433,17 @@ export const cancelOrder = async (
   reason: string,
   actorId?: string
 ) => {
-  const updated = await updateStatus(orderId, "CANCELLED", actorId);
+  await updateStatus(orderId, "CANCELLED", actorId);
 
-  return prisma.order.update({
+  const cancelled = await prisma.order.update({
     where: { id: orderId },
     data: { cancelReason: reason },
     include: orderInclude,
   });
+
+  emitOrderCancelled(cancelled);
+
+  return cancelled;
 };
 
 /** Records payment against an order. */

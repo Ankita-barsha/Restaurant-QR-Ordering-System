@@ -3,6 +3,7 @@ import type { Server } from "node:http";
 import app from "./app.js";
 import { config } from "./config/env.js";
 import { connectDatabase, disconnectDatabase } from "./config/prisma.js";
+import { closeSocketServer, initSocketServer } from "./socket/index.js";
 import { storage } from "./utils/storage.js";
 
 /**
@@ -28,6 +29,12 @@ const start = async (): Promise<void> => {
     );
   });
 
+  // Socket.io shares the HTTP server rather than binding its own port, so
+  // WebSocket upgrades arrive on the same origin as the REST API and need no
+  // extra CORS or firewall configuration.
+  initSocketServer(server);
+  console.log("📡 Socket.io ready");
+
   /**
    * Graceful shutdown: stop accepting new connections, finish in-flight
    * requests, then release the database pool. Without this, a container
@@ -37,6 +44,7 @@ const start = async (): Promise<void> => {
     console.log(`\n${signal} received, shutting down gracefully...`);
 
     server.close(async () => {
+      await closeSocketServer();
       await disconnectDatabase();
       console.log("Closed out remaining connections.");
       process.exit(0);

@@ -7,6 +7,7 @@
 
 import { Router } from "express";
 
+import adminRoutes from "./admin.routes.js";
 import authRoutes from "./auth.routes.js";
 import categoryRoutes from "./category.routes.js";
 import foodRoutes from "./food.routes.js";
@@ -15,11 +16,17 @@ import tableRoutes from "./table.routes.js";
 
 const router = Router();
 
+import * as adminController from "../controllers/admin.controller.js";
+
 router.get("/health", (_req, res) => {
   res.json({ success: true, message: "API is healthy" });
 });
 
+/** PUBLIC — restaurant name, currency and hours for the customer app. */
+router.get("/settings", adminController.getPublicSettings);
+
 router.use("/auth", authRoutes);
+router.use("/admin", adminRoutes);
 router.use("/categories", categoryRoutes);
 router.use("/foods", foodRoutes);
 router.use("/orders", orderRoutes);

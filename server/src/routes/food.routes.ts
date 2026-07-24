@@ -2,6 +2,7 @@ import { Router } from "express";
 
 import { PERMISSIONS } from "../config/permissions.js";
 import * as foodController from "../controllers/food.controller.js";
+import { audit } from "../middleware/audit.js";
 import { authenticate } from "../middleware/authenticate.js";
 import { authorize } from "../middleware/authorize.js";
 import { uploadImage, verifyUploadedImage } from "../middleware/upload.js";
@@ -57,6 +58,7 @@ router.post(
   uploadImage("image"),
   verifyUploadedImage,
   validate({ body: createFoodSchema }),
+  audit({ action: "food.create", entity: "Food" }),
   foodController.create
 );
 
@@ -67,6 +69,7 @@ router.patch(
   uploadImage("image"),
   verifyUploadedImage,
   validate({ params: idParamSchema, body: updateFoodSchema }),
+  audit({ action: "food.update", entity: "Food" }),
   foodController.update
 );
 
@@ -88,6 +91,7 @@ router.delete(
   authenticate,
   authorize(PERMISSIONS.FOOD_DELETE),
   validate({ params: idParamSchema }),
+  audit({ action: "food.delete", entity: "Food" }),
   foodController.remove
 );
 

@@ -3,6 +3,7 @@ import { z } from "zod";
 
 import { PERMISSIONS } from "../config/permissions.js";
 import * as tableController from "../controllers/table.controller.js";
+import { audit } from "../middleware/audit.js";
 import { authenticate } from "../middleware/authenticate.js";
 import { authorize } from "../middleware/authorize.js";
 import { validate } from "../middleware/validate.js";
@@ -80,6 +81,7 @@ router.post(
   authenticate,
   authorize(PERMISSIONS.QR_MANAGE),
   validate({ params: idParamSchema }),
+  audit({ action: "table.rotateQr", entity: "Table" }),
   tableController.rotateQr
 );
 
@@ -96,6 +98,7 @@ router.delete(
   authenticate,
   authorize(PERMISSIONS.TABLE_DELETE),
   validate({ params: idParamSchema }),
+  audit({ action: "table.delete", entity: "Table" }),
   tableController.remove
 );
 
