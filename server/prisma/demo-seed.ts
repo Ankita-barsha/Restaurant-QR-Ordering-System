@@ -12,8 +12,44 @@ import fs from "node:fs/promises";
 import path from "node:path";
 
 import { prisma } from "../src/config/prisma.js";
+import { hashPassword } from "../src/utils/password.js";
 import { generateQrImage, generateQrToken } from "../src/utils/qrcode.js";
 import { storage } from "../src/utils/storage.js";
+
+/**
+ * Demo staff accounts, one per built-in role, so each screen can be seen from
+ * the perspective it was designed for. Local development only.
+ */
+const DEMO_STAFF: { email: string; fullName: string; role: string }[] = [
+  { email: "chef@restaurant.local", fullName: "Head Chef", role: "KITCHEN" },
+  { email: "waiter@restaurant.local", fullName: "Floor Staff", role: "STAFF" },
+  { email: "manager@restaurant.local", fullName: "Restaurant Manager", role: "ADMIN" },
+];
+
+const DEMO_PASSWORD = "DemoPassword2026";
+
+const seedStaff = async (): Promise<void> => {
+  for (const staff of DEMO_STAFF) {
+    const role = await prisma.role.findUnique({ where: { name: staff.role } });
+
+    if (!role) continue;
+
+    // Upsert so re-running does not fail on the unique email, and so a
+    // forgotten demo password can be restored by re-seeding.
+    await prisma.user.upsert({
+      where: { email: staff.email },
+      update: { roleId: role.id, isActive: true, deletedAt: null },
+      create: {
+        email: staff.email,
+        passwordHash: await hashPassword(DEMO_PASSWORD),
+        fullName: staff.fullName,
+        roleId: role.id,
+      },
+    });
+  }
+
+  console.log(`  ${DEMO_STAFF.length} demo staff accounts (password: ${DEMO_PASSWORD})`);
+};
 
 /** Sample images shipped in the client repo, copied into the upload folder. */
 const CLIENT_IMAGES = path.resolve(process.cwd(), "../client/src/assets/image");
@@ -127,6 +163,8 @@ const main = async (): Promise<void> => {
   }
 
   console.log(`  ${tables.length} tables, each with a QR code`);
+
+  await seedStaff();
 
   console.log("\nScan URLs for testing:");
   for (const table of tables.slice(0, 3)) {

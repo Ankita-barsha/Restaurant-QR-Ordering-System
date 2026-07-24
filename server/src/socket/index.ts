@@ -151,9 +151,19 @@ const emitToRooms = (rooms: string[], event: string, payload: unknown): void => 
   }
 };
 
-/** Broadcasts a new order to the kitchen and admin dashboards. */
+/**
+ * Rooms that every order event reaches.
+ *
+ * ROOMS.STAFF is included because waiting staff must see orders too — they
+ * take and serve them. Kitchen and admin sockets are ALSO in ROOMS.STAFF, so
+ * listing all three is belt-and-braces: socket.io delivers once per socket
+ * even when it matches several rooms in the same emit.
+ */
+const ALL_STAFF_ROOMS = [ROOMS.STAFF, ROOMS.KITCHEN, ROOMS.ADMIN];
+
+/** Broadcasts a new order to every staff screen. */
 export const emitOrderCreated = (order: { orderNumber: string }): void => {
-  emitToRooms([ROOMS.KITCHEN, ROOMS.ADMIN], SOCKET_EVENTS.ORDER_CREATED, order);
+  emitToRooms(ALL_STAFF_ROOMS, SOCKET_EVENTS.ORDER_CREATED, order);
 };
 
 /**
@@ -167,7 +177,7 @@ export const emitOrderStatusChanged = (order: {
   status: string;
 }): void => {
   emitToRooms(
-    [ROOMS.KITCHEN, ROOMS.ADMIN, ROOMS.order(order.orderNumber)],
+    [...ALL_STAFF_ROOMS, ROOMS.order(order.orderNumber)],
     SOCKET_EVENTS.ORDER_STATUS_CHANGED,
     order
   );
@@ -175,7 +185,7 @@ export const emitOrderStatusChanged = (order: {
 
 export const emitOrderUpdated = (order: { orderNumber: string }): void => {
   emitToRooms(
-    [ROOMS.KITCHEN, ROOMS.ADMIN, ROOMS.order(order.orderNumber)],
+    [...ALL_STAFF_ROOMS, ROOMS.order(order.orderNumber)],
     SOCKET_EVENTS.ORDER_UPDATED,
     order
   );
@@ -186,7 +196,7 @@ export const emitOrderCancelled = (order: {
   cancelReason?: string | null;
 }): void => {
   emitToRooms(
-    [ROOMS.KITCHEN, ROOMS.ADMIN, ROOMS.order(order.orderNumber)],
+    [...ALL_STAFF_ROOMS, ROOMS.order(order.orderNumber)],
     SOCKET_EVENTS.ORDER_CANCELLED,
     order
   );
