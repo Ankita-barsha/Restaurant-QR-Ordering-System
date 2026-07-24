@@ -25,6 +25,7 @@ import {
 import DishSheet from "../../components/DishSheet";
 import { config } from "../../config/env";
 import { useCart } from "../../context/CartContext";
+import { useFavourites } from "../../context/FavouritesContext";
 import { queryKeys, useLiveOrders } from "../../hooks/useLiveOrders";
 import { api, getErrorMessage, unwrap } from "../../lib/api";
 import { formatMoney, imageUrl } from "../../lib/format";
@@ -34,9 +35,11 @@ const CustomerMenu = () => {
   const [search, setSearch] = useState("");
   const [categorySlug, setCategorySlug] = useState<string | null>(null);
   const [vegOnly, setVegOnly] = useState(false);
+  const [favouritesOnly, setFavouritesOnly] = useState(false);
   const [openDish, setOpenDish] = useState<Food | null>(null);
 
   const { table, items, itemCount, addItem, subtotal } = useCart();
+  const { isFavourite, toggle: toggleFavourite, count: favouriteCount } = useFavourites();
 
   useLiveOrders();
 
@@ -63,7 +66,11 @@ const CustomerMenu = () => {
     [items]
   );
 
-  const foods = foodsQuery.data ?? [];
+  // Filtered here, not on the server: favourites live on the device and the
+  // API has no idea which dishes this diner has starred.
+  const foods = (foodsQuery.data ?? []).filter(
+    (food) => !favouritesOnly || isFavourite(food.id)
+  );
 
   return (
     <div className="min-h-screen bg-obsidian pb-32">
@@ -129,6 +136,16 @@ const CustomerMenu = () => {
               <DietMark vegetarian />
               Vegetarian
             </FilterPill>
+
+            {favouriteCount > 0 && (
+              <FilterPill
+                active={favouritesOnly}
+                onClick={() => setFavouritesOnly((value) => !value)}
+              >
+                <HeartIcon filled={favouritesOnly} />
+                Favourites
+              </FilterPill>
+            )}
           </div>
         </div>
       </div>
@@ -152,8 +169,12 @@ const CustomerMenu = () => {
 
         {!foodsQuery.isLoading && foods.length === 0 && (
           <LuxeEmpty
-            title="Nothing matches that"
-            hint="Try another search, or clear the filters to see the full menu."
+            title={favouritesOnly ? "No favourites yet" : "Nothing matches that"}
+            hint={
+              favouritesOnly
+                ? "Tap the heart on a dish to save it here."
+                : "Try another search, or clear the filters to see the full menu."
+            }
             action={
               <LuxeButton
                 variant="outline"
@@ -161,6 +182,7 @@ const CustomerMenu = () => {
                   setSearch("");
                   setCategorySlug(null);
                   setVegOnly(false);
+                  setFavouritesOnly(false);
                 }}
               >
                 Show everything
@@ -176,7 +198,7 @@ const CustomerMenu = () => {
 
             return (
               <Reveal key={food.id} delay={Math.min(index, 5) * 70}>
-                <article className="group flex h-full flex-col overflow-hidden rounded-luxe border border-smoke bg-charcoal transition-colors duration-500 hover:border-gold/30">
+                <article className="group relative flex h-full flex-col overflow-hidden rounded-luxe border border-smoke bg-charcoal transition-colors duration-500 hover:border-gold/30">
                   <button
                     type="button"
                     onClick={() => setOpenDish(food)}
@@ -199,10 +221,26 @@ const CustomerMenu = () => {
                     <div className="absolute inset-0 bg-gradient-to-t from-charcoal/70 to-transparent" />
 
                     {quantity > 0 && (
-                      <span className="absolute right-3 top-3 flex h-7 min-w-7 items-center justify-center rounded-full bg-gold px-2 text-xs font-medium text-obsidian">
+                      <span className="absolute left-3 top-3 flex h-7 min-w-7 items-center justify-center rounded-full bg-gold px-2 text-xs font-medium text-obsidian">
                         {quantity}
                       </span>
                     )}
+                  </button>
+
+                  {/* Outside the photo button: nesting a button inside a
+                      button is invalid HTML and breaks keyboard navigation. */}
+                  <button
+                    type="button"
+                    onClick={() => toggleFavourite(food.id)}
+                    aria-pressed={isFavourite(food.id)}
+                    aria-label={
+                      isFavourite(food.id)
+                        ? `Remove ${food.name} from favourites`
+                        : `Save ${food.name} to favourites`
+                    }
+                    className="glass absolute right-3 top-3 flex h-9 w-9 items-center justify-center rounded-full transition-transform duration-500 hover:scale-110"
+                  >
+                    <HeartIcon filled={isFavourite(food.id)} />
                   </button>
 
                   <div className="flex flex-1 flex-col p-6">
@@ -277,6 +315,21 @@ const CustomerMenu = () => {
     </div>
   );
 };
+
+/** Heart outline when unsaved, solid gold when saved. */
+const HeartIcon = ({ filled }: { filled: boolean }) => (
+  <svg
+    width="15"
+    height="15"
+    viewBox="0 0 24 24"
+    fill={filled ? "currentColor" : "none"}
+    stroke="currentColor"
+    strokeWidth="1.6"
+    className={filled ? "text-gold" : "text-ivory"}
+  >
+    <path d="M20.8 4.6a5.5 5.5 0 0 0-7.8 0L12 5.7l-1-1.1a5.5 5.5 0 0 0-7.8 7.8l1.1 1L12 21.2l7.7-7.7 1.1-1a5.5 5.5 0 0 0 0-7.9z" />
+  </svg>
+);
 
 const FilterPill = ({
   active,

@@ -10,7 +10,7 @@
 import { useState, type FormEvent } from "react";
 import { Navigate, useNavigate } from "react-router-dom";
 
-import { Button, ErrorBox } from "../../components/ui";
+import { LuxeButton, LuxeError } from "../../components/luxe";
 import { useAuth } from "../../context/AuthContext";
 import { getErrorMessage } from "../../lib/api";
 import type { AuthUser } from "../../types/api";
@@ -57,17 +57,19 @@ const Login = () => {
   };
 
   return (
-    <div className="flex min-h-screen items-center justify-center bg-slate-100 px-4">
+    <div className="flex min-h-screen items-center justify-center bg-obsidian px-4">
       <form
         onSubmit={handleSubmit}
-        className="w-full max-w-sm rounded-2xl bg-white p-8 shadow-sm"
+        className="glass rounded-luxe w-full max-w-sm p-9"
       >
-        <h1 className="text-xl font-bold text-slate-900">Staff sign in</h1>
-        <p className="mt-1 text-sm text-slate-500">
-          Kitchen, staff and admin access.
+        <p className="eyebrow">Aurelia</p>
+        <h1 className="mt-3 text-3xl leading-tight text-ivory">Staff sign in</h1>
+        <div className="rule-fade mt-4 h-px w-20" />
+        <p className="mt-4 text-[13px] text-ivory-faint">
+          Kitchen, floor and administration.
         </p>
 
-        <label className="mt-6 block text-sm font-medium text-slate-700">
+        <label className="mt-7 block text-[11px] uppercase tracking-[0.18em] text-ivory-faint">
           Email
           <input
             type="email"
@@ -75,11 +77,11 @@ const Login = () => {
             onChange={(event) => setEmail(event.target.value)}
             required
             autoComplete="username"
-            className="mt-1 w-full rounded-xl border border-slate-300 px-4 py-2.5 text-sm outline-none focus:border-orange-500"
+            className="mt-2 w-full rounded-xl border border-smoke bg-charcoal px-4 py-3 text-sm text-ivory outline-none transition-colors focus:border-gold/50"
           />
         </label>
 
-        <label className="mt-4 block text-sm font-medium text-slate-700">
+        <label className="mt-5 block text-[11px] uppercase tracking-[0.18em] text-ivory-faint">
           Password
           <input
             type="password"
@@ -87,19 +89,19 @@ const Login = () => {
             onChange={(event) => setPassword(event.target.value)}
             required
             autoComplete="current-password"
-            className="mt-1 w-full rounded-xl border border-slate-300 px-4 py-2.5 text-sm outline-none focus:border-orange-500"
+            className="mt-2 w-full rounded-xl border border-smoke bg-charcoal px-4 py-3 text-sm text-ivory outline-none transition-colors focus:border-gold/50"
           />
         </label>
 
         {error && (
-          <div className="mt-4">
-            <ErrorBox message={error} />
+          <div className="mt-5">
+            <LuxeError message={error} />
           </div>
         )}
 
-        <Button type="submit" disabled={isSubmitting} className="mt-6 w-full">
+        <LuxeButton type="submit" disabled={isSubmitting} className="mt-8 w-full">
           {isSubmitting ? "Signing in…" : "Sign in"}
-        </Button>
+        </LuxeButton>
       </form>
     </div>
   );
