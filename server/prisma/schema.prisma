@@ -1,7 +1,13 @@
-// This is your Prisma schema file,
-// learn more about it in the docs: https://pris.ly/d/prisma-schema
-
-// Get a free hosted Postgres database in seconds: `npx create-db`
+// Restaurant QR Ordering & Management System — data model.
+//
+// Conventions used throughout:
+//   - cuid() ids: non-sequential, so record counts and volumes are not
+//     inferable from a URL, and rows are not enumerable.
+//   - Money is Decimal(10,2), never Float. Binary floating point cannot
+//     represent 19.99 exactly and accumulates error across aggregates.
+//   - deletedAt marks soft deletes on catalogue data referenced by orders.
+//   - Timestamps: createdAt/updatedAt on mutable rows; append-only tables
+//     (AuditLog) deliberately have no updatedAt.
 
 generator client {
   provider = "prisma-client"
@@ -10,4 +16,451 @@ generator client {
 
 datasource db {
   provider = "postgresql"
+  // The connection URL is supplied by prisma.config.ts, which reads
+  // DATABASE_URL from .env. Prisma 7 keeps secrets out of the schema.
+}
+
+// ===========================================================================
+// Enums
+//
+// Modelled as database enums rather than free-text strings so an invalid
+// status is rejected by Postgres itself, not merely by application code.
+// ===========================================================================
+
+/// Lifecycle of an order. Drives the Kitchen Display System columns.
+enum OrderStatus {
+  PENDING // placed by customer, not yet acknowledged
+  CONFIRMED // accepted by staff
+  PREPARING // in the kitchen
+  READY // awaiting pickup/serving
+  SERVED // delivered to the table
+  CANCELLED // terminal; see cancelReason
+}
+
+enum OrderType {
+  DINE_IN
+  TAKEAWAY
+}
+
+enum PaymentStatus {
+  UNPAID
+  PAID
+  REFUNDED
+}
+
+enum PaymentMethod {
+  CASH
+  CARD
+  UPI
+  ONLINE
+}
+
+enum TableStatus {
+  AVAILABLE
+  OCCUPIED
+  RESERVED
+  INACTIVE // withdrawn from service; QR stops resolving
+}
+
+enum NotificationType {
+  ORDER_PLACED
+  ORDER_STATUS_CHANGED
+  SYSTEM
+}
+
+// ===========================================================================
+// Identity & access control
+// ===========================================================================
+
+/// Staff-side account: super admin, admin, kitchen, or waiter.
+/// Customers are NOT users — see the Customer model.
+model User {
+  id String @id @default(cuid())
+
+  email        String  @unique
+  /// bcrypt hash. The plaintext password is never stored or logged.
+  passwordHash String
+  fullName     String
+  phone        String?
+  avatarUrl    String?
+
+  isActive    Boolean   @default(true)
+  lastLoginAt DateTime?
+
+  roleId String
+  /// Restrict: a role still assigned to users cannot be deleted.
+  role   Role   @relation(fields: [roleId], references: [id], onDelete: Restrict)
+
+  auditLogs     AuditLog[]
+  notifications Notification[]
+  handledOrders Order[]        @relation("OrderHandledBy")
+
+  createdAt DateTime  @default(now())
+  updatedAt DateTime  @updatedAt
+  deletedAt DateTime?
+
+  @@index([roleId])
+  @@index([deletedAt])
+  @@map("users")
+}
+
+/// A named set of permissions, e.g. SUPER_ADMIN, ADMIN, KITCHEN, STAFF.
+model Role {
+  id String @id @default(cuid())
+
+  name        String  @unique
+  description String?
+  /// Built-in roles the Super Admin UI must not allow deleting or renaming.
+  isSystem    Boolean @default(false)
+
+  users       User[]
+  permissions RolePermission[]
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@map("roles")
+}
+
+/// A single capability, addressed as "subject:action" (e.g. "order:update").
+model Permission {
+  id String @id @default(cuid())
+
+  /// Stable machine key checked by middleware. Never display this raw.
+  key         String  @unique
+  /// UI grouping for the Permission Management screen, e.g. "Orders".
+  group       String
+  description String?
+
+  roles RolePermission[]
+
+  createdAt DateTime @default(now())
+
+  @@index([group])
+  @@map("permissions")
+}
+
+/// Explicit Role <-> Permission join.
+///
+/// Prisma supports implicit many-to-many, which would remove this model
+/// entirely. It is explicit here because granting a permission is an
+/// auditable administrative act, and an implicit join table has nowhere to
+/// record who granted it or when.
+model RolePermission {
+  roleId       String
+  permissionId String
+
+  role       Role       @relation(fields: [roleId], references: [id], onDelete: Cascade)
+  permission Permission @relation(fields: [permissionId], references: [id], onDelete: Cascade)
+
+  assignedAt DateTime @default(now())
+
+  @@id([roleId, permissionId])
+  @@index([permissionId])
+  @@map("role_permissions")
+}
+
+// ===========================================================================
+// Menu
+// ===========================================================================
+
+model Category {
+  id String @id @default(cuid())
+
+  name        String  @unique
+  /// URL-safe identifier used by the customer menu filter.
+  slug        String  @unique
+  description String?
+  imageUrl    String?
+  /// Manual display order; menus are not alphabetical.
+  sortOrder   Int     @default(0)
+  isActive    Boolean @default(true)
+
+  foods Food[]
+
+  createdAt DateTime  @default(now())
+  updatedAt DateTime  @updatedAt
+  deletedAt DateTime?
+
+  @@index([isActive, sortOrder])
+  @@map("categories")
+}
+
+model Food {
+  id String @id @default(cuid())
+
+  name        String
+  slug        String  @unique
+  description String?
+
+  /// Exact decimal. See the note at the top of this file.
+  price    Decimal @db.Decimal(10, 2)
+  imageUrl String?
+
+  isAvailable        Boolean @default(true)
+  isVegetarian       Boolean @default(false)
+  /// Feeds the kitchen's estimated ready time.
+  preparationMinutes Int?
+
+  categoryId String
+  /// Restrict: a category containing foods cannot be deleted outright.
+  category   Category @relation(fields: [categoryId], references: [id], onDelete: Restrict)
+
+  orderItems OrderItem[]
+
+  createdAt DateTime  @default(now())
+  updatedAt DateTime  @updatedAt
+  deletedAt DateTime?
+
+  @@index([categoryId])
+  @@index([isAvailable, deletedAt])
+  @@map("foods")
+}
+
+// ===========================================================================
+// Tables & QR codes
+// ===========================================================================
+
+model Table {
+  id String @id @default(cuid())
+
+  /// Human label shown to staff, e.g. "T-12".
+  tableNumber String      @unique
+  capacity    Int         @default(4)
+  status      TableStatus @default(AVAILABLE)
+
+  /// Unguessable token embedded in the QR URL. Separate from `id` so a QR
+  /// code can be rotated (e.g. after a leak) without touching the table row
+  /// or breaking historical orders that reference it.
+  qrToken    String  @unique @default(cuid())
+  qrImageUrl String?
+
+  isActive Boolean @default(true)
+
+  orders Order[]
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@index([status])
+  @@map("tables")
+}
+
+// ===========================================================================
+// Customers
+//
+// Guest-first: no credentials. A diner scans, orders, and leaves. Optional
+// contact details identify returning customers and power order tracking.
+// ===========================================================================
+
+model Customer {
+  id String @id @default(cuid())
+
+  name  String?
+  /// Unique to allow upserting a returning diner. Postgres permits multiple
+  /// NULLs under a unique constraint, so fully anonymous orders remain valid.
+  phone String? @unique
+  email String?
+
+  orders Order[]
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@map("customers")
+}
+
+// ===========================================================================
+// Orders
+// ===========================================================================
+
+model Order {
+  id String @id @default(cuid())
+
+  /// Short human-readable reference shown to customers and kitchen staff.
+  /// Distinct from `id`: staff must be able to read it aloud.
+  orderNumber String @unique
+
+  status        OrderStatus    @default(PENDING)
+  type          OrderType      @default(DINE_IN)
+  paymentStatus PaymentStatus  @default(UNPAID)
+  paymentMethod PaymentMethod?
+
+  /// Totals are persisted rather than recomputed on read: tax rates and menu
+  /// prices change, and an invoice must always reproduce its original figures.
+  subtotal       Decimal @db.Decimal(10, 2)
+  taxAmount      Decimal @default(0) @db.Decimal(10, 2)
+  discountAmount Decimal @default(0) @db.Decimal(10, 2)
+  totalAmount    Decimal @db.Decimal(10, 2)
+
+  notes String?
+
+  /// Nullable: takeaway orders have no table.
+  tableId String?
+  table   Table?  @relation(fields: [tableId], references: [id], onDelete: SetNull)
+
+  /// Nullable: a fully anonymous order is valid.
+  customerId String?
+  customer   Customer? @relation(fields: [customerId], references: [id], onDelete: SetNull)
+
+  /// Staff member who accepted the order, for accountability.
+  handledById String?
+  handledBy   User?   @relation("OrderHandledBy", fields: [handledById], references: [id], onDelete: SetNull)
+
+  items OrderItem[]
+
+  /// Status transition timestamps. Kept as discrete columns rather than
+  /// derived from an event log so KDS timings and reports stay simple.
+  placedAt     DateTime  @default(now())
+  confirmedAt  DateTime?
+  preparedAt   DateTime?
+  readyAt      DateTime?
+  servedAt     DateTime?
+  cancelledAt  DateTime?
+  cancelReason String?
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  // The KDS polls open orders constantly; this is its query path.
+  @@index([status, placedAt])
+  @@index([tableId])
+  @@index([customerId])
+  @@index([handledById])
+  @@index([createdAt])
+  @@map("orders")
+}
+
+/// A line on an order.
+///
+/// foodName and unitPrice are SNAPSHOTS taken at purchase time. Reading them
+/// live from Food would rewrite financial history whenever the menu changes.
+model OrderItem {
+  id String @id @default(cuid())
+
+  orderId String
+  /// Cascade: line items have no meaning without their order.
+  order   Order  @relation(fields: [orderId], references: [id], onDelete: Cascade)
+
+  foodId String
+  /// Restrict: a food item that appears in an order is never hard-deleted.
+  /// Use the soft delete (deletedAt) on Food instead.
+  food   Food   @relation(fields: [foodId], references: [id], onDelete: Restrict)
+
+  /// Snapshot of Food.name at purchase time.
+  foodName  String
+  /// Snapshot of Food.price at purchase time.
+  unitPrice Decimal @db.Decimal(10, 2)
+  quantity  Int
+  /// unitPrice * quantity, persisted so invoices never depend on recomputation.
+  lineTotal Decimal @db.Decimal(10, 2)
+
+  /// Per-item instruction, e.g. "no onions".
+  notes String?
+
+  createdAt DateTime @default(now())
+
+  @@index([orderId])
+  @@index([foodId])
+  @@map("order_items")
+}
+
+// ===========================================================================
+// Audit & notifications
+// ===========================================================================
+
+/// Append-only record of privileged actions.
+///
+/// Deliberately has no updatedAt and no update path: an audit trail that can
+/// be edited is not an audit trail.
+model AuditLog {
+  id String @id @default(cuid())
+
+  /// Null for system-generated actions with no human actor.
+  actorId String?
+  actor   User?   @relation(fields: [actorId], references: [id], onDelete: SetNull)
+
+  /// Dotted verb, e.g. "food.update", "user.login".
+  action   String
+  /// Model name the action targeted, e.g. "Food".
+  entity   String
+  entityId String?
+
+  /// Snapshots for diffing. Never store password hashes or tokens here.
+  before Json?
+  after  Json?
+
+  ipAddress String?
+  userAgent String?
+
+  createdAt DateTime @default(now())
+
+  @@index([actorId])
+  @@index([entity, entityId])
+  @@index([createdAt])
+  @@map("audit_logs")
+}
+
+model Notification {
+  id String @id @default(cuid())
+
+  /// Null means a broadcast to all staff.
+  userId String?
+  user   User?   @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  type    NotificationType
+  title   String
+  message String
+
+  isRead Boolean   @default(false)
+  readAt DateTime?
+
+  /// Payload for deep-linking, e.g. { "orderId": "..." }.
+  metadata Json?
+
+  createdAt DateTime @default(now())
+
+  @@index([userId, isRead])
+  @@index([createdAt])
+  @@map("notifications")
+}
+
+// ===========================================================================
+// Restaurant settings
+// ===========================================================================
+
+/// Single-row configuration table.
+///
+/// The fixed id default enforces the singleton: every write targets
+/// id = "singleton", so a second settings row cannot be created by accident.
+model RestaurantSettings {
+  id String @id @default("singleton")
+
+  name    String  @default("My Restaurant")
+  tagline String?
+  logoUrl String?
+
+  email       String?
+  phone       String?
+  addressLine String?
+  city        String?
+  state       String?
+  postalCode  String?
+  country     String?
+
+  /// ISO 4217 code. Formatting is a presentation concern, not stored here.
+  currency              String  @default("INR")
+  taxPercent            Decimal @default(0) @db.Decimal(5, 2)
+  serviceChargePercent  Decimal @default(0) @db.Decimal(5, 2)
+
+  /// Master switch for accepting new orders.
+  isAcceptingOrders Boolean @default(true)
+  /// "HH:mm" local time. Stored as text because these are wall-clock hours,
+  /// not instants, and must not shift with timezones or DST.
+  openingTime       String?
+  closingTime       String?
+
+  updatedAt DateTime @updatedAt
+
+  @@map("restaurant_settings")
 }
