@@ -1,0 +1,30 @@
+# Dependencies
+node_modules
+
+# Secrets — never commit. .env.example documents the contract instead.
+.env
+.env.*
+!.env.example
+
+# Build output
+dist
+build
+
+# Generated Prisma Client
+src/generated
+
+# Uploads (runtime user content, not source)
+server/src/uploads/*
+!server/src/uploads/.gitkeep
+
+# Logs
+logs
+*.log
+npm-debug.log*
+
+# Editor / OS
+.vscode/*
+!.vscode/extensions.json
+.idea
+.DS_Store
+Thumbs.db

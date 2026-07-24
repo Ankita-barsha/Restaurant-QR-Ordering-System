@@ -1,0 +1,16 @@
+node_modules
+
+# Keep environment variables out of version control
+.env
+.env.*
+!.env.example
+
+# Build output
+dist
+
+# Compiled config artifacts: the Prisma CLI prefers prisma.config.js over
+# prisma.config.ts, so a stray compiled copy silently shadows the source.
+/prisma.config.js
+
+# Generated Prisma Client
+/src/generated
