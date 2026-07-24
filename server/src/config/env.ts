@@ -76,6 +76,13 @@ const envSchema = z.object({
   /** Per-file upload cap in megabytes. */
   MAX_UPLOAD_MB: z.coerce.number().positive().max(25).default(2),
 
+  /**
+   * Base URL encoded into table QR codes. Defaults to CORS_ORIGIN, since the
+   * QR must open the customer app, not the API. Separate variable because in
+   * production the public site and the allowed API origin can differ.
+   */
+  QR_BASE_URL: z.string().url().optional(),
+
   // Used only by the seed script; the server does not require them to boot.
   SEED_ADMIN_EMAIL: z.string().email().optional(),
   SEED_ADMIN_PASSWORD: z.string().optional(),
@@ -122,6 +129,13 @@ export const config = Object.freeze({
   security: Object.freeze({
     bcryptRounds: env.BCRYPT_ROUNDS,
     corsOrigin: env.CORS_ORIGIN,
+  }),
+
+  qr: Object.freeze({
+    /** Falls back to the client origin when not set explicitly. */
+    baseUrl: env.QR_BASE_URL ?? env.CORS_ORIGIN,
+    /** Customer route a scanned code opens: <baseUrl>/t/<token>. */
+    scanPath: "t",
   }),
 
   upload: Object.freeze({
