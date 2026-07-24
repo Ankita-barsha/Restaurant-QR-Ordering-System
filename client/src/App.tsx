@@ -21,7 +21,11 @@ import ScanTable from "./pages/customer/ScanTable";
 import TrackOrder from "./pages/customer/TrackOrder";
 import AdminDashboard from "./pages/staff/AdminDashboard";
 import AdminMenu from "./pages/staff/AdminMenu";
+import AdminAuditLogs from "./pages/staff/AdminAuditLogs";
+import AdminRoles from "./pages/staff/AdminRoles";
+import AdminSettings from "./pages/staff/AdminSettings";
 import AdminTables from "./pages/staff/AdminTables";
+import AdminUsers from "./pages/staff/AdminUsers";
 import KitchenDisplay from "./pages/staff/KitchenDisplay";
 import Login, { homeRouteFor } from "./pages/staff/Login";
 import StaffOrders from "./pages/staff/StaffOrders";
@@ -89,6 +93,38 @@ const App = () => (
           element={
             <ProtectedRoute permission="table:read">
               <AdminTables />
+            </ProtectedRoute>
+          }
+        />
+        <Route
+          path="/admin/users"
+          element={
+            <ProtectedRoute permission="user:read">
+              <AdminUsers />
+            </ProtectedRoute>
+          }
+        />
+        <Route
+          path="/admin/roles"
+          element={
+            <ProtectedRoute permission="role:read">
+              <AdminRoles />
+            </ProtectedRoute>
+          }
+        />
+        <Route
+          path="/admin/audit"
+          element={
+            <ProtectedRoute permission="auditLog:read">
+              <AdminAuditLogs />
+            </ProtectedRoute>
+          }
+        />
+        <Route
+          path="/admin/settings"
+          element={
+            <ProtectedRoute permission="settings:read">
+              <AdminSettings />
             </ProtectedRoute>
           }
         />

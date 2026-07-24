@@ -25,6 +25,10 @@ const NAV_ITEMS: NavItem[] = [
   { to: "/staff", label: "Orders", permission: "order:read" },
   { to: "/admin/menu", label: "Menu", permission: "food:read" },
   { to: "/admin/tables", label: "Tables & QR", permission: "table:read" },
+  { to: "/admin/users", label: "Staff", permission: "user:read" },
+  { to: "/admin/roles", label: "Roles", permission: "role:read" },
+  { to: "/admin/audit", label: "Audit", permission: "auditLog:read" },
+  { to: "/admin/settings", label: "Settings", permission: "settings:read" },
 ];
 
 const StaffLayout = () => {
