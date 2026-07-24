@@ -3,6 +3,7 @@ import { ZodError } from "zod";
 
 import { config } from "../config/env.js";
 import { AppError } from "../utils/AppError.js";
+import { isMulterError, multerErrorToAppError } from "./upload.js";
 
 /** Shape returned for every failed request, without exception. */
 interface ErrorResponse {
@@ -34,18 +35,22 @@ export const errorHandler: ErrorRequestHandler = (err, req, res, _next) => {
   let message = "Something went wrong";
   let details: unknown;
 
-  if (err instanceof ZodError) {
+  // Multer signals oversized or unexpected uploads with its own error type.
+  // These are client mistakes, so they must not surface as 500s.
+  const normalised = isMulterError(err) ? multerErrorToAppError(err) : err;
+
+  if (normalised instanceof ZodError) {
     // Validation failure — report which fields failed and why.
     statusCode = 400;
     message = "Validation failed";
-    details = err.issues.map((issue) => ({
+    details = normalised.issues.map((issue) => ({
       field: issue.path.join(".") || "(root)",
       message: issue.message,
     }));
-  } else if (err instanceof AppError) {
-    statusCode = err.statusCode;
-    message = err.message;
-    details = err.details;
+  } else if (normalised instanceof AppError) {
+    statusCode = normalised.statusCode;
+    message = normalised.message;
+    details = normalised.details;
   }
   // Anything else is an unknown/programmer error: the 500 defaults above stand
   // deliberately, so internal messages never reach the client.

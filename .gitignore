@@ -14,8 +14,8 @@ build
 src/generated
 
 # Uploads (runtime user content, not source)
-server/src/uploads/*
-!server/src/uploads/.gitkeep
+server/uploads/*
+!server/uploads/.gitkeep
 
 # Logs
 logs

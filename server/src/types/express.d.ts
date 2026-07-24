@@ -17,6 +17,16 @@ declare global {
     interface Request {
       /** Set by the `authenticate` middleware. Undefined on public routes. */
       user?: AccessTokenPayload;
+
+      /**
+       * Validated query parameters, set by the `validate` middleware.
+       *
+       * Express 5 redefined `req.query` as a GETTER that re-parses the query
+       * string on every access, so assigning to it (or mutating the object it
+       * returns) has no lasting effect. Validated values are therefore stored
+       * here instead, and controllers read this rather than `req.query`.
+       */
+      validatedQuery?: unknown;
     }
   }
 }

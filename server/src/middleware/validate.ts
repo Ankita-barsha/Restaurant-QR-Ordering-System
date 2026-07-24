@@ -36,14 +36,23 @@ export const validate = (schemas: ValidationSchemas): RequestHandler => {
     }
 
     if (schemas.params) {
-      // Express 5 defines req.params and req.query as getters, so they cannot
-      // be reassigned. Mutating the existing object in place works and keeps
-      // the validated values visible to downstream handlers.
+      // req.params is a plain property assigned by the router, so mutating it
+      // in place is safe and keeps `req.params.id` working as normal.
       Object.assign(req.params, schemas.params.parse(req.params));
     }
 
     if (schemas.query) {
-      Object.assign(req.query, schemas.query.parse(req.query));
+      /**
+       * req.query CANNOT be updated in place.
+       *
+       * Express 5 redefined it as a getter that re-parses the query string on
+       * every access, so both assignment and mutation are silently discarded
+       * and the controller would still receive raw strings — meaning
+       * `?isVegetarian=true` reaches Prisma as the string "true" and throws.
+       *
+       * The parsed result is exposed as req.validatedQuery instead.
+       */
+      req.validatedQuery = schemas.query.parse(req.query);
     }
 
     next();

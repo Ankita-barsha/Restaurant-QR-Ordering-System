@@ -3,6 +3,7 @@ import type { Server } from "node:http";
 import app from "./app.js";
 import { config } from "./config/env.js";
 import { connectDatabase, disconnectDatabase } from "./config/prisma.js";
+import { storage } from "./utils/storage.js";
 
 /**
  * Starts the HTTP server only after the database is confirmed reachable.
@@ -13,8 +14,11 @@ const start = async (): Promise<void> => {
   try {
     await connectDatabase();
     console.log("✅ Database connected");
+
+    // Created at boot so the first upload cannot fail on a missing directory.
+    await storage.init();
   } catch (error) {
-    console.error("❌ Database connection failed:", error);
+    console.error("❌ Startup failed:", error);
     process.exit(1);
   }
 

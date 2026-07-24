@@ -66,6 +66,16 @@ const envSchema = z.object({
    */
   CORS_ORIGIN: z.string().url().default("http://localhost:5173"),
 
+  /**
+   * Upload directory, resolved relative to the process working directory.
+   * Kept outside src/ because tsc emits only .ts files, so an uploads folder
+   * inside src/ would not exist in dist/ at runtime.
+   */
+  UPLOAD_DIR: z.string().default("uploads"),
+
+  /** Per-file upload cap in megabytes. */
+  MAX_UPLOAD_MB: z.coerce.number().positive().max(25).default(2),
+
   // Used only by the seed script; the server does not require them to boot.
   SEED_ADMIN_EMAIL: z.string().email().optional(),
   SEED_ADMIN_PASSWORD: z.string().optional(),
@@ -112,6 +122,13 @@ export const config = Object.freeze({
   security: Object.freeze({
     bcryptRounds: env.BCRYPT_ROUNDS,
     corsOrigin: env.CORS_ORIGIN,
+  }),
+
+  upload: Object.freeze({
+    directory: env.UPLOAD_DIR,
+    maxBytes: env.MAX_UPLOAD_MB * 1024 * 1024,
+    /** Public URL prefix under which uploaded files are served. */
+    publicPath: "/uploads",
   }),
 
   seed: Object.freeze({

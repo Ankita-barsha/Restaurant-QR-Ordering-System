@@ -8,6 +8,8 @@
 import { Router } from "express";
 
 import authRoutes from "./auth.routes.js";
+import categoryRoutes from "./category.routes.js";
+import foodRoutes from "./food.routes.js";
 
 const router = Router();
 
@@ -16,6 +18,8 @@ router.get("/health", (_req, res) => {
 });
 
 router.use("/auth", authRoutes);
+router.use("/categories", categoryRoutes);
+router.use("/foods", foodRoutes);
 
 // Feature routers are mounted here as they are built.
 
