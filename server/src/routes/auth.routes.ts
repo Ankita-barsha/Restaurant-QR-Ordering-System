@@ -2,6 +2,7 @@ import { Router } from "express";
 
 import * as authController from "../controllers/auth.controller.js";
 import { authenticate } from "../middleware/authenticate.js";
+import { authLimiter } from "../middleware/security.js";
 import { validate } from "../middleware/validate.js";
 import { loginSchema, refreshSchema } from "../validations/auth.validation.js";
 
@@ -16,8 +17,8 @@ const router = Router();
  */
 
 // Public: no token required.
-router.post("/login", validate({ body: loginSchema }), authController.login);
-router.post("/refresh", validate({ body: refreshSchema }), authController.refresh);
+router.post("/login", authLimiter, validate({ body: loginSchema }), authController.login);
+router.post("/refresh", authLimiter, validate({ body: refreshSchema }), authController.refresh);
 router.post("/logout", authController.logout);
 
 // Protected: a valid access token is required.

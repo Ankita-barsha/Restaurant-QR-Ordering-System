@@ -1,7 +1,7 @@
 import type { RequestHandler } from "express";
 
 import * as tableService from "../services/table.service.js";
-import { buildScanUrl } from "../utils/qrcode.js";
+import { buildScanUrl, renderQrBuffer } from "../utils/qrcode.js";
 import type {
   CreateTableInput,
   TableListQuery,
@@ -65,6 +65,28 @@ export const update: RequestHandler<IdParams, unknown, UpdateTableInput> = async
   const table = await tableService.updateTable(req.params.id, req.body);
 
   res.json({ success: true, message: "Table updated", data: table });
+};
+
+/**
+ * GET /api/tables/:id/qr.png — renders the QR on demand.
+ *
+ * Preferred over the stored image file: it cannot go missing, and it always
+ * reflects the table's CURRENT token, so a rotated code can never be served
+ * stale from disk.
+ */
+export const qrImage: RequestHandler<IdParams> = async (req, res) => {
+  const table = await tableService.getTableById(req.params.id);
+
+  const png = await renderQrBuffer(table.qrToken);
+
+  res.setHeader("Content-Type", "image/png");
+  // Not cached: rotating a token must take effect immediately.
+  res.setHeader("Cache-Control", "no-store");
+  res.setHeader(
+    "Content-Disposition",
+    `inline; filename="qr-table-${table.tableNumber}.png"`
+  );
+  res.send(png);
 };
 
 /** POST /api/tables/:id/qr/rotate — invalidates the printed code. */

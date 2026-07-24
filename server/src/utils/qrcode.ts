@@ -52,6 +52,23 @@ export const generateQrImage = async (qrToken: string): Promise<string> => {
 };
 
 /**
+ * Renders a QR code straight to a PNG buffer.
+ *
+ * A QR image is fully determined by its token, so it never needs to be stored:
+ * regenerating costs a few milliseconds. This matters on hosts with ephemeral
+ * filesystems (Render, Railway, Fly free tiers), where a restart would
+ * otherwise wipe every table's QR image and break the core feature.
+ */
+export const renderQrBuffer = async (qrToken: string): Promise<Buffer> => {
+  return QRCode.toBuffer(buildScanUrl(qrToken), {
+    errorCorrectionLevel: "H",
+    width: 512,
+    margin: 2,
+    color: { dark: "#000000", light: "#FFFFFF" },
+  });
+};
+
+/**
  * Creates a fresh, unguessable QR token.
  *
  * 32 hex characters from crypto.randomBytes — not Math.random, and not a

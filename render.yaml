@@ -1,0 +1,71 @@
+# Render Blueprint — provisions the API and its database in one step.
+#
+# Render reads this file when you create a Blueprint from the repository, so
+# the service, the database and every environment variable are configured
+# without clicking through forms.
+#
+# The client is NOT here: it is a static bundle and belongs on Vercel or
+# Netlify. See DEPLOY.md for the order the two must be created in.
+
+databases:
+  - name: restaurant-db
+    databaseName: restaurant_db
+    user: restaurant
+    plan: free
+
+services:
+  - type: web
+    name: restaurant-api
+    runtime: node
+    plan: free
+    rootDir: server
+    region: singapore
+
+    # prisma generate must run before tsc: the build imports the generated
+    # client, which is gitignored and therefore absent from a fresh checkout.
+    buildCommand: npm ci && npx prisma generate && npm run build
+
+    # migrate deploy applies committed migrations without prompting and never
+    # resets data — the production-safe counterpart to `migrate dev`.
+    preDeployCommand: npx prisma migrate deploy
+
+    startCommand: npm start
+
+    healthCheckPath: /api/health
+
+    envVars:
+      - key: NODE_ENV
+        value: production
+
+      - key: DATABASE_URL
+        fromDatabase:
+          name: restaurant-db
+          property: connectionString
+
+      # Generated once by Render and kept stable across deploys. Rotating a
+      # secret invalidates every issued token, signing all staff out.
+      - key: JWT_SECRET
+        generateValue: true
+      - key: JWT_REFRESH_SECRET
+        generateValue: true
+
+      - key: JWT_ACCESS_EXPIRES_IN
+        value: 15m
+      - key: JWT_REFRESH_EXPIRES_IN
+        value: 7d
+      - key: BCRYPT_ROUNDS
+        value: "12"
+
+      # Both must be set to the deployed CLIENT origin, not the API's own URL.
+      # CORS_ORIGIN wrong => login fails silently in the browser.
+      # QR_BASE_URL wrong => printed QR codes open the wrong site.
+      - key: CORS_ORIGIN
+        sync: false
+      - key: QR_BASE_URL
+        sync: false
+
+      # Set these in the dashboard before running the seed, then clear them.
+      - key: SEED_ADMIN_EMAIL
+        sync: false
+      - key: SEED_ADMIN_PASSWORD
+        sync: false

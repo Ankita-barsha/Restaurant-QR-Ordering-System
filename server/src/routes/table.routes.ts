@@ -30,6 +30,18 @@ router.get(
   tableController.scan
 );
 
+/**
+ * QR image, rendered on demand from the table's current token.
+ * Registered before "/:id" so the literal path segment is matched first.
+ */
+router.get(
+  "/:id/qr.png",
+  authenticate,
+  authorize(PERMISSIONS.TABLE_READ),
+  validate({ params: idParamSchema }),
+  tableController.qrImage
+);
+
 /** PROTECTED */
 router.get(
   "/",

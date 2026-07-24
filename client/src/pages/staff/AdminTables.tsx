@@ -7,14 +7,13 @@
  */
 
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { useState } from "react";
+import { useEffect, useState } from "react";
 
 import { Button, Card, ErrorBox, Spinner } from "../../components/ui";
 import { config } from "../../config/env";
 import { useAuth } from "../../context/AuthContext";
 import { queryKeys } from "../../hooks/useLiveOrders";
-import { api, getErrorMessage, unwrap } from "../../lib/api";
-import { imageUrl } from "../../lib/format";
+import { api, getAccessToken, getErrorMessage, unwrap } from "../../lib/api";
 import type { ApiResponse, Table, TableStatus } from "../../types/api";
 
 const STATUS_STYLES: Record<TableStatus, string> = {
@@ -29,6 +28,15 @@ const AdminTables = () => {
   const queryClient = useQueryClient();
   const [newNumber, setNewNumber] = useState("");
   const [confirmRotate, setConfirmRotate] = useState<string | null>(null);
+
+  /**
+   * QR images are fetched as blobs rather than set as an <img src>.
+   *
+   * The endpoint renders the code on demand from the table's live token, so it
+   * survives an ephemeral filesystem and can never serve a rotated code stale.
+   * It requires an Authorization header, which a plain <img> cannot send.
+   */
+  const [qrBlobs, setQrBlobs] = useState<Record<string, string>>({});
 
   const tablesQuery = useQuery({
     queryKey: queryKeys.tables,
@@ -55,6 +63,46 @@ const AdminTables = () => {
       invalidate();
     },
   });
+
+  const tables = tablesQuery.data;
+
+  useEffect(() => {
+    if (!tables) return;
+
+    let cancelled = false;
+    const created: string[] = [];
+
+    const load = async () => {
+      const entries = await Promise.all(
+        tables.map(async (table) => {
+          const response = await fetch(
+            `${config.apiUrl}/api/tables/${table.id}/qr.png`,
+            { headers: { Authorization: `Bearer ${getAccessToken() ?? ""}` } }
+          );
+
+          if (!response.ok) return null;
+
+          const url = URL.createObjectURL(await response.blob());
+          created.push(url);
+
+          return [table.id, url] as const;
+        })
+      );
+
+      if (cancelled) return;
+
+      setQrBlobs(Object.fromEntries(entries.filter(Boolean) as [string, string][]));
+    };
+
+    void load();
+
+    // Object URLs hold the blob in memory until revoked; without this every
+    // refetch would leak one image per table.
+    return () => {
+      cancelled = true;
+      created.forEach((url) => URL.revokeObjectURL(url));
+    };
+  }, [tables]);
 
   if (tablesQuery.isLoading) return <Spinner label="Loading tables" />;
 
@@ -106,8 +154,8 @@ const AdminTables = () => {
       )}
 
       <div className="mt-4 grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
-        {tablesQuery.data?.map((table) => {
-          const qr = imageUrl(table.qrImageUrl, config.apiUrl);
+        {tables?.map((table) => {
+          const qr = qrBlobs[table.id] ?? null;
 
           return (
             <Card key={table.id}>
@@ -144,7 +192,7 @@ const AdminTables = () => {
 
               <div className="mt-3 flex gap-2">
                 {qr && (
-                  <a href={qr} download className="flex-1">
+                  <a href={qr} download={`qr-${table.tableNumber}.png`} className="flex-1">
                     <Button variant="secondary" className="w-full">
                       Download
                     </Button>

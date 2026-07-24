@@ -1,0 +1,22 @@
+{
+  "$schema": "https://openapi.vercel.sh/vercel.json",
+  "buildCommand": "npm run build",
+  "outputDirectory": "dist",
+  "framework": "vite",
+  "rewrites": [
+    {
+      "comment": "Single-page app fallback. React Router owns routes like /t/<token> and /track/ORD-000123, but those paths do not exist as files. Without this rewrite the QR code URL 404s the moment a diner opens it, and any deep link breaks on refresh.",
+      "source": "/((?!assets/).*)",
+      "destination": "/index.html"
+    }
+  ],
+  "headers": [
+    {
+      "comment": "Hashed asset filenames never change contents, so they are safe to cache forever.",
+      "source": "/assets/(.*)",
+      "headers": [
+        { "key": "Cache-Control", "value": "public, max-age=31536000, immutable" }
+      ]
+    }
+  ]
+}

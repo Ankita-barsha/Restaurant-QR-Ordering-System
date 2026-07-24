@@ -1,9 +1,11 @@
+import compression from "compression";
 import cookieParser from "cookie-parser";
 import cors from "cors";
 import express from "express";
 
 import { config } from "./config/env.js";
 import { errorHandler, notFoundHandler } from "./middleware/errorHandler.js";
+import { apiLimiter, securityHeaders } from "./middleware/security.js";
 import apiRoutes from "./routes/index.js";
 import { storage } from "./utils/storage.js";
 
@@ -23,6 +25,13 @@ app.set("trust proxy", 1);
  * cookie to cross from the Vite dev server to this API. Browsers refuse to
  * send credentials to a wildcard origin, so `*` would silently break login.
  */
+// Security headers first, so they are present even on responses produced by
+// middleware that runs later (including error responses).
+app.use(securityHeaders);
+
+// gzip. Menu payloads with descriptions compress to roughly a fifth.
+app.use(compression());
+
 app.use(
   cors({
     origin: config.security.corsOrigin,
@@ -64,7 +73,7 @@ app.get("/", (_req, res) => {
   });
 });
 
-app.use("/api", apiRoutes);
+app.use("/api", apiLimiter, apiRoutes);
 
 // ---------------------------------------------------------------------------
 // Error handling — must stay LAST.

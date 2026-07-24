@@ -1,0 +1,162 @@
+# Restaurant QR Ordering & Management System
+
+A diner scans the QR code on their table, orders without creating an account,
+and watches the kitchen cook it in real time. Staff, chef and admin each see
+the same order from their own angle, the moment it is placed.
+
+**Stack** — React 19 · TypeScript · Vite · Tailwind · Express 5 · Prisma 7 ·
+PostgreSQL · Socket.io · JWT
+
+---
+
+## Run it locally
+
+Requires Node 20+, Docker Desktop and Git.
+
+```bash
+# database
+cd server
+cp .env.example .env          # then fill in the two JWT secrets
+docker compose up -d
+
+# backend
+npm install
+npm run db:migrate            # create the tables
+npm run seed                  # roles, permissions, admin, settings
+npm run seed:demo             # sample menu, 8 tables with QR, demo staff
+npm run dev                   # http://localhost:5000
+
+# frontend, in a second terminal
+cd ../client
+cp .env.example .env
+npm install
+npm run dev                   # http://localhost:5173
+```
+
+Generate the JWT secrets with:
+
+```bash
+node -e "console.log(require('crypto').randomBytes(48).toString('base64url'))"
+```
+
+`npm run seed:demo` prints table links like `/t/<token>` — open one to start as
+a diner. `npm run db:studio` in `server/` opens a visual database browser.
+
+### Demo accounts
+
+`seed:demo` creates three staff accounts, all with password `DemoPassword2026`:
+
+| Email | Role | Lands on |
+|---|---|---|
+| `chef@restaurant.local` | KITCHEN | Kitchen Display |
+| `manager@restaurant.local` | ADMIN | Dashboard |
+| `waiter@restaurant.local` | STAFF | Orders |
+
+The super admin is whatever you set as `SEED_ADMIN_EMAIL` / `SEED_ADMIN_PASSWORD`.
+
+---
+
+## The five apps
+
+| Who | Route | What they do |
+|---|---|---|
+| Customer | `/t/:token` | Scan, see the table number, browse, order, track live |
+| Chef | `/kitchen` | Four-column display, one tap per status, tickets age visibly |
+| Staff | `/staff` | Advance orders, mark paid, assist at the table |
+| Admin | `/admin` | Revenue, live counts, best sellers, menu, tables, QR |
+| Super admin | `/admin/users` … | Staff accounts, roles, permissions, audit trail |
+
+Open four browser tabs and place an order in the first — the other three update
+without a refresh.
+
+---
+
+## Architecture
+
+```
+routes → validate → authenticate → authorize → controller → service → prisma
+```
+
+Controllers stay thin: read the request, call a service, shape the response.
+Services hold the rules and never touch `req` or `res`, which is what makes
+them reusable from a socket handler or a script.
+
+**Backend** — 63 endpoints, 13 tables, 35 permissions
+
+```
+server/src
+├── config/        env (Zod-validated), prisma client, permission catalogue
+├── middleware/    auth, RBAC, validation, upload, audit, errors, security
+├── services/      business logic — no HTTP
+├── controllers/   HTTP in, HTTP out
+├── routes/        middleware chains that read as a security spec
+├── socket/        Socket.io server, rooms, emissions
+└── utils/         money, slug, storage, jwt, password, qrcode, pagination
+```
+
+**Frontend**
+
+```
+client/src
+├── lib/           axios client with refresh-on-401, socket, formatting
+├── context/       auth session, cart + table session
+├── hooks/         Socket.io → React Query invalidation
+├── pages/customer QR landing, menu, cart, tracking
+└── pages/staff    kitchen, orders, dashboard, menu, tables, users, roles, audit
+```
+
+---
+
+## Decisions worth knowing
+
+**Money never touches a float.** `parseFloat("19.99") * 100` is
+`1998.9999999999998`. Totals are computed in integer paise and stored as
+`Decimal(10,2)`.
+
+**Prices come from the database, always.** The client sends food ids and
+quantities — never a price or a total. A tampered cart changes nothing.
+
+**Order items snapshot their price and name.** Changing the menu tomorrow must
+not rewrite what a customer was charged last week.
+
+**Order numbers come from a Postgres sequence.** `COUNT(*) + 1` and
+`MAX() + 1` both race under concurrent orders and eventually collide.
+
+**Routes name capabilities, not roles.** `authorize("order:update")`, never
+`authorize("ADMIN")`. A new role is a data change in the admin UI — no code,
+no redeploy.
+
+**Access tokens live in memory, not localStorage.** Any script on the page can
+read localStorage, so one XSS bug would leak the session. The refresh token is
+an httpOnly cookie the browser will not expose to JavaScript.
+
+**Refresh tokens rotate.** Each refresh revokes the token that was used, so a
+stolen one dies the moment the real user refreshes.
+
+**Uploads are verified by their bytes.** The filename and `Content-Type` are
+both attacker-controlled; only the file's magic bytes prove what it is.
+
+**Socket.io re-checks authentication at the handshake.** Express middleware
+does not run for WebSocket connections — without that check, any anonymous
+client could receive every order in the restaurant.
+
+---
+
+## Scripts
+
+```bash
+# server/
+npm run dev          npm run build        npm start
+npm run typecheck    npm run seed         npm run seed:demo
+npm run db:migrate   npm run db:studio    npm run db:generate
+
+# client/
+npm run dev          npm run build        npm run lint
+```
+
+---
+
+## Deploying
+
+See [DEPLOY.md](DEPLOY.md) — Render for the API and database, Vercel for the
+client, roughly 20 minutes.
