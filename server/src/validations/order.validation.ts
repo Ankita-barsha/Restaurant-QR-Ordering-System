@@ -1,0 +1,97 @@
+import { z } from "zod";
+
+import { paginationQuerySchema } from "./common.validation.js";
+
+/** Mirrors the OrderStatus enum in schema.prisma. */
+export const orderStatusSchema = z.enum([
+  "PENDING",
+  "CONFIRMED",
+  "PREPARING",
+  "READY",
+  "SERVED",
+  "CANCELLED",
+]);
+
+export const orderTypeSchema = z.enum(["DINE_IN", "TAKEAWAY"]);
+export const paymentMethodSchema = z.enum(["CASH", "CARD", "UPI", "ONLINE"]);
+export const paymentStatusSchema = z.enum(["UNPAID", "PAID", "REFUNDED"]);
+
+/**
+ * A requested line item.
+ *
+ * NOTE what is absent: price. The client sends only WHAT and HOW MANY. Prices
+ * are read from the database server-side, so a tampered request cannot buy a
+ * pizza for 0.01.
+ */
+const orderItemSchema = z.object({
+  foodId: z.string().min(1, "foodId is required"),
+  quantity: z.coerce
+    .number()
+    .int("Quantity must be a whole number")
+    .min(1, "Quantity must be at least 1")
+    .max(99, "Quantity is too large"),
+  notes: z.string().trim().max(200).optional(),
+});
+
+/** Optional contact details for a guest diner. */
+const customerSchema = z.object({
+  name: z.string().trim().min(1).max(80).optional(),
+  phone: z.string().trim().min(6).max(20).optional(),
+  email: z.string().email().optional(),
+});
+
+/**
+ * Placing an order from a scanned QR code.
+ *
+ * Identified by qrToken rather than tableId: the customer app only ever knows
+ * the token from the URL it was opened with, and accepting a raw tableId would
+ * let anyone order against any table without scanning anything.
+ */
+export const placeOrderSchema = z.object({
+  qrToken: z.string().min(1).optional(),
+  type: orderTypeSchema.optional(),
+  customer: customerSchema.optional(),
+  items: z
+    .array(orderItemSchema)
+    .min(1, "An order must contain at least one item")
+    .max(50, "Too many items in a single order"),
+  notes: z.string().trim().max(500).optional(),
+});
+
+/** Adding items to an order that is already placed. */
+export const addItemsSchema = z.object({
+  items: z.array(orderItemSchema).min(1, "Provide at least one item to add"),
+});
+
+export const updateStatusSchema = z.object({
+  status: orderStatusSchema,
+});
+
+export const cancelOrderSchema = z.object({
+  reason: z.string().trim().min(1, "A cancellation reason is required").max(300),
+});
+
+export const updatePaymentSchema = z.object({
+  paymentStatus: paymentStatusSchema,
+  paymentMethod: paymentMethodSchema.optional(),
+});
+
+export const orderListQuerySchema = paginationQuerySchema.extend({
+  status: orderStatusSchema.optional(),
+  type: orderTypeSchema.optional(),
+  tableId: z.string().min(1).optional(),
+  search: z.string().trim().min(1).optional(),
+  /** ISO dates bounding placedAt, for reports. */
+  from: z.coerce.date().optional(),
+  to: z.coerce.date().optional(),
+});
+
+/** Public order-tracking lookup. */
+export const orderNumberParamSchema = z.object({
+  orderNumber: z.string().min(1, "orderNumber is required"),
+});
+
+export type PlaceOrderInput = z.infer<typeof placeOrderSchema>;
+export type AddItemsInput = z.infer<typeof addItemsSchema>;
+export type OrderListQuery = z.infer<typeof orderListQuerySchema>;
+export type OrderStatus = z.infer<typeof orderStatusSchema>;
