@@ -1,15 +1,28 @@
 /**
- * Customer menu — browse, search, filter by category, add to cart.
+ * The menu.
  *
- * Live: when a chef marks an item sold out, the socket invalidates the menu
- * query and the card greys out without a refresh.
+ * Two jobs at once: a dining-room menu that reads beautifully, and an
+ * ordering screen that must be quick on a phone with one hand. The layout
+ * favours the photograph, but the add control is always reachable with a
+ * thumb and never hidden behind a hover.
+ *
+ * Live: when the kitchen marks a dish sold out, the socket invalidates this
+ * query and the card dims without a refresh.
  */
 
 import { useQuery } from "@tanstack/react-query";
 import { useMemo, useState } from "react";
 import { Link } from "react-router-dom";
 
-import { EmptyState, ErrorBox, Spinner } from "../../components/ui";
+import {
+  DietMark,
+  LuxeButton,
+  LuxeEmpty,
+  LuxeError,
+  LuxeSkeleton,
+  Reveal,
+} from "../../components/luxe";
+import DishSheet from "../../components/DishSheet";
 import { config } from "../../config/env";
 import { useCart } from "../../context/CartContext";
 import { queryKeys, useLiveOrders } from "../../hooks/useLiveOrders";
@@ -21,10 +34,10 @@ const CustomerMenu = () => {
   const [search, setSearch] = useState("");
   const [categorySlug, setCategorySlug] = useState<string | null>(null);
   const [vegOnly, setVegOnly] = useState(false);
+  const [openDish, setOpenDish] = useState<Food | null>(null);
 
   const { table, items, itemCount, addItem, subtotal } = useCart();
 
-  // Keeps the menu in sync when the kitchen marks something sold out.
   useLiveOrders();
 
   const categoriesQuery = useQuery({
@@ -50,154 +63,242 @@ const CustomerMenu = () => {
     [items]
   );
 
+  const foods = foodsQuery.data ?? [];
+
   return (
-    <div className="mx-auto max-w-3xl px-4 pb-28 pt-4">
-      {table && (
-        <div className="mb-4 flex items-center justify-between rounded-xl bg-slate-900 px-4 py-3 text-white">
-          <span className="text-sm opacity-80">Ordering for</span>
-          <span className="text-lg font-bold">Table {table.tableNumber}</span>
+    <div className="min-h-screen bg-obsidian pb-32">
+      {/* ------------------------------------------------------ page header */}
+      <header className="border-b border-smoke px-6 pb-10 pt-14">
+        <div className="mx-auto max-w-6xl text-center">
+          <p className="eyebrow animate-rise">
+            {table ? `Table ${table.tableNumber}` : "À la carte"}
+          </p>
+
+          <h1 className="animate-rise delay-1 mt-4 text-[clamp(2.5rem,7vw,4.5rem)] leading-[0.95] text-ivory">
+            The Menu
+          </h1>
+
+          <div className="rule-fade animate-rise delay-2 mx-auto mt-6 h-px w-32" />
+        </div>
+      </header>
+
+      {/* -------------------------------------------------- search & filters */}
+      <div className="sticky top-[68px] z-30 border-b border-smoke bg-obsidian/85 backdrop-blur-xl">
+        <div className="mx-auto max-w-6xl px-6 py-4">
+          <div className="relative">
+            <svg
+              className="pointer-events-none absolute left-4 top-1/2 -translate-y-1/2 text-ivory-faint"
+              width="16" height="16" viewBox="0 0 24 24" fill="none"
+              stroke="currentColor" strokeWidth="1.5"
+            >
+              <circle cx="11" cy="11" r="7" />
+              <path d="m20 20-3.5-3.5" strokeLinecap="round" />
+            </svg>
+
+            <input
+              type="search"
+              value={search}
+              onChange={(event) => setSearch(event.target.value)}
+              placeholder="Search the menu"
+              aria-label="Search the menu"
+              className="w-full rounded-full border border-smoke bg-charcoal py-3 pl-11 pr-4 text-sm text-ivory placeholder:text-ivory-faint focus:border-gold/50 focus:outline-none"
+            />
+          </div>
+
+          {/* Horizontal scroll rather than wrapping: a wrapping filter row
+              pushes the menu down the page on a phone. */}
+          <div className="mt-3 flex gap-2 overflow-x-auto pb-1 [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
+            <FilterPill
+              active={categorySlug === null}
+              onClick={() => setCategorySlug(null)}
+            >
+              All
+            </FilterPill>
+
+            {categoriesQuery.data?.map((category) => (
+              <FilterPill
+                key={category.id}
+                active={categorySlug === category.slug}
+                onClick={() => setCategorySlug(category.slug)}
+              >
+                {category.name}
+              </FilterPill>
+            ))}
+
+            <FilterPill active={vegOnly} onClick={() => setVegOnly((value) => !value)}>
+              <DietMark vegetarian />
+              Vegetarian
+            </FilterPill>
+          </div>
+        </div>
+      </div>
+
+      {/* --------------------------------------------------------- the dishes */}
+      <div className="mx-auto max-w-6xl px-6 py-12">
+        {foodsQuery.isLoading && (
+          <div className="grid gap-6 sm:grid-cols-2 lg:grid-cols-3">
+            {Array.from({ length: 6 }, (_, index) => (
+              <LuxeSkeleton key={index} className="h-[360px]" />
+            ))}
+          </div>
+        )}
+
+        {foodsQuery.isError && (
+          <LuxeError
+            message={getErrorMessage(foodsQuery.error)}
+            onRetry={() => void foodsQuery.refetch()}
+          />
+        )}
+
+        {!foodsQuery.isLoading && foods.length === 0 && (
+          <LuxeEmpty
+            title="Nothing matches that"
+            hint="Try another search, or clear the filters to see the full menu."
+            action={
+              <LuxeButton
+                variant="outline"
+                onClick={() => {
+                  setSearch("");
+                  setCategorySlug(null);
+                  setVegOnly(false);
+                }}
+              >
+                Show everything
+              </LuxeButton>
+            }
+          />
+        )}
+
+        <div className="grid gap-6 sm:grid-cols-2 lg:grid-cols-3">
+          {foods.map((food, index) => {
+            const image = imageUrl(food.imageUrl, config.apiUrl);
+            const quantity = inCart.get(food.id) ?? 0;
+
+            return (
+              <Reveal key={food.id} delay={Math.min(index, 5) * 70}>
+                <article className="group flex h-full flex-col overflow-hidden rounded-luxe border border-smoke bg-charcoal transition-colors duration-500 hover:border-gold/30">
+                  <button
+                    type="button"
+                    onClick={() => setOpenDish(food)}
+                    className="relative block aspect-[4/3] w-full overflow-hidden"
+                    aria-label={`View ${food.name}`}
+                  >
+                    {image ? (
+                      <img
+                        src={image}
+                        alt={food.name}
+                        loading="lazy"
+                        className="h-full w-full object-cover transition-transform duration-[1200ms] ease-[cubic-bezier(0.22,1,0.36,1)] group-hover:scale-105"
+                      />
+                    ) : (
+                      <div className="flex h-full w-full items-center justify-center bg-graphite text-3xl">
+                        🍽️
+                      </div>
+                    )}
+
+                    <div className="absolute inset-0 bg-gradient-to-t from-charcoal/70 to-transparent" />
+
+                    {quantity > 0 && (
+                      <span className="absolute right-3 top-3 flex h-7 min-w-7 items-center justify-center rounded-full bg-gold px-2 text-xs font-medium text-obsidian">
+                        {quantity}
+                      </span>
+                    )}
+                  </button>
+
+                  <div className="flex flex-1 flex-col p-6">
+                    <div className="flex items-start gap-2.5">
+                      <span className="mt-1.5">
+                        <DietMark vegetarian={food.isVegetarian} />
+                      </span>
+
+                      <h3 className="flex-1 text-2xl leading-tight text-ivory">
+                        {food.name}
+                      </h3>
+                    </div>
+
+                    {food.description && (
+                      <p className="mt-2.5 line-clamp-2 text-[13px] leading-relaxed text-ivory-faint">
+                        {food.description}
+                      </p>
+                    )}
+
+                    <div className="mt-auto flex items-center justify-between gap-4 pt-6">
+                      <span className="font-display text-2xl text-gold">
+                        {formatMoney(food.price)}
+                      </span>
+
+                      <button
+                        type="button"
+                        onClick={() => addItem(food)}
+                        className="rounded-full border border-gold/40 px-5 py-2 text-[10px] uppercase tracking-[0.2em] text-gold transition-all duration-500 hover:bg-gold hover:text-obsidian"
+                      >
+                        Add
+                      </button>
+                    </div>
+                  </div>
+                </article>
+              </Reveal>
+            );
+          })}
+        </div>
+      </div>
+
+      {/* -------------------------------------------------------- cart bar */}
+      {itemCount > 0 && (
+        <div className="fixed inset-x-0 bottom-0 z-40 px-4 pb-4">
+          <Link
+            to="/cart"
+            className="glass mx-auto flex max-w-2xl items-center justify-between gap-4 rounded-full px-6 py-4 shadow-[0_20px_50px_-20px_rgba(0,0,0,0.9)] transition-transform duration-500 hover:scale-[1.02]"
+          >
+            <span className="flex items-center gap-3">
+              <span className="flex h-8 w-8 items-center justify-center rounded-full bg-gold text-sm font-medium text-obsidian">
+                {itemCount}
+              </span>
+              <span className="text-sm text-ivory-dim">
+                {formatMoney(subtotal)}
+              </span>
+            </span>
+
+            <span className="text-[11px] uppercase tracking-[0.24em] text-gold">
+              View order →
+            </span>
+          </Link>
         </div>
       )}
 
-      <input
-        type="search"
-        value={search}
-        onChange={(event) => setSearch(event.target.value)}
-        placeholder="Search dishes…"
-        className="w-full rounded-xl border border-slate-300 px-4 py-3 text-sm outline-none focus:border-orange-500"
+      <DishSheet
+        food={openDish}
+        onClose={() => setOpenDish(null)}
+        onAdd={(food) => {
+          addItem(food);
+          setOpenDish(null);
+        }}
       />
-
-      <div className="mt-3 flex gap-2 overflow-x-auto pb-2">
-        <button
-          type="button"
-          onClick={() => setCategorySlug(null)}
-          className={`shrink-0 rounded-full px-4 py-2 text-sm font-medium ${
-            categorySlug === null
-              ? "bg-orange-500 text-white"
-              : "bg-slate-100 text-slate-700"
-          }`}
-        >
-          All
-        </button>
-
-        {categoriesQuery.data?.map((category) => (
-          <button
-            key={category.id}
-            type="button"
-            onClick={() => setCategorySlug(category.slug)}
-            className={`shrink-0 rounded-full px-4 py-2 text-sm font-medium ${
-              categorySlug === category.slug
-                ? "bg-orange-500 text-white"
-                : "bg-slate-100 text-slate-700"
-            }`}
-          >
-            {category.name}
-          </button>
-        ))}
-
-        <button
-          type="button"
-          onClick={() => setVegOnly((previous) => !previous)}
-          className={`shrink-0 rounded-full px-4 py-2 text-sm font-medium ${
-            vegOnly ? "bg-emerald-600 text-white" : "bg-slate-100 text-slate-700"
-          }`}
-        >
-          Veg only
-        </button>
-      </div>
-
-      {foodsQuery.isLoading && <Spinner label="Loading menu" />}
-
-      {foodsQuery.isError && (
-        <ErrorBox
-          message={getErrorMessage(foodsQuery.error)}
-          onRetry={() => void foodsQuery.refetch()}
-        />
-      )}
-
-      {foodsQuery.data?.length === 0 && (
-        <EmptyState title="No dishes found" hint="Try a different search or category." />
-      )}
-
-      <div className="mt-4 grid gap-3">
-        {foodsQuery.data?.map((food) => {
-          const image = imageUrl(food.imageUrl, config.apiUrl);
-          const quantity = inCart.get(food.id) ?? 0;
-
-          return (
-            <article
-              key={food.id}
-              className="flex gap-4 rounded-2xl border border-slate-200 bg-white p-3"
-            >
-              {image ? (
-                <img
-                  src={image}
-                  alt={food.name}
-                  className="h-24 w-24 shrink-0 rounded-xl object-cover"
-                  loading="lazy"
-                />
-              ) : (
-                <div className="flex h-24 w-24 shrink-0 items-center justify-center rounded-xl bg-slate-100 text-2xl">
-                  🍽️
-                </div>
-              )}
-
-              <div className="flex min-w-0 flex-1 flex-col">
-                <div className="flex items-start gap-2">
-                  <span
-                    className={`mt-1 h-3 w-3 shrink-0 rounded-sm ring-1 ${
-                      food.isVegetarian ? "ring-green-600" : "ring-red-600"
-                    }`}
-                    title={food.isVegetarian ? "Vegetarian" : "Non-vegetarian"}
-                  >
-                    <span
-                      className={`block h-full w-full scale-50 rounded-full ${
-                        food.isVegetarian ? "bg-green-600" : "bg-red-600"
-                      }`}
-                    />
-                  </span>
-                  <h3 className="truncate font-semibold text-slate-900">{food.name}</h3>
-                </div>
-
-                {food.description && (
-                  <p className="mt-1 line-clamp-2 text-xs text-slate-500">
-                    {food.description}
-                  </p>
-                )}
-
-                <div className="mt-auto flex items-center justify-between pt-2">
-                  <span className="font-bold text-slate-900">
-                    {formatMoney(food.price)}
-                  </span>
-
-                  <button
-                    type="button"
-                    onClick={() => addItem(food)}
-                    className="rounded-lg bg-orange-500 px-4 py-1.5 text-sm font-semibold text-white hover:bg-orange-600"
-                  >
-                    {quantity > 0 ? `Add · ${quantity}` : "Add"}
-                  </button>
-                </div>
-              </div>
-            </article>
-          );
-        })}
-      </div>
-
-      {/* Sticky cart bar — the diner always knows what they have selected. */}
-      {itemCount > 0 && (
-        <Link
-          to="/cart"
-          className="fixed inset-x-0 bottom-0 z-20 mx-auto flex max-w-3xl items-center justify-between bg-slate-900 px-5 py-4 text-white md:bottom-4 md:rounded-2xl"
-        >
-          <span className="text-sm">
-            {itemCount} item{itemCount > 1 ? "s" : ""} · {formatMoney(subtotal)}
-          </span>
-          <span className="font-semibold">View cart →</span>
-        </Link>
-      )}
     </div>
   );
 };
+
+const FilterPill = ({
+  active,
+  onClick,
+  children,
+}: {
+  active: boolean;
+  onClick: () => void;
+  children: React.ReactNode;
+}) => (
+  <button
+    type="button"
+    onClick={onClick}
+    aria-pressed={active}
+    className={`flex shrink-0 items-center gap-2 whitespace-nowrap rounded-full border px-5 py-2 text-[11px] uppercase tracking-[0.18em] transition-all duration-500 ${
+      active
+        ? "border-gold bg-gold text-obsidian"
+        : "border-smoke text-ivory-dim hover:border-gold/40 hover:text-gold"
+    }`}
+  >
+    {children}
+  </button>
+);
 
 export default CustomerMenu;

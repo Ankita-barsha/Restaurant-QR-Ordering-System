@@ -1,20 +1,24 @@
 /**
- * Cart and checkout.
+ * Order review and checkout.
  *
- * The order request sends only foodId + quantity + notes. It deliberately
- * sends NO prices: the server recalculates every line from the database, so
- * the totals shown here are indicative and cannot be tampered with.
+ * The request sends only foodId, quantity and notes. It deliberately carries
+ * NO prices — the server recalculates every line from the database, so the
+ * totals shown here are indicative and cannot be tampered with.
  */
 
 import { useMutation, useQuery } from "@tanstack/react-query";
 import { useState } from "react";
 import { Link, useNavigate } from "react-router-dom";
 
-import { Button, EmptyState, ErrorBox } from "../../components/ui";
+import { LuxeButton, LuxeEmpty, LuxeError } from "../../components/luxe";
+import { config } from "../../config/env";
 import { useCart } from "../../context/CartContext";
 import { api, getErrorMessage, unwrap } from "../../lib/api";
-import { formatMoney } from "../../lib/format";
+import { formatMoney, imageUrl } from "../../lib/format";
 import type { ApiResponse, Order, PublicSettings } from "../../types/api";
+
+const fieldClass =
+  "w-full rounded-xl border border-smoke bg-charcoal px-4 py-3 text-sm text-ivory placeholder:text-ivory-faint transition-colors focus:border-gold/50 focus:outline-none";
 
 const CustomerCart = () => {
   const navigate = useNavigate();
@@ -45,9 +49,10 @@ const CustomerCart = () => {
       const payload = {
         qrToken: qrToken ?? undefined,
         customer:
-          name || phone ? { name: name || undefined, phone: phone || undefined } : undefined,
+          name || phone
+            ? { name: name || undefined, phone: phone || undefined }
+            : undefined,
         notes: orderNotes || undefined,
-        // Only what and how many. No prices.
         items: items.map((item) => ({
           foodId: item.foodId,
           quantity: item.quantity,
@@ -59,159 +64,203 @@ const CustomerCart = () => {
     },
     onSuccess: (order) => {
       clearCart();
-      // Straight to tracking, which subscribes to live status pushes.
       navigate(`/track/${order.orderNumber}`);
     },
   });
 
   if (itemCount === 0) {
     return (
-      <div className="mx-auto max-w-md p-6">
-        <EmptyState
-          title="Your cart is empty"
-          hint="Add a few dishes from the menu to get started."
-          icon={<span className="text-4xl">🛒</span>}
+      <div className="min-h-screen bg-obsidian pt-28">
+        <LuxeEmpty
+          title="Your order is empty"
+          hint="Choose a few plates from the menu and they will appear here."
+          action={
+            <Link to="/menu" className="mt-2">
+              <LuxeButton>Browse the menu</LuxeButton>
+            </Link>
+          }
         />
-        <Link to="/menu" className="mt-4 block">
-          <Button className="w-full">Browse the menu</Button>
-        </Link>
       </div>
     );
   }
 
-  // Indicative tax, mirroring the server's rate so the diner is not surprised.
   const taxPercent = Number(settingsQuery.data?.taxPercent ?? "0");
   const estimatedTax = (Number(subtotal) * taxPercent) / 100;
   const estimatedTotal = Number(subtotal) + estimatedTax;
 
   return (
-    <div className="mx-auto max-w-2xl px-4 pb-32 pt-4">
-      <h1 className="text-xl font-bold text-slate-900">Your order</h1>
+    <div className="min-h-screen bg-obsidian pb-40 pt-28">
+      <div className="mx-auto max-w-3xl px-6">
+        <header className="text-center">
+          <p className="eyebrow">
+            {table ? `Table ${table.tableNumber}` : "Takeaway"}
+          </p>
+          <h1 className="mt-3 text-[clamp(2.25rem,6vw,3.5rem)] leading-tight text-ivory">
+            Your Order
+          </h1>
+          <div className="rule-fade mx-auto mt-5 h-px w-28" />
+        </header>
 
-      {table && (
-        <p className="mt-1 text-sm text-slate-500">
-          Table <span className="font-semibold text-slate-900">{table.tableNumber}</span>
-        </p>
-      )}
+        {/* ------------------------------------------------------ line items */}
+        <div className="mt-12 divide-y divide-smoke border-y border-smoke">
+          {items.map((item) => {
+            const image = imageUrl(item.imageUrl, config.apiUrl);
 
-      <div className="mt-4 grid gap-3">
-        {items.map((item) => (
-          <div key={item.foodId} className="rounded-2xl border border-slate-200 bg-white p-4">
-            <div className="flex items-start justify-between gap-3">
-              <div className="min-w-0">
-                <p className="truncate font-semibold text-slate-900">{item.name}</p>
-                <p className="text-sm text-slate-500">{formatMoney(item.price)} each</p>
+            return (
+              <div key={item.foodId} className="flex gap-5 py-6">
+                {image ? (
+                  <img
+                    src={image}
+                    alt=""
+                    className="h-20 w-20 shrink-0 rounded-xl object-cover"
+                  />
+                ) : (
+                  <div className="flex h-20 w-20 shrink-0 items-center justify-center rounded-xl bg-graphite text-2xl">
+                    🍽️
+                  </div>
+                )}
+
+                <div className="min-w-0 flex-1">
+                  <div className="flex items-start justify-between gap-4">
+                    <h2 className="text-xl leading-tight text-ivory">{item.name}</h2>
+                    <span className="font-display shrink-0 text-xl text-gold">
+                      {formatMoney(Number(item.price) * item.quantity)}
+                    </span>
+                  </div>
+
+                  <p className="mt-1 text-xs text-ivory-faint">
+                    {formatMoney(item.price)} each
+                  </p>
+
+                  <div className="mt-4 flex items-center gap-5">
+                    <div className="flex items-center gap-4 rounded-full border border-smoke px-3 py-1.5">
+                      <button
+                        type="button"
+                        onClick={() => decrease(item.foodId)}
+                        aria-label={`One fewer ${item.name}`}
+                        className="text-lg leading-none text-ivory-dim transition-colors hover:text-gold"
+                      >
+                        −
+                      </button>
+                      <span className="w-4 text-center text-sm text-ivory">
+                        {item.quantity}
+                      </span>
+                      <button
+                        type="button"
+                        onClick={() => increase(item.foodId)}
+                        aria-label={`One more ${item.name}`}
+                        className="text-lg leading-none text-ivory-dim transition-colors hover:text-gold"
+                      >
+                        +
+                      </button>
+                    </div>
+
+                    <button
+                      type="button"
+                      onClick={() => removeItem(item.foodId)}
+                      className="text-[10px] uppercase tracking-[0.2em] text-ivory-faint transition-colors hover:text-ember"
+                    >
+                      Remove
+                    </button>
+                  </div>
+
+                  <input
+                    type="text"
+                    value={item.notes ?? ""}
+                    onChange={(event) => setNotes(item.foodId, event.target.value)}
+                    placeholder="A note for the kitchen"
+                    className="mt-4 w-full rounded-lg border border-smoke bg-charcoal px-3 py-2 text-xs text-ivory placeholder:text-ivory-faint focus:border-gold/40 focus:outline-none"
+                  />
+                </div>
               </div>
+            );
+          })}
+        </div>
 
-              <div className="flex items-center gap-3">
-                <button
-                  type="button"
-                  onClick={() => decrease(item.foodId)}
-                  className="h-8 w-8 rounded-lg bg-slate-100 text-lg font-bold text-slate-700"
-                  aria-label={`Reduce ${item.name}`}
-                >
-                  −
-                </button>
-                <span className="w-5 text-center font-semibold">{item.quantity}</span>
-                <button
-                  type="button"
-                  onClick={() => increase(item.foodId)}
-                  className="h-8 w-8 rounded-lg bg-orange-500 text-lg font-bold text-white"
-                  aria-label={`Add another ${item.name}`}
-                >
-                  +
-                </button>
-              </div>
-            </div>
+        {/* --------------------------------------------------------- details */}
+        <section className="mt-12">
+          <h2 className="text-2xl text-ivory">Your details</h2>
+          <p className="mt-1.5 text-[13px] text-ivory-faint">
+            Optional. A number lets us recognise you next time.
+          </p>
 
+          <div className="mt-5 grid gap-4 sm:grid-cols-2">
             <input
-              type="text"
-              value={item.notes ?? ""}
-              onChange={(event) => setNotes(item.foodId, event.target.value)}
-              placeholder="Any special request? e.g. no onions"
-              className="mt-3 w-full rounded-lg border border-slate-200 px-3 py-2 text-xs outline-none focus:border-orange-500"
+              value={name}
+              onChange={(event) => setName(event.target.value)}
+              placeholder="Name"
+              aria-label="Your name"
+              className={fieldClass}
             />
-
-            <button
-              type="button"
-              onClick={() => removeItem(item.foodId)}
-              className="mt-2 text-xs font-medium text-red-600 hover:underline"
-            >
-              Remove
-            </button>
+            <input
+              value={phone}
+              onChange={(event) => setPhone(event.target.value)}
+              placeholder="Phone"
+              inputMode="tel"
+              aria-label="Your phone number"
+              className={fieldClass}
+            />
           </div>
-        ))}
-      </div>
 
-      <div className="mt-6 rounded-2xl border border-slate-200 bg-white p-4">
-        <h2 className="font-semibold text-slate-900">Your details (optional)</h2>
-        <p className="mt-1 text-xs text-slate-500">
-          Leave blank to order anonymously. A phone number lets us recognise you next time.
-        </p>
-
-        <div className="mt-3 grid gap-3 sm:grid-cols-2">
-          <input
-            value={name}
-            onChange={(event) => setName(event.target.value)}
-            placeholder="Name"
-            className="rounded-lg border border-slate-300 px-3 py-2.5 text-sm outline-none focus:border-orange-500"
+          <textarea
+            value={orderNotes}
+            onChange={(event) => setOrderNotes(event.target.value)}
+            placeholder="Anything the kitchen should know — allergies, preferences"
+            rows={2}
+            aria-label="Notes for the kitchen"
+            className={`${fieldClass} mt-4`}
           />
-          <input
-            value={phone}
-            onChange={(event) => setPhone(event.target.value)}
-            placeholder="Phone"
-            inputMode="tel"
-            className="rounded-lg border border-slate-300 px-3 py-2.5 text-sm outline-none focus:border-orange-500"
-          />
-        </div>
+        </section>
 
-        <textarea
-          value={orderNotes}
-          onChange={(event) => setOrderNotes(event.target.value)}
-          placeholder="Notes for the kitchen"
-          rows={2}
-          className="mt-3 w-full rounded-lg border border-slate-300 px-3 py-2.5 text-sm outline-none focus:border-orange-500"
-        />
+        {/* ---------------------------------------------------------- totals */}
+        <section className="glass rounded-luxe mt-12 p-7">
+          <dl className="space-y-3 text-sm">
+            <div className="flex justify-between text-ivory-dim">
+              <dt>Subtotal</dt>
+              <dd>{formatMoney(subtotal)}</dd>
+            </div>
+            <div className="flex justify-between text-ivory-dim">
+              <dt>Tax &amp; charges ({taxPercent}%)</dt>
+              <dd>{formatMoney(estimatedTax)}</dd>
+            </div>
+          </dl>
+
+          <div className="rule-fade my-5 h-px" />
+
+          <div className="flex items-baseline justify-between">
+            <span className="eyebrow">Total</span>
+            <span className="font-display text-4xl text-gold">
+              {formatMoney(estimatedTotal)}
+            </span>
+          </div>
+
+          <p className="mt-3 text-[11px] leading-relaxed text-ivory-faint">
+            Confirmed by the restaurant when your order is placed. Payment is
+            settled at the table.
+          </p>
+        </section>
+
+        {placeOrder.isError && (
+          <div className="mt-6">
+            <LuxeError message={getErrorMessage(placeOrder.error)} />
+          </div>
+        )}
       </div>
 
-      <div className="mt-6 rounded-2xl border border-slate-200 bg-white p-4 text-sm">
-        <div className="flex justify-between text-slate-600">
-          <span>Subtotal</span>
-          <span>{formatMoney(subtotal)}</span>
-        </div>
-        <div className="mt-2 flex justify-between text-slate-600">
-          <span>Tax ({taxPercent}%)</span>
-          <span>{formatMoney(estimatedTax)}</span>
-        </div>
-        <div className="mt-3 flex justify-between border-t border-slate-200 pt-3 text-base font-bold text-slate-900">
-          <span>Total</span>
-          <span>{formatMoney(estimatedTotal)}</span>
-        </div>
-        <p className="mt-2 text-xs text-slate-400">
-          Final total is confirmed by the restaurant when your order is placed.
-        </p>
-      </div>
-
-      {placeOrder.isError && (
-        <div className="mt-4">
-          <ErrorBox message={getErrorMessage(placeOrder.error)} />
-        </div>
-      )}
-
-      <div className="fixed inset-x-0 bottom-0 z-20 border-t border-slate-200 bg-white p-4">
-        <div className="mx-auto flex max-w-2xl gap-3">
-          <Link to="/menu" className="flex-1">
-            <Button variant="secondary" className="w-full">
-              Add more
-            </Button>
+      {/* ------------------------------------------------------- action bar */}
+      <div className="fixed inset-x-0 bottom-0 z-40 border-t border-smoke bg-obsidian/90 backdrop-blur-xl">
+        <div className="mx-auto flex max-w-3xl items-center gap-4 px-6 py-4">
+          <Link to="/menu" className="shrink-0">
+            <LuxeButton variant="ghost">Add more</LuxeButton>
           </Link>
-          <Button
-            onClick={() => placeOrder.mutate()}
+
+          <LuxeButton
+            className="flex-1"
             disabled={placeOrder.isPending}
-            className="flex-[2]"
+            onClick={() => placeOrder.mutate()}
           >
-            {placeOrder.isPending ? "Placing order…" : `Place order · ${formatMoney(estimatedTotal)}`}
-          </Button>
+            {placeOrder.isPending ? "Sending to the kitchen…" : "Place order"}
+          </LuxeButton>
         </div>
       </div>
     </div>

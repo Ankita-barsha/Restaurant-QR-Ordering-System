@@ -6,7 +6,9 @@ const MainLayout = () => {
     <div>
       <Navbar />
 
-      <main className="max-w-7xl mx-auto p-5">
+      {/* No max-width or padding here: the landing page is full-bleed and each
+          page owns its own container. */}
+      <main>
         <Outlet />
       </main>
     </div>

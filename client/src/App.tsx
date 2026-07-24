@@ -13,7 +13,7 @@ import { BrowserRouter, Navigate, Route, Routes } from "react-router-dom";
 import ProtectedRoute from "./components/ProtectedRoute";
 import StaffLayout from "./components/StaffLayout";
 import MainLayout from "./layouts/MainLayout";
-import Home from "./pages/Home";
+import Landing from "./pages/customer/Landing";
 import { useAuth } from "./context/AuthContext";
 import CustomerCart from "./pages/customer/CustomerCart";
 import CustomerMenu from "./pages/customer/CustomerMenu";
@@ -55,7 +55,7 @@ const App = () => (
 
       {/* The rest share the branded navbar, which also shows the table number. */}
       <Route element={<MainLayout />}>
-        <Route path="/welcome" element={<Home />} />
+        <Route path="/welcome" element={<Landing />} />
         <Route path="/menu" element={<CustomerMenu />} />
         <Route path="/cart" element={<CustomerCart />} />
         <Route path="/track" element={<TrackOrder />} />

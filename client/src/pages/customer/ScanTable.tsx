@@ -1,19 +1,21 @@
 /**
- * QR landing page — /t/:token
+ * QR landing — /t/:token
  *
- * The first screen a diner sees after scanning. It resolves the token to a
- * table, SHOWS THE TABLE NUMBER so they can confirm they are at the right
- * place, and stores the session before sending them to the menu.
+ * The first thing a diner sees after scanning, so it does one job: confirm
+ * they are at the right table. The number is set enormous because it is read
+ * at a glance, in low light, on a phone held at arm's length.
  */
 
 import { useQuery } from "@tanstack/react-query";
 import { useEffect } from "react";
 import { Link, useNavigate, useParams } from "react-router-dom";
 
-import { ErrorBox, Spinner } from "../../components/ui";
+import { LuxeButton, LuxeError, LuxeLoader, Stars } from "../../components/luxe";
 import { useCart } from "../../context/CartContext";
 import { api, getErrorMessage, unwrap } from "../../lib/api";
 import type { ApiResponse, PublicSettings, ScannedTable } from "../../types/api";
+
+import heroImage from "../../assets/image/hero.jpg";
 
 const ScanTable = () => {
   const { token = "" } = useParams();
@@ -26,8 +28,8 @@ const ScanTable = () => {
       unwrap(
         await api.get<ApiResponse<{ table: ScannedTable }>>(`/tables/scan/${token}`)
       ).table,
-    // A bad QR code will not become valid on retry; failing fast shows the
-    // diner a clear message instead of a spinner that never resolves.
+    // A bad QR will not become valid on retry; failing fast shows a clear
+    // message instead of a spinner that never resolves.
     retry: false,
     enabled: token.length > 0,
   });
@@ -39,70 +41,87 @@ const ScanTable = () => {
 
   const table = tableQuery.data;
 
-  // Stored as soon as the token resolves, so the menu and checkout know which
-  // table this diner is at even after a reload.
   useEffect(() => {
-    if (table) {
-      setTableSession(table, token);
-    }
+    if (table) setTableSession(table, token);
   }, [table, token, setTableSession]);
 
   if (tableQuery.isLoading) {
-    return <Spinner label="Checking your table" />;
+    return (
+      <div className="flex min-h-screen items-center justify-center bg-obsidian">
+        <LuxeLoader label="Finding your table" />
+      </div>
+    );
   }
 
   if (tableQuery.isError) {
     return (
-      <div className="mx-auto max-w-md p-6">
-        <ErrorBox message={getErrorMessage(tableQuery.error)} />
-        <p className="mt-4 text-sm text-slate-500">
-          Ask a staff member for help, or scan the code on your table again.
-        </p>
+      <div className="flex min-h-screen items-center justify-center bg-obsidian px-6">
+        <div className="w-full max-w-md">
+          <LuxeError message={getErrorMessage(tableQuery.error)} />
+          <p className="mt-6 text-center text-[13px] leading-relaxed text-ivory-faint">
+            Please ask a member of staff, or scan the code on your table again.
+          </p>
+        </div>
       </div>
     );
   }
 
   if (!table) return null;
 
-  return (
-    <div className="mx-auto flex min-h-[80vh] max-w-md flex-col justify-center p-6">
-      <div className="rounded-3xl bg-gradient-to-br from-orange-500 to-amber-500 p-8 text-center text-white shadow-lg">
-        <p className="text-sm font-medium uppercase tracking-widest opacity-90">
-          Welcome to
-        </p>
-        <h1 className="mt-1 text-2xl font-bold">
-          {settingsQuery.data?.name ?? "Our Restaurant"}
-        </h1>
+  const closed = settingsQuery.data && !settingsQuery.data.isAcceptingOrders;
 
-        {/* The table number is the whole point of this screen: the diner must
-            be able to confirm at a glance that they scanned their own table. */}
-        <div className="mt-8 rounded-2xl bg-white/15 p-6 backdrop-blur">
-          <p className="text-xs uppercase tracking-widest opacity-90">You are seated at</p>
-          <p className="mt-2 text-6xl font-black tracking-tight">{table.tableNumber}</p>
-          <p className="mt-2 text-sm opacity-90">Seats up to {table.capacity}</p>
-        </div>
+  return (
+    <div className="relative flex min-h-[100svh] items-center justify-center overflow-hidden bg-obsidian px-6">
+      <div className="absolute inset-0">
+        <img src={heroImage} alt="" className="animate-kenburns h-full w-full object-cover" />
+        <div className="absolute inset-0 bg-obsidian/88" />
       </div>
 
-      {settingsQuery.data && !settingsQuery.data.isAcceptingOrders ? (
-        <div className="mt-6 rounded-xl bg-amber-50 p-4 text-center text-sm text-amber-800">
-          We are not accepting orders right now. Please ask a staff member.
-        </div>
-      ) : (
-        <button
-          type="button"
-          onClick={() => navigate("/menu")}
-          className="mt-6 w-full rounded-2xl bg-slate-900 px-6 py-4 text-base font-semibold text-white transition hover:bg-slate-800"
-        >
-          View Menu &amp; Order
-        </button>
-      )}
+      <div className="relative z-10 w-full max-w-md text-center">
+        <p className="animate-rise eyebrow">Welcome to</p>
 
-      <Link
-        to="/track"
-        className="mt-3 text-center text-sm font-medium text-slate-500 hover:text-slate-700"
-      >
-        Track an existing order
-      </Link>
+        <h1 className="animate-rise delay-1 mt-4 text-5xl leading-tight text-ivory">
+          {settingsQuery.data?.name ?? "Aurelia"}
+        </h1>
+
+        <div className="animate-rise delay-1 mt-6 flex items-center justify-center gap-4">
+          <span className="rule-fade h-px w-12" />
+          <Stars />
+          <span className="rule-fade h-px w-12" />
+        </div>
+
+        {/* The table number is why this screen exists. */}
+        <div className="glass rounded-luxe animate-rise delay-2 mt-12 px-8 py-10">
+          <p className="eyebrow">You are seated at</p>
+
+          <p className="font-display mt-3 text-[6rem] leading-none text-gold-gradient">
+            {table.tableNumber}
+          </p>
+
+          <p className="mt-4 text-[13px] text-ivory-faint">
+            Seats up to {table.capacity} · Order from your phone, at your pace
+          </p>
+        </div>
+
+        {closed ? (
+          <p className="animate-rise delay-3 mt-8 rounded-full border border-ember/40 px-6 py-3.5 text-[11px] uppercase tracking-[0.2em] text-ember">
+            The kitchen is closed right now
+          </p>
+        ) : (
+          <div className="animate-rise delay-3 mt-10">
+            <LuxeButton className="w-full" onClick={() => navigate("/menu")}>
+              View the menu
+            </LuxeButton>
+          </div>
+        )}
+
+        <Link
+          to="/track"
+          className="animate-rise delay-4 mt-6 block text-[10px] uppercase tracking-[0.24em] text-ivory-faint transition-colors hover:text-gold"
+        >
+          Track an existing order
+        </Link>
+      </div>
     </div>
   );
 };

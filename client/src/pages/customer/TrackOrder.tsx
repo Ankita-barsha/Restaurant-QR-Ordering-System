@@ -1,55 +1,65 @@
 /**
- * Live order tracking — /track/:orderNumber
+ * Live order tracking.
  *
  * Subscribes to the socket room named after the order number, so the status
- * updates the instant the kitchen taps it. No polling, no refresh.
+ * moves the instant the kitchen taps it. The vertical timeline is deliberate:
+ * a diner wants to know how far along their food is, and progress downward
+ * reads as time passing.
  */
 
 import { useQuery } from "@tanstack/react-query";
 import { useState } from "react";
 import { useNavigate, useParams } from "react-router-dom";
 
-import { Button, ErrorBox, Spinner } from "../../components/ui";
-import { queryKeys, useLiveOrderTracking, useSocketStatus } from "../../hooks/useLiveOrders";
+import { LuxeButton, LuxeError, LuxeLoader } from "../../components/luxe";
+import {
+  queryKeys,
+  useLiveOrderTracking,
+  useSocketStatus,
+} from "../../hooks/useLiveOrders";
 import { api, getErrorMessage, unwrap } from "../../lib/api";
 import { formatMoney, formatTime } from "../../lib/format";
 import type { ApiResponse, OrderStatus, TrackedOrder } from "../../types/api";
 
-/** The journey a diner sees. CANCELLED is handled separately. */
 const STEPS: { status: OrderStatus; label: string; hint: string }[] = [
-  { status: "PENDING", label: "Order placed", hint: "We have received your order" },
-  { status: "CONFIRMED", label: "Confirmed", hint: "The restaurant accepted it" },
-  { status: "PREPARING", label: "Preparing", hint: "The kitchen is cooking" },
-  { status: "READY", label: "Ready", hint: "Your food is ready" },
+  { status: "PENDING", label: "Received", hint: "Your order is with us" },
+  { status: "CONFIRMED", label: "Accepted", hint: "The kitchen has it" },
+  { status: "PREPARING", label: "In the pass", hint: "Being cooked now" },
+  { status: "READY", label: "Ready", hint: "Coming to your table" },
   { status: "SERVED", label: "Served", hint: "Enjoy your meal" },
 ];
 
-/** Prompt for an order number when the route has none. */
 const TrackLookup = () => {
   const [value, setValue] = useState("");
   const navigate = useNavigate();
 
   return (
-    <div className="mx-auto max-w-md p-6">
-      <h1 className="text-xl font-bold text-slate-900">Track your order</h1>
-      <p className="mt-1 text-sm text-slate-500">
-        Enter the order number shown when you placed your order.
-      </p>
+    <div className="flex min-h-screen items-center justify-center bg-obsidian px-6 pt-20">
+      <div className="w-full max-w-sm text-center">
+        <p className="eyebrow">Order status</p>
+        <h1 className="mt-3 text-4xl leading-tight text-ivory">Track your order</h1>
+        <div className="rule-fade mx-auto mt-5 h-px w-24" />
 
-      <input
-        value={value}
-        onChange={(event) => setValue(event.target.value.toUpperCase())}
-        placeholder="ORD-000123"
-        className="mt-4 w-full rounded-xl border border-slate-300 px-4 py-3 text-sm outline-none focus:border-orange-500"
-      />
+        <p className="mt-6 text-[13px] leading-relaxed text-ivory-faint">
+          Enter the reference shown when you placed your order.
+        </p>
 
-      <Button
-        onClick={() => value && navigate(`/track/${value}`)}
-        disabled={!value}
-        className="mt-3 w-full"
-      >
-        Track order
-      </Button>
+        <input
+          value={value}
+          onChange={(event) => setValue(event.target.value.toUpperCase())}
+          placeholder="ORD-000123"
+          aria-label="Order number"
+          className="mt-7 w-full rounded-xl border border-smoke bg-charcoal px-4 py-3.5 text-center text-sm tracking-[0.15em] text-ivory placeholder:text-ivory-faint focus:border-gold/50 focus:outline-none"
+        />
+
+        <LuxeButton
+          className="mt-5 w-full"
+          disabled={!value}
+          onClick={() => value && navigate(`/track/${value}`)}
+        >
+          Track order
+        </LuxeButton>
+      </div>
     </div>
   );
 };
@@ -58,7 +68,6 @@ const TrackOrder = () => {
   const { orderNumber } = useParams();
   const connected = useSocketStatus();
 
-  // Joins the per-order room and invalidates on every status push.
   useLiveOrderTracking(orderNumber);
 
   const orderQuery = useQuery({
@@ -66,19 +75,27 @@ const TrackOrder = () => {
     queryFn: async () =>
       unwrap(await api.get<ApiResponse<TrackedOrder>>(`/orders/track/${orderNumber}`)),
     enabled: Boolean(orderNumber),
-    // A safety net only. The socket is the primary update path; this catches
-    // the case where an event was missed while the tablet was offline.
+    // Safety net only — the socket is the primary path. This recovers from an
+    // event missed while the phone was asleep or off Wi-Fi.
     refetchInterval: 30_000,
   });
 
   if (!orderNumber) return <TrackLookup />;
 
-  if (orderQuery.isLoading) return <Spinner label="Finding your order" />;
+  if (orderQuery.isLoading) {
+    return (
+      <div className="flex min-h-screen items-center justify-center bg-obsidian">
+        <LuxeLoader label="Finding your order" />
+      </div>
+    );
+  }
 
   if (orderQuery.isError) {
     return (
-      <div className="mx-auto max-w-md p-6">
-        <ErrorBox message={getErrorMessage(orderQuery.error)} />
+      <div className="flex min-h-screen items-center justify-center bg-obsidian px-6">
+        <div className="w-full max-w-md">
+          <LuxeError message={getErrorMessage(orderQuery.error)} />
+        </div>
       </div>
     );
   }
@@ -86,7 +103,7 @@ const TrackOrder = () => {
   const order = orderQuery.data;
   if (!order) return null;
 
-  const isCancelled = order.status === "CANCELLED";
+  const cancelled = order.status === "CANCELLED";
   const currentStep = STEPS.findIndex((step) => step.status === order.status);
 
   const timestamps: Partial<Record<OrderStatus, string | null>> = {
@@ -98,97 +115,115 @@ const TrackOrder = () => {
   };
 
   return (
-    <div className="mx-auto max-w-md px-4 pb-10 pt-6">
-      <div className="flex items-center justify-between">
-        <div>
-          <p className="text-xs uppercase tracking-widest text-slate-400">Order</p>
-          <h1 className="text-2xl font-black text-slate-900">{order.orderNumber}</h1>
-        </div>
-        <span
-          className={`inline-flex items-center gap-1.5 rounded-full px-2.5 py-1 text-xs font-medium ${
-            connected ? "bg-emerald-50 text-emerald-700" : "bg-slate-100 text-slate-500"
-          }`}
-        >
-          <span
-            className={`h-2 w-2 rounded-full ${
-              connected ? "animate-pulse bg-emerald-500" : "bg-slate-400"
-            }`}
-          />
-          {connected ? "Live" : "Reconnecting"}
-        </span>
-      </div>
-
-      {order.table && (
-        <p className="mt-1 text-sm text-slate-500">Table {order.table.tableNumber}</p>
-      )}
-
-      {isCancelled ? (
-        <div className="mt-6 rounded-2xl border border-red-200 bg-red-50 p-5 text-center">
-          <p className="text-lg font-bold text-red-700">Order cancelled</p>
-          <p className="mt-1 text-sm text-red-600">
-            Please speak to a staff member if this is unexpected.
+    <div className="min-h-screen bg-obsidian px-6 pb-20 pt-28">
+      <div className="mx-auto max-w-md">
+        <header className="text-center">
+          <p className="eyebrow">
+            {order.table ? `Table ${order.table.tableNumber}` : "Takeaway"}
           </p>
-        </div>
-      ) : (
-        <ol className="mt-6 space-y-1">
-          {STEPS.map((step, index) => {
-            const done = index <= currentStep;
-            const active = index === currentStep;
-            const at = timestamps[step.status];
 
-            return (
-              <li key={step.status} className="flex gap-4">
-                <div className="flex flex-col items-center">
-                  <span
-                    className={`flex h-8 w-8 items-center justify-center rounded-full text-sm font-bold ${
-                      done ? "bg-orange-500 text-white" : "bg-slate-200 text-slate-400"
-                    } ${active ? "ring-4 ring-orange-100" : ""}`}
-                  >
-                    {done ? "✓" : index + 1}
-                  </span>
-                  {index < STEPS.length - 1 && (
+          <h1 className="font-display mt-3 text-5xl leading-none text-ivory">
+            {order.orderNumber}
+          </h1>
+
+          <div className="mt-5 flex items-center justify-center gap-2">
+            <span
+              className={`h-1.5 w-1.5 rounded-full ${
+                connected ? "animate-pulse bg-gold" : "bg-ivory-faint"
+              }`}
+            />
+            <span className="text-[10px] uppercase tracking-[0.24em] text-ivory-faint">
+              {connected ? "Live" : "Reconnecting"}
+            </span>
+          </div>
+        </header>
+
+        {cancelled ? (
+          <div className="glass rounded-luxe mt-12 p-8 text-center">
+            <p className="eyebrow text-ember">Cancelled</p>
+            <p className="mt-3 text-[15px] leading-relaxed text-ivory-dim">
+              This order was cancelled. Please speak to a member of staff if
+              that is unexpected.
+            </p>
+          </div>
+        ) : (
+          <ol className="mt-14">
+            {STEPS.map((step, index) => {
+              const done = index <= currentStep;
+              const active = index === currentStep;
+              const at = timestamps[step.status];
+
+              return (
+                <li key={step.status} className="flex gap-5">
+                  <div className="flex flex-col items-center">
                     <span
-                      className={`h-10 w-0.5 ${done ? "bg-orange-300" : "bg-slate-200"}`}
-                    />
+                      className={`flex h-9 w-9 shrink-0 items-center justify-center rounded-full border text-[11px] transition-all duration-700 ${
+                        done
+                          ? "border-gold bg-gold text-obsidian"
+                          : "border-smoke text-ivory-faint"
+                      } ${active ? "ring-4 ring-gold/15" : ""}`}
+                    >
+                      {done ? "✓" : index + 1}
+                    </span>
+
+                    {index < STEPS.length - 1 && (
+                      <span
+                        className={`h-14 w-px transition-colors duration-700 ${
+                          done ? "bg-gold/40" : "bg-smoke"
+                        }`}
+                      />
+                    )}
+                  </div>
+
+                  <div className="pb-5">
+                    <p
+                      className={`font-display text-2xl leading-tight ${
+                        done ? "text-ivory" : "text-ivory-faint"
+                      }`}
+                    >
+                      {step.label}
+                    </p>
+                    <p className="mt-0.5 text-[13px] text-ivory-faint">{step.hint}</p>
+                    {at && (
+                      <p className="mt-1 text-[11px] tracking-wide text-gold/70">
+                        {formatTime(at)}
+                      </p>
+                    )}
+                  </div>
+                </li>
+              );
+            })}
+          </ol>
+        )}
+
+        <section className="glass rounded-luxe mt-8 p-7">
+          <p className="eyebrow">Your order</p>
+
+          <ul className="mt-5 space-y-4">
+            {order.items.map((item, index) => (
+              <li key={index} className="flex justify-between gap-4 text-sm">
+                <span className="text-ivory-dim">
+                  <span className="text-gold">{item.quantity}×</span> {item.foodName}
+                  {item.notes && (
+                    <span className="mt-0.5 block text-[11px] text-ivory-faint">
+                      {item.notes}
+                    </span>
                   )}
-                </div>
-
-                <div className="pb-4">
-                  <p
-                    className={`font-semibold ${
-                      done ? "text-slate-900" : "text-slate-400"
-                    }`}
-                  >
-                    {step.label}
-                  </p>
-                  <p className="text-xs text-slate-500">{step.hint}</p>
-                  {at && <p className="mt-0.5 text-xs text-slate-400">{formatTime(at)}</p>}
-                </div>
+                </span>
+                <span className="shrink-0 text-ivory">{formatMoney(item.lineTotal)}</span>
               </li>
-            );
-          })}
-        </ol>
-      )}
+            ))}
+          </ul>
 
-      <div className="mt-4 rounded-2xl border border-slate-200 bg-white p-4">
-        <h2 className="font-semibold text-slate-900">Items</h2>
-        <ul className="mt-2 space-y-2 text-sm">
-          {order.items.map((item, index) => (
-            <li key={index} className="flex justify-between gap-3">
-              <span className="text-slate-700">
-                {item.quantity} × {item.foodName}
-                {item.notes && (
-                  <span className="block text-xs text-slate-400">{item.notes}</span>
-                )}
-              </span>
-              <span className="shrink-0 font-medium">{formatMoney(item.lineTotal)}</span>
-            </li>
-          ))}
-        </ul>
-        <div className="mt-3 flex justify-between border-t border-slate-200 pt-3 font-bold">
-          <span>Total</span>
-          <span>{formatMoney(order.totalAmount)}</span>
-        </div>
+          <div className="rule-fade my-5 h-px" />
+
+          <div className="flex items-baseline justify-between">
+            <span className="eyebrow">Total</span>
+            <span className="font-display text-3xl text-gold">
+              {formatMoney(order.totalAmount)}
+            </span>
+          </div>
+        </section>
       </div>
     </div>
   );
