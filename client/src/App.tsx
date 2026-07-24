@@ -17,11 +17,13 @@ import Landing from "./pages/customer/Landing";
 import { useAuth } from "./context/AuthContext";
 import CustomerCart from "./pages/customer/CustomerCart";
 import CustomerMenu from "./pages/customer/CustomerMenu";
+import Reserve from "./pages/customer/Reserve";
 import ScanTable from "./pages/customer/ScanTable";
 import TrackOrder from "./pages/customer/TrackOrder";
 import AdminDashboard from "./pages/staff/AdminDashboard";
 import AdminMenu from "./pages/staff/AdminMenu";
 import AdminAuditLogs from "./pages/staff/AdminAuditLogs";
+import AdminReservations from "./pages/staff/AdminReservations";
 import AdminRoles from "./pages/staff/AdminRoles";
 import AdminSettings from "./pages/staff/AdminSettings";
 import AdminTables from "./pages/staff/AdminTables";
@@ -57,6 +59,7 @@ const App = () => (
       <Route element={<MainLayout />}>
         <Route path="/welcome" element={<Landing />} />
         <Route path="/menu" element={<CustomerMenu />} />
+        <Route path="/reserve" element={<Reserve />} />
         <Route path="/cart" element={<CustomerCart />} />
         <Route path="/track" element={<TrackOrder />} />
         <Route path="/track/:orderNumber" element={<TrackOrder />} />
@@ -93,6 +96,14 @@ const App = () => (
           element={
             <ProtectedRoute permission="table:read">
               <AdminTables />
+            </ProtectedRoute>
+          }
+        />
+        <Route
+          path="/admin/reservations"
+          element={
+            <ProtectedRoute permission="reservation:read">
+              <AdminReservations />
             </ProtectedRoute>
           }
         />

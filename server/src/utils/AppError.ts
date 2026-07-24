@@ -53,8 +53,18 @@ export class AppError extends Error {
     return new AppError(message, 404);
   }
 
-  /** 409 — conflicts with current state, e.g. duplicate email. */
-  static conflict(message = "Resource already exists"): AppError {
-    return new AppError(message, 409);
+  /**
+   * 409 — conflicts with current state, e.g. duplicate email or a fully
+   * booked time slot.
+   *
+   * Takes optional details so a refusal can carry something actionable —
+   * a fully booked reservation returns the nearby times that ARE free,
+   * rather than leaving the guest at a dead end.
+   */
+  static conflict(
+    message = "Resource already exists",
+    details?: unknown
+  ): AppError {
+    return new AppError(message, 409, details);
   }
 }

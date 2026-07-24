@@ -24,6 +24,7 @@ const NAV_ITEMS: NavItem[] = [
   { to: "/kitchen", label: "Kitchen", permission: "kitchen:access" },
   { to: "/staff", label: "Orders", permission: "order:read" },
   { to: "/admin/menu", label: "Menu", permission: "food:read" },
+  { to: "/admin/reservations", label: "Bookings", permission: "reservation:read" },
   { to: "/admin/tables", label: "Tables & QR", permission: "table:read" },
   { to: "/admin/users", label: "Staff", permission: "user:read" },
   { to: "/admin/roles", label: "Roles", permission: "role:read" },

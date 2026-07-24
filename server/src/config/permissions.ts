@@ -42,6 +42,10 @@ export const PERMISSIONS = {
   TABLE_DELETE: "table:delete",
   QR_MANAGE: "qr:manage",
 
+  // Reservations
+  RESERVATION_READ: "reservation:read",
+  RESERVATION_UPDATE: "reservation:update",
+
   // Customers
   CUSTOMER_READ: "customer:read",
   CUSTOMER_UPDATE: "customer:update",
@@ -97,6 +101,9 @@ export const PERMISSION_METADATA: Record<
   [PERMISSIONS.TABLE_UPDATE]: { group: "Tables", description: "Edit tables" },
   [PERMISSIONS.TABLE_DELETE]: { group: "Tables", description: "Delete tables" },
   [PERMISSIONS.QR_MANAGE]: { group: "Tables", description: "Generate and rotate QR codes" },
+
+  [PERMISSIONS.RESERVATION_READ]: { group: "Reservations", description: "View bookings" },
+  [PERMISSIONS.RESERVATION_UPDATE]: { group: "Reservations", description: "Manage and seat bookings" },
 
   [PERMISSIONS.CUSTOMER_READ]: { group: "Customers", description: "View customers" },
   [PERMISSIONS.CUSTOMER_UPDATE]: { group: "Customers", description: "Edit customers" },
@@ -162,6 +169,8 @@ export const DEFAULT_ROLE_PERMISSIONS: Record<string, readonly string[]> = {
     PERMISSIONS.QR_MANAGE,
     PERMISSIONS.CUSTOMER_READ,
     PERMISSIONS.CUSTOMER_UPDATE,
+    PERMISSIONS.RESERVATION_READ,
+    PERMISSIONS.RESERVATION_UPDATE,
     PERMISSIONS.SETTINGS_READ,
     PERMISSIONS.SETTINGS_UPDATE,
   ],
@@ -182,5 +191,8 @@ export const DEFAULT_ROLE_PERMISSIONS: Record<string, readonly string[]> = {
     PERMISSIONS.FOOD_READ,
     PERMISSIONS.CATEGORY_READ,
     PERMISSIONS.TABLE_READ,
+    // Waiting staff greet and seat arrivals, so they need the day's bookings.
+    PERMISSIONS.RESERVATION_READ,
+    PERMISSIONS.RESERVATION_UPDATE,
   ],
 };

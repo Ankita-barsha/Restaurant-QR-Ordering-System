@@ -13,6 +13,7 @@ import { useCart } from "../context/CartContext";
 
 const LINKS = [
   { to: "/menu", label: "Menu" },
+  { to: "/reserve", label: "Reserve" },
   { to: "/welcome#gallery", label: "Gallery" },
   { to: "/welcome#about", label: "About" },
   { to: "/track", label: "Track" },

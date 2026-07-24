@@ -12,6 +12,7 @@ import authRoutes from "./auth.routes.js";
 import categoryRoutes from "./category.routes.js";
 import foodRoutes from "./food.routes.js";
 import orderRoutes from "./order.routes.js";
+import reservationRoutes from "./reservation.routes.js";
 import tableRoutes from "./table.routes.js";
 
 const router = Router();
@@ -30,6 +31,7 @@ router.use("/admin", adminRoutes);
 router.use("/categories", categoryRoutes);
 router.use("/foods", foodRoutes);
 router.use("/orders", orderRoutes);
+router.use("/reservations", reservationRoutes);
 router.use("/tables", tableRoutes);
 
 // Feature routers are mounted here as they are built.

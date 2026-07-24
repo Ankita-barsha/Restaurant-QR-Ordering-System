@@ -116,9 +116,9 @@ const Landing = () => {
 
           <div className="animate-rise delay-4 mt-12 flex flex-wrap items-center justify-center gap-4">
             <LuxeButton href="#menu">Explore the menu</LuxeButton>
-            <LuxeButton href="#reserve" variant="outline">
-              Reserve a table
-            </LuxeButton>
+            <Link to="/reserve">
+              <LuxeButton variant="outline">Reserve a table</LuxeButton>
+            </Link>
           </div>
         </div>
 
@@ -414,8 +414,8 @@ const Landing = () => {
                   Call {settingsQuery.data.phone}
                 </LuxeButton>
               )}
-              <Link to="/menu">
-                <LuxeButton variant="outline">Order at your table</LuxeButton>
+              <Link to="/reserve">
+                <LuxeButton variant="outline">Book online</LuxeButton>
               </Link>
             </div>
           </Reveal>
