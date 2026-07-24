@@ -22,10 +22,12 @@
     "types": ["node"]
   },
 
-  // prisma.config.ts is included so the editor type-checks it, but it is
-  // excluded from the build below: the Prisma CLI loads it directly.
+  // prisma.config.ts and prisma/seed.ts are included so the editor and
+  // `npm run typecheck` cover them. They are excluded from the build
+  // (tsconfig.build.json): the Prisma CLI runs them directly via tsx.
   "include": [
     "src",
+    "prisma",
     "prisma.config.ts"
   ],
 

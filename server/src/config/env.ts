@@ -40,6 +40,35 @@ const envSchema = z.object({
   JWT_SECRET: z
     .string()
     .min(32, "JWT_SECRET must be at least 32 characters"),
+
+  /// Separate key for refresh tokens. Sharing one secret would let an access
+  /// token be replayed as a refresh token, defeating the short access expiry.
+  JWT_REFRESH_SECRET: z
+    .string()
+    .min(32, "JWT_REFRESH_SECRET must be at least 32 characters"),
+
+  // Short-lived: a stolen access token stays useful only for this long.
+  JWT_ACCESS_EXPIRES_IN: z.string().default("15m"),
+  // Long-lived but revocable, because it is tracked in the database.
+  JWT_REFRESH_EXPIRES_IN: z.string().default("7d"),
+
+  /**
+   * bcrypt cost factor. Each increment doubles the work. 12 is the current
+   * sensible default: slow enough to frustrate offline cracking, fast enough
+   * (~200ms) not to stall a login request.
+   */
+  BCRYPT_ROUNDS: z.coerce.number().int().min(10).max(15).default(12),
+
+  /**
+   * Browser origin allowed to call this API. A single explicit origin, not
+   * "*", because credentialed requests (our refresh cookie) are rejected by
+   * browsers when the origin is a wildcard.
+   */
+  CORS_ORIGIN: z.string().url().default("http://localhost:5173"),
+
+  // Used only by the seed script; the server does not require them to boot.
+  SEED_ADMIN_EMAIL: z.string().email().optional(),
+  SEED_ADMIN_PASSWORD: z.string().optional(),
 });
 
 const parsed = envSchema.safeParse(process.env);
@@ -75,6 +104,19 @@ export const config = Object.freeze({
 
   jwt: Object.freeze({
     secret: env.JWT_SECRET,
+    refreshSecret: env.JWT_REFRESH_SECRET,
+    accessExpiresIn: env.JWT_ACCESS_EXPIRES_IN,
+    refreshExpiresIn: env.JWT_REFRESH_EXPIRES_IN,
+  }),
+
+  security: Object.freeze({
+    bcryptRounds: env.BCRYPT_ROUNDS,
+    corsOrigin: env.CORS_ORIGIN,
+  }),
+
+  seed: Object.freeze({
+    adminEmail: env.SEED_ADMIN_EMAIL,
+    adminPassword: env.SEED_ADMIN_PASSWORD,
   }),
 });
 

@@ -94,6 +94,7 @@ model User {
   auditLogs     AuditLog[]
   notifications Notification[]
   handledOrders Order[]        @relation("OrderHandledBy")
+  refreshTokens RefreshToken[]
 
   createdAt DateTime  @default(now())
   updatedAt DateTime  @updatedAt
@@ -102,6 +103,37 @@ model User {
   @@index([roleId])
   @@index([deletedAt])
   @@map("users")
+}
+
+/// An issued refresh token, stored so sessions can be revoked.
+///
+/// A pure JWT refresh token is valid until it expires and cannot be cancelled,
+/// so "log out everywhere" and "disable this account now" become impossible.
+/// Persisting them makes revocation a database write.
+model RefreshToken {
+  id String @id @default(cuid())
+
+  /// SHA-256 of the token, never the token itself. A leaked database dump
+  /// must not hand the attacker usable sessions — the same reasoning that
+  /// applies to passwords.
+  tokenHash String @unique
+
+  userId String
+  user   User   @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  expiresAt DateTime
+  /// Set on logout or forced revocation. Non-null means unusable.
+  revokedAt DateTime?
+
+  /// Context for the "active sessions" screen and anomaly review.
+  userAgent String?
+  ipAddress String?
+
+  createdAt DateTime @default(now())
+
+  @@index([userId])
+  @@index([expiresAt])
+  @@map("refresh_tokens")
 }
 
 /// A named set of permissions, e.g. SUPER_ADMIN, ADMIN, KITCHEN, STAFF.
