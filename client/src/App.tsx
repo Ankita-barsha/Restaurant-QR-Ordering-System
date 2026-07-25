@@ -31,6 +31,7 @@ import AdminUsers from "./pages/staff/AdminUsers";
 import KitchenDisplay from "./pages/staff/KitchenDisplay";
 import Login, { homeRouteFor } from "./pages/staff/Login";
 import StaffOrders from "./pages/staff/StaffOrders";
+import WaiterServe from "./pages/staff/WaiterServe";
 
 /**
  * Landing route.
@@ -152,6 +153,14 @@ const App = () => (
           element={
             <ProtectedRoute permission="order:read">
               <StaffOrders />
+            </ProtectedRoute>
+          }
+        />
+        <Route
+          path="/serve"
+          element={
+            <ProtectedRoute permission="order:updateStatus">
+              <WaiterServe />
             </ProtectedRoute>
           }
         />

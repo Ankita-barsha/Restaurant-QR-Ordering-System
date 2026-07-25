@@ -138,6 +138,22 @@ const TrackOrder = () => {
           </div>
         </header>
 
+        {/* Pickup code — the diner shows this to the waiter, who must enter it
+            before the order can be served. Hidden once served, since it has
+            done its job and need not linger on screen. */}
+        {order.verificationCode && !cancelled && order.status !== "SERVED" && (
+          <div className="glass rounded-luxe mt-10 p-7 text-center">
+            <p className="eyebrow">Your pickup code</p>
+            <p className="font-display mt-3 text-6xl tracking-[0.3em] text-gold-gradient">
+              {order.verificationCode}
+            </p>
+            <p className="mt-4 text-[13px] leading-relaxed text-ivory-faint">
+              Show this to your waiter when the food arrives. It makes sure your
+              order reaches your table and no one else's.
+            </p>
+          </div>
+        )}
+
         {cancelled ? (
           <div className="glass rounded-luxe mt-12 p-8 text-center">
             <p className="eyebrow text-ember">Cancelled</p>

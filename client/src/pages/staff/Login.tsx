@@ -21,12 +21,14 @@ export const homeRouteFor = (user: AuthUser): string => {
   const has = (permission: string) =>
     isSuperAdmin || user.permissions.includes(permission);
 
+  // Each role lands on the single screen its job is built around.
   if (user.role.name === "KITCHEN") return "/kitchen";
+  if (user.role.name === "STAFF") return "/serve";
   if (has("dashboard:view")) return "/admin";
   if (has("kitchen:access")) return "/kitchen";
   if (has("order:read")) return "/staff";
 
-  return "/staff";
+  return "/serve";
 };
 
 const Login = () => {

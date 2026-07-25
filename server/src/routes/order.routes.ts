@@ -10,6 +10,7 @@ import { idParamSchema } from "../validations/common.validation.js";
 import {
   addItemsSchema,
   cancelOrderSchema,
+  serveOrderSchema,
   orderListQuerySchema,
   orderNumberParamSchema,
   placeOrderSchema,
@@ -78,6 +79,19 @@ router.patch(
   validate({ params: idParamSchema, body: updateStatusSchema }),
   audit({ action: "order.updateStatus", entity: "Order" }),
   orderController.updateStatus
+);
+
+/**
+ * Serving requires the customer's pickup code. Behind order:updateStatus,
+ * the same capability waiting staff already hold to advance orders.
+ */
+router.post(
+  "/:id/serve",
+  authenticate,
+  authorize(PERMISSIONS.ORDER_UPDATE_STATUS),
+  validate({ params: idParamSchema, body: serveOrderSchema }),
+  audit({ action: "order.serve", entity: "Order" }),
+  orderController.serve
 );
 
 /**

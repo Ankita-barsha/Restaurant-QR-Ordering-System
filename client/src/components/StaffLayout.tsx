@@ -24,6 +24,7 @@ interface NavItem {
 const NAV_ITEMS: NavItem[] = [
   { to: "/admin", label: "Dashboard", permission: "dashboard:view" },
   { to: "/kitchen", label: "Kitchen", permission: "kitchen:access" },
+  { to: "/serve", label: "Serve", permission: "order:updateStatus" },
   { to: "/staff", label: "Orders", permission: "order:read" },
   { to: "/admin/reservations", label: "Bookings", permission: "reservation:read" },
   { to: "/admin/menu", label: "Menu", permission: "food:read" },
@@ -33,6 +34,19 @@ const NAV_ITEMS: NavItem[] = [
   { to: "/admin/audit", label: "Audit", permission: "auditLog:read" },
   { to: "/admin/settings", label: "Settings", permission: "settings:read" },
 ];
+
+/**
+ * Some roles are deliberately single-purpose.
+ *
+ * A chef works only the kitchen display; a waiter works only the serving
+ * screen. Showing them the rest would be noise on a device used at speed
+ * during service. This narrows what each sees in the nav — it is not a
+ * security boundary, which the API enforces separately on every route.
+ */
+const ROLE_NAV_LOCK: Record<string, string[]> = {
+  KITCHEN: ["/kitchen"],
+  STAFF: ["/serve"],
+};
 
 /**
  * Scoped light-to-dark remapping.
@@ -73,6 +87,15 @@ const StaffLayout = () => {
   // Mounted once at the shell, so every staff screen shares one subscription.
   useLiveOrders();
 
+  // A single-purpose role sees only its own screen; everyone else sees every
+  // nav item their permissions allow.
+  const roleLock = user ? ROLE_NAV_LOCK[user.role.name] : undefined;
+
+  const visibleNav = NAV_ITEMS.filter((item) => {
+    if (roleLock) return roleLock.includes(item.to);
+    return !item.permission || can(item.permission);
+  });
+
   const handleLogout = async () => {
     await logout();
     navigate("/login", { replace: true });
@@ -87,7 +110,7 @@ const StaffLayout = () => {
           </span>
 
           <nav className="flex flex-1 gap-1 overflow-x-auto [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
-            {NAV_ITEMS.filter((item) => !item.permission || can(item.permission)).map(
+            {visibleNav.map(
               (item) => (
                 <NavLink
                   key={item.to}

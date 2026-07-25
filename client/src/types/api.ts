@@ -82,6 +82,8 @@ export interface OrderItem {
 export interface Order {
   id: string;
   orderNumber: string;
+  /** Four-character pickup code the waiter must verify before serving. */
+  verificationCode: string | null;
   status: OrderStatus;
   type: OrderType;
   paymentStatus: PaymentStatus;
@@ -106,6 +108,7 @@ export interface Order {
 /** The trimmed shape returned by the public tracking endpoint. */
 export interface TrackedOrder {
   orderNumber: string;
+  verificationCode: string | null;
   status: OrderStatus;
   type: OrderType;
   totalAmount: string;

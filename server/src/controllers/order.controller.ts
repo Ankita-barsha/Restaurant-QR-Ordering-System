@@ -86,6 +86,20 @@ export const updateStatus: RequestHandler<
   });
 };
 
+/** POST /api/orders/:id/serve — waiter serves after verifying the pickup code. */
+export const serve: RequestHandler<IdParams, unknown, { code: string }> = async (
+  req,
+  res
+) => {
+  const order = await orderService.serveOrder(
+    req.params.id,
+    req.body.code,
+    req.user?.sub
+  );
+
+  res.json({ success: true, message: "Order served", data: order });
+};
+
 /** POST /api/orders/:id/cancel */
 export const cancel: RequestHandler<IdParams, unknown, { reason: string }> = async (
   req,

@@ -12,6 +12,8 @@
  *      rejected, not merely discouraged by the UI.
  */
 
+import crypto from "node:crypto";
+
 import type { Prisma, PrismaClient } from "../generated/prisma/client.js";
 import { prisma } from "../config/prisma.js";
 import { AppError } from "../utils/AppError.js";
@@ -201,6 +203,22 @@ const nextOrderNumber = async (tx: TxClient): Promise<string> => {
   return `ORD-${String(rows[0].nextval).padStart(6, "0")}`;
 };
 
+/**
+ * Four-character pickup code, e.g. "A92K".
+ *
+ * Drawn from an alphabet with no O/0 or I/1, because the customer reads it
+ * aloud to the waiter and misheard characters would block a legitimate serve.
+ * crypto.randomInt, not Math.random: predictable codes could be guessed to
+ * intercept another table's food.
+ */
+const VERIFY_ALPHABET = "ABCDEFGHJKLMNPQRSTUVWXYZ23456789";
+
+const generateVerificationCode = (): string =>
+  Array.from(
+    { length: 4 },
+    () => VERIFY_ALPHABET[crypto.randomInt(VERIFY_ALPHABET.length)]
+  ).join("");
+
 // ---------------------------------------------------------------------------
 // Commands
 // ---------------------------------------------------------------------------
@@ -274,6 +292,7 @@ export const placeOrder = async (input: PlaceOrderInput) => {
     const order = await tx.order.create({
       data: {
         orderNumber: await nextOrderNumber(tx),
+        verificationCode: generateVerificationCode(),
         type,
         tableId,
         customerId,
@@ -427,6 +446,46 @@ export const updateStatus = async (
   return updated;
 };
 
+/**
+ * Serves an order after verifying the customer's pickup code.
+ *
+ * The waiter asks the diner for the four-character code and enters it here.
+ * The order only moves to SERVED if it matches, which is what stops food
+ * being handed to the wrong table. The comparison is case-insensitive because
+ * the code is spoken aloud and re-typed.
+ *
+ * A legacy order placed before this feature has no code; those are allowed
+ * through so the change is backward compatible.
+ */
+export const serveOrder = async (
+  orderId: string,
+  code: string,
+  actorId?: string
+) => {
+  const order = await prisma.order.findUnique({
+    where: { id: orderId },
+    select: { id: true, status: true, verificationCode: true },
+  });
+
+  if (!order) {
+    throw AppError.notFound("Order not found");
+  }
+
+  if (order.verificationCode) {
+    const supplied = code.trim().toUpperCase();
+
+    if (supplied !== order.verificationCode.toUpperCase()) {
+      throw AppError.badRequest(
+        "That code does not match this order. Please check with the customer."
+      );
+    }
+  }
+
+  // Reuse the state machine, which enforces that only a READY order can be
+  // served and handles table release and the socket broadcast.
+  return updateStatus(orderId, "SERVED", actorId);
+};
+
 /** Cancels an order with a mandatory reason. */
 export const cancelOrder = async (
   orderId: string,
@@ -490,6 +549,10 @@ export const trackByOrderNumber = async (orderNumber: string) => {
     where: { orderNumber },
     select: {
       orderNumber: true,
+      // The pickup code the diner shows the waiter. Safe here: the tracking
+      // page is opened on the customer's own device, keyed by their own order
+      // number, which is not published anywhere else.
+      verificationCode: true,
       status: true,
       type: true,
       totalAmount: true,

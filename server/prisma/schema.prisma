@@ -325,6 +325,11 @@ model Order {
   /// Distinct from `id`: staff must be able to read it aloud.
   orderNumber String @unique
 
+  /// Four-character pickup code shown ONLY to the customer who placed the
+  /// order. The waiter must ask for it and enter it before the order can be
+  /// marked served, which prevents food reaching the wrong table.
+  verificationCode String?
+
   status        OrderStatus    @default(PENDING)
   type          OrderType      @default(DINE_IN)
   paymentStatus PaymentStatus  @default(UNPAID)
