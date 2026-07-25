@@ -198,6 +198,12 @@ export const salesReport: RequestHandler = async (req, res) => {
   res.json({ success: true, data: await reportService.getSalesReport(from, to) });
 };
 
+export const revenueBreakdown: RequestHandler = async (req, res) => {
+  const { period } = req.validatedQuery as { period: reportService.RevenuePeriod };
+
+  res.json({ success: true, data: await reportService.getRevenueBreakdown(period) });
+};
+
 export const topItems: RequestHandler = async (req, res) => {
   const { from, to } = req.validatedQuery as ReportQuery;
 

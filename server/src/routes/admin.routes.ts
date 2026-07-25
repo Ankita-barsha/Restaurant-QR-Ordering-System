@@ -20,6 +20,7 @@ import {
   createUserSchema,
   customerListQuerySchema,
   reportQuerySchema,
+  revenuePeriodSchema,
   resetPasswordSchema,
   setRolePermissionsSchema,
   updateCustomerSchema,
@@ -188,6 +189,13 @@ router.get(
   authorize(PERMISSIONS.REPORT_VIEW),
   validate({ query: reportQuerySchema }),
   admin.salesReport
+);
+
+router.get(
+  "/reports/revenue",
+  authorize(PERMISSIONS.REPORT_VIEW),
+  validate({ query: revenuePeriodSchema }),
+  admin.revenueBreakdown
 );
 
 router.get(

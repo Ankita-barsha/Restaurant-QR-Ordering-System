@@ -23,6 +23,7 @@ import TrackOrder from "./pages/customer/TrackOrder";
 import AdminDashboard from "./pages/staff/AdminDashboard";
 import AdminMenu from "./pages/staff/AdminMenu";
 import AdminAuditLogs from "./pages/staff/AdminAuditLogs";
+import AdminReports from "./pages/staff/AdminReports";
 import AdminReservations from "./pages/staff/AdminReservations";
 import AdminRoles from "./pages/staff/AdminRoles";
 import AdminSettings from "./pages/staff/AdminSettings";
@@ -81,6 +82,14 @@ const App = () => (
           element={
             <ProtectedRoute permission="dashboard:view">
               <AdminDashboard />
+            </ProtectedRoute>
+          }
+        />
+        <Route
+          path="/admin/reports"
+          element={
+            <ProtectedRoute permission="report:view">
+              <AdminReports />
             </ProtectedRoute>
           }
         />

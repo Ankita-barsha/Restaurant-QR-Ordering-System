@@ -141,6 +141,10 @@ export const updateSettingsSchema = z
 // Reports
 // ---------------------------------------------------------------------------
 
+export const revenuePeriodSchema = z.object({
+  period: z.enum(["daily", "weekly", "monthly", "yearly"]).default("daily"),
+});
+
 export const reportQuerySchema = z.object({
   from: z.coerce.date().optional(),
   to: z.coerce.date().optional(),
@@ -164,4 +168,5 @@ export type UpdateCustomerInput = z.infer<typeof updateCustomerSchema>;
 export type CustomerListQuery = z.infer<typeof customerListQuerySchema>;
 export type UpdateSettingsInput = z.infer<typeof updateSettingsSchema>;
 export type ReportQuery = z.infer<typeof reportQuerySchema>;
+export type RevenuePeriodQuery = z.infer<typeof revenuePeriodSchema>;
 export type AuditListQueryInput = z.infer<typeof auditListQuerySchema>;

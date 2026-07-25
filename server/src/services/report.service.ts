@@ -208,3 +208,92 @@ export const getTopCustomers = async (limit = 10) => {
     totalSpent: row.spent,
   }));
 };
+
+/** Report periods the manager can view. */
+export type RevenuePeriod = "daily" | "weekly" | "monthly" | "yearly";
+
+/** Maps a period to the Postgres bucket and how far back to look. */
+const PERIOD_CONFIG: Record<
+  RevenuePeriod,
+  { truncTo: string; sinceDays: number; label: string }
+> = {
+  daily: { truncTo: "day", sinceDays: 30, label: "Last 30 days" },
+  weekly: { truncTo: "week", sinceDays: 84, label: "Last 12 weeks" },
+  monthly: { truncTo: "month", sinceDays: 365, label: "Last 12 months" },
+  yearly: { truncTo: "year", sinceDays: 365 * 5, label: "Last 5 years" },
+};
+
+/**
+ * Revenue and order counts bucketed by period, plus a payment-method split
+ * and headline totals — everything the manager's reports screen needs.
+ *
+ * The bucket size (day/week/month/year) is validated against a fixed map, so
+ * the value can be safely interpolated into date_trunc; it never comes from
+ * the user verbatim.
+ */
+export const getRevenueBreakdown = async (period: RevenuePeriod) => {
+  const config = PERIOD_CONFIG[period];
+  const since = new Date(Date.now() - config.sinceDays * 86_400_000);
+
+  const buckets = await prisma.$queryRawUnsafe<
+    { bucket: Date; orders: bigint; revenue: string | null }[]
+  >(
+    `SELECT
+       date_trunc('${config.truncTo}', "placedAt") AS bucket,
+       COUNT(*)                                     AS orders,
+       SUM("totalAmount")                           AS revenue
+     FROM orders
+     WHERE status <> 'CANCELLED' AND "placedAt" >= $1
+     GROUP BY 1
+     ORDER BY 1 DESC`,
+    since
+  );
+
+  // Cash versus online (and card/UPI) — the manager reconciles the till
+  // against this. Only PAID orders count as money actually collected.
+  const byMethod = await prisma.order.groupBy({
+    by: ["paymentMethod"],
+    _sum: { totalAmount: true },
+    _count: { _all: true },
+    where: { paymentStatus: "PAID", placedAt: { gte: since } },
+  });
+
+  const totals = await prisma.order.aggregate({
+    _sum: { totalAmount: true },
+    _count: true,
+    where: { status: REVENUE_STATUSES, placedAt: { gte: since } },
+  });
+
+  const collected = await prisma.order.aggregate({
+    _sum: { totalAmount: true },
+    where: { paymentStatus: "PAID", placedAt: { gte: since } },
+  });
+
+  const outstanding = await prisma.order.aggregate({
+    _sum: { totalAmount: true },
+    _count: true,
+    where: { paymentStatus: "UNPAID", status: REVENUE_STATUSES, placedAt: { gte: since } },
+  });
+
+  return {
+    period,
+    label: config.label,
+    buckets: buckets.map((row) => ({
+      date: row.bucket.toISOString(),
+      orders: Number(row.orders),
+      revenue: row.revenue ?? "0.00",
+    })),
+    payments: byMethod.map((row) => ({
+      method: row.paymentMethod ?? "UNRECORDED",
+      total: row._sum.totalAmount?.toString() ?? "0.00",
+      count: row._count._all,
+    })),
+    totals: {
+      orders: totals._count,
+      revenue: totals._sum.totalAmount?.toString() ?? "0.00",
+      collected: collected._sum.totalAmount?.toString() ?? "0.00",
+      outstanding: outstanding._sum.totalAmount?.toString() ?? "0.00",
+      outstandingCount: outstanding._count,
+    },
+  };
+};
