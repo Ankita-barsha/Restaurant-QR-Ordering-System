@@ -103,6 +103,8 @@ export interface Order {
   table: { id: string; tableNumber: string } | null;
   customer: { id: string; name: string | null; phone: string | null } | null;
   handledBy: { id: string; fullName: string } | null;
+  /** Estimated cook time in minutes. Present only on kitchen-queue orders. */
+  estimatedMinutes?: number;
 }
 
 /** The trimmed shape returned by the public tracking endpoint. */

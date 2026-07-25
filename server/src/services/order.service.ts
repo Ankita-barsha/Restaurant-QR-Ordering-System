@@ -29,6 +29,10 @@ import {
   emitOrderStatusChanged,
   emitOrderUpdated,
 } from "../socket/index.js";
+import {
+  notifyOrderPlaced,
+  notifyOrderStatus,
+} from "./notification.service.js";
 import type {
   AddItemsInput,
   OrderListQuery,
@@ -318,6 +322,7 @@ export const placeOrder = async (input: PlaceOrderInput) => {
   // Emitted AFTER the transaction commits. Emitting inside would announce an
   // order to the kitchen that a later rollback erases.
   emitOrderCreated(order);
+  notifyOrderPlaced(order);
 
   return order;
 };
@@ -442,6 +447,7 @@ export const updateStatus = async (
   }
 
   emitOrderStatusChanged(updated);
+  notifyOrderStatus(updated);
 
   return updated;
 };
@@ -501,6 +507,7 @@ export const cancelOrder = async (
   });
 
   emitOrderCancelled(cancelled);
+  notifyOrderStatus(cancelled);
 
   return cancelled;
 };
@@ -625,12 +632,36 @@ export const getKitchenQueue = async () => {
     include: orderInclude,
   });
 
+  // Attach an estimated cook time to each order so the display can run a live
+  // countdown. Prep minutes live on Food, not on the order-item snapshot, so
+  // they are fetched once for all items rather than per order.
+  const foodIds = [...new Set(orders.flatMap((order) => order.items.map((item) => item.foodId)))];
+
+  const foods = foodIds.length
+    ? await prisma.food.findMany({
+        where: { id: { in: foodIds } },
+        select: { id: true, preparationMinutes: true },
+      })
+    : [];
+
+  const prepByFood = new Map(foods.map((food) => [food.id, food.preparationMinutes ?? 0]));
+
+  // The order is ready when its slowest dish is ready, so the estimate is the
+  // MAX prep time across items, floored at a sensible minimum.
+  const withEstimate = orders.map((order) => ({
+    ...order,
+    estimatedMinutes: Math.max(
+      10,
+      ...order.items.map((item) => prepByFood.get(item.foodId) ?? 0)
+    ),
+  }));
+
   // Grouped into the KDS columns so the client renders without regrouping.
   return {
-    pending: orders.filter((order) => order.status === "PENDING"),
-    confirmed: orders.filter((order) => order.status === "CONFIRMED"),
-    preparing: orders.filter((order) => order.status === "PREPARING"),
-    ready: orders.filter((order) => order.status === "READY"),
-    total: orders.length,
+    pending: withEstimate.filter((order) => order.status === "PENDING"),
+    confirmed: withEstimate.filter((order) => order.status === "CONFIRMED"),
+    preparing: withEstimate.filter((order) => order.status === "PREPARING"),
+    ready: withEstimate.filter((order) => order.status === "READY"),
+    total: withEstimate.length,
   };
 };

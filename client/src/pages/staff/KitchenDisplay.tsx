@@ -9,6 +9,7 @@
  */
 
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
+import { useEffect, useState } from "react";
 
 import { Button, EmptyState, ErrorBox, Spinner } from "../../components/ui";
 import { queryKeys } from "../../hooks/useLiveOrders";
@@ -46,6 +47,53 @@ const ageStyle = (placedAt: string): string => {
   return "ring-1 ring-slate-200 bg-white";
 };
 
+/**
+ * Live cooking countdown.
+ *
+ * Ticks once a second so the number visibly decreases. It counts down from
+ * when the dish started cooking (preparedAt) towards the estimated ready
+ * time; once past it, it counts up in red as an overdue timer, because a
+ * countdown that simply stops at zero hides the orders that most need
+ * attention.
+ */
+const CookTimer = ({ order }: { order: Order }) => {
+  const [now, setNow] = useState(() => Date.now());
+
+  useEffect(() => {
+    const id = setInterval(() => setNow(Date.now()), 1000);
+    return () => clearInterval(id);
+  }, []);
+
+  const estMinutes = order.estimatedMinutes ?? 15;
+
+  // Cooking started at preparedAt; before that, count against placedAt so the
+  // ticket still shows a moving clock while it waits to be started.
+  const startedAt = new Date(order.preparedAt ?? order.placedAt).getTime();
+  const target = startedAt + estMinutes * 60_000;
+  const remainingMs = target - now;
+  const overdue = remainingMs < 0;
+
+  const totalSeconds = Math.floor(Math.abs(remainingMs) / 1000);
+  const mm = String(Math.floor(totalSeconds / 60)).padStart(2, "0");
+  const ss = String(totalSeconds % 60).padStart(2, "0");
+
+  return (
+    <span
+      className={`inline-flex items-center gap-1 rounded-md px-1.5 py-0.5 font-mono text-[11px] font-semibold tabular-nums ${
+        overdue
+          ? "bg-red-100 text-red-700"
+          : remainingMs < 120_000
+            ? "bg-amber-100 text-amber-800"
+            : "bg-slate-100 text-slate-600"
+      }`}
+      title={overdue ? "Over the estimated cook time" : "Estimated time remaining"}
+    >
+      {overdue ? "+" : ""}
+      {mm}:{ss}
+    </span>
+  );
+};
+
 const Ticket = ({
   order,
   onAdvance,
@@ -56,6 +104,8 @@ const Ticket = ({
   isUpdating: boolean;
 }) => {
   const action = NEXT_ACTION[order.status];
+  // The countdown is meaningful once cooking is imminent or underway.
+  const showTimer = order.status === "CONFIRMED" || order.status === "PREPARING";
 
   return (
     <article className={`rounded-xl p-3 ${ageStyle(order.placedAt)}`}>
@@ -64,9 +114,12 @@ const Ticket = ({
         <span className="text-xs text-slate-500">{timeAgo(order.placedAt)}</span>
       </div>
 
-      <p className="mt-0.5 text-xs font-medium text-slate-600">
-        {order.table ? `Table ${order.table.tableNumber}` : "Takeaway"}
-      </p>
+      <div className="mt-0.5 flex items-center justify-between gap-2">
+        <p className="text-xs font-medium text-slate-600">
+          {order.table ? `Table ${order.table.tableNumber}` : "Takeaway"}
+        </p>
+        {showTimer && <CookTimer order={order} />}
+      </div>
 
       <ul className="mt-2 space-y-1">
         {order.items.map((item) => (

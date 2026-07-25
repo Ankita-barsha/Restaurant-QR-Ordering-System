@@ -19,6 +19,8 @@ export const SOCKET_EVENTS = {
   FOOD_AVAILABILITY_CHANGED: "food:availabilityChanged",
   /** A table changed occupancy. */
   TABLE_STATUS_CHANGED: "table:statusChanged",
+  /** A new notification for staff — drives the notification bell. */
+  NOTIFICATION_NEW: "notification:new",
 } as const;
 
 /**

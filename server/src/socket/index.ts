@@ -229,6 +229,23 @@ export const emitTableStatusChanged = (table: {
   emitToRooms([ROOMS.ADMIN, ROOMS.STAFF], SOCKET_EVENTS.TABLE_STATUS_CHANGED, table);
 };
 
+/**
+ * Pushes a new staff notification to every signed-in staff socket, so the
+ * notification bell updates without a poll. Delivery is best-effort — the
+ * row is already persisted, so a dropped socket only delays the badge until
+ * the next fetch.
+ */
+export const emitNotification = (notification: {
+  id: string;
+  type: string;
+  title: string;
+  message: string;
+  createdAt: string | Date;
+  metadata?: unknown;
+}): void => {
+  emitToRooms([ROOMS.STAFF], SOCKET_EVENTS.NOTIFICATION_NEW, notification);
+};
+
 /** Exposed for graceful shutdown. */
 export const closeSocketServer = async (): Promise<void> => {
   if (io) {

@@ -65,4 +65,5 @@ export const SOCKET_EVENTS = {
   ORDER_CANCELLED: "order:cancelled",
   FOOD_AVAILABILITY_CHANGED: "food:availabilityChanged",
   TABLE_STATUS_CHANGED: "table:statusChanged",
+  NOTIFICATION_NEW: "notification:new",
 } as const;

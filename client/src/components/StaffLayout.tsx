@@ -13,6 +13,7 @@ import { NavLink, Outlet, useNavigate } from "react-router-dom";
 
 import { useAuth } from "../context/AuthContext";
 import { useLiveOrders, useSocketStatus } from "../hooks/useLiveOrders";
+import NotificationBell from "./NotificationBell";
 
 interface NavItem {
   to: string;
@@ -129,6 +130,8 @@ const StaffLayout = () => {
               )
             )}
           </nav>
+
+          <NotificationBell />
 
           <span
             className={`flex shrink-0 items-center gap-1.5 text-[10px] uppercase tracking-[0.18em] ${
