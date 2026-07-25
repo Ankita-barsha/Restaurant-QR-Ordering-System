@@ -25,6 +25,7 @@ interface NavItem {
 const NAV_ITEMS: NavItem[] = [
   { to: "/admin", label: "Dashboard", permission: "dashboard:view" },
   { to: "/admin/reports", label: "Reports", permission: "report:view" },
+  { to: "/admin/payments", label: "Payments", permission: "report:view" },
   { to: "/kitchen", label: "Kitchen", permission: "kitchen:access" },
   { to: "/serve", label: "Serve", permission: "order:updateStatus" },
   { to: "/staff", label: "Orders", permission: "order:read" },

@@ -556,6 +556,8 @@ export const trackByOrderNumber = async (orderNumber: string) => {
     where: { orderNumber },
     select: {
       orderNumber: true,
+      // Lets the tracking screen offer online payment while unpaid.
+      paymentStatus: true,
       // The pickup code the diner shows the waiter. Safe here: the tracking
       // page is opened on the customer's own device, keyed by their own order
       // number, which is not published anywhere else.

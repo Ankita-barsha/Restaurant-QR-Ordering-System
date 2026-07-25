@@ -11,6 +11,7 @@ import { useQuery } from "@tanstack/react-query";
 import { useState } from "react";
 import { useNavigate, useParams } from "react-router-dom";
 
+import DemoCheckout from "../../components/DemoCheckout";
 import { LuxeButton, LuxeError, LuxeLoader } from "../../components/luxe";
 import {
   queryKeys,
@@ -67,6 +68,9 @@ const TrackLookup = () => {
 const TrackOrder = () => {
   const { orderNumber } = useParams();
   const connected = useSocketStatus();
+
+  const [checkoutOpen, setCheckoutOpen] = useState(false);
+  const [paidReceipt, setPaidReceipt] = useState<string | null>(null);
 
   useLiveOrderTracking(orderNumber);
 
@@ -239,8 +243,67 @@ const TrackOrder = () => {
               {formatMoney(order.totalAmount)}
             </span>
           </div>
+
+          {/* Payment: pay online now, or settle at the table. */}
+          {!cancelled && (
+            <div className="mt-6">
+              {order.paymentStatus === "PAID" ? (
+                <p className="flex items-center justify-center gap-2 rounded-full border border-emerald-500/40 py-3 text-[11px] uppercase tracking-[0.2em] text-emerald-400">
+                  <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
+                    <path d="M20 6 9 17l-5-5" />
+                  </svg>
+                  Paid
+                </p>
+              ) : (
+                <>
+                  <LuxeButton className="w-full" onClick={() => setCheckoutOpen(true)}>
+                    Pay online
+                  </LuxeButton>
+                  <p className="mt-3 text-center text-[11px] text-ivory-faint">
+                    Or pay by cash at the table.
+                  </p>
+                </>
+              )}
+            </div>
+          )}
         </section>
       </div>
+
+      {checkoutOpen && (
+        <DemoCheckout
+          orderId={order.orderNumber}
+          amount={order.totalAmount}
+          onClose={() => setCheckoutOpen(false)}
+          onPaid={(receipt) => {
+            setCheckoutOpen(false);
+            setPaidReceipt(receipt);
+            void orderQuery.refetch();
+          }}
+        />
+      )}
+
+      {paidReceipt && (
+        <div
+          className="animate-fade fixed inset-0 z-50 flex items-center justify-center bg-obsidian/85 p-6"
+          onClick={() => setPaidReceipt(null)}
+          role="presentation"
+        >
+          <div className="animate-rise max-w-sm rounded-luxe border border-smoke bg-charcoal p-8 text-center">
+            <div className="mx-auto flex h-14 w-14 items-center justify-center rounded-full border border-emerald-500/50">
+              <svg width="26" height="26" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="text-emerald-400">
+                <path d="M20 6 9 17l-5-5" />
+              </svg>
+            </div>
+            <h2 className="mt-5 text-3xl text-ivory">Payment received</h2>
+            <p className="mt-2 text-[13px] text-ivory-faint">
+              Receipt {paidReceipt ?? ""}. Thank you — enjoy your meal.
+            </p>
+            <LuxeButton className="mt-6 w-full" onClick={() => setPaidReceipt(null)}>
+              Done
+            </LuxeButton>
+          </div>
+        </div>
+      )}
     </div>
   );
 };

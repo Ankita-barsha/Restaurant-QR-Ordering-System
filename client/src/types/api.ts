@@ -111,6 +111,7 @@ export interface Order {
 export interface TrackedOrder {
   orderNumber: string;
   verificationCode: string | null;
+  paymentStatus: PaymentStatus;
   status: OrderStatus;
   type: OrderType;
   totalAmount: string;

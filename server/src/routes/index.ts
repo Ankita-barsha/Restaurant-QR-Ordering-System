@@ -13,6 +13,7 @@ import categoryRoutes from "./category.routes.js";
 import foodRoutes from "./food.routes.js";
 import notificationRoutes from "./notification.routes.js";
 import orderRoutes from "./order.routes.js";
+import paymentRoutes from "./payment.routes.js";
 import reservationRoutes from "./reservation.routes.js";
 import tableRoutes from "./table.routes.js";
 
@@ -33,6 +34,7 @@ router.use("/categories", categoryRoutes);
 router.use("/foods", foodRoutes);
 router.use("/orders", orderRoutes);
 router.use("/notifications", notificationRoutes);
+router.use("/payments", paymentRoutes);
 router.use("/reservations", reservationRoutes);
 router.use("/tables", tableRoutes);
 

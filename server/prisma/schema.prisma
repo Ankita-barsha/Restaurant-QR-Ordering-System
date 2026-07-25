@@ -55,6 +55,14 @@ enum PaymentMethod {
   ONLINE
 }
 
+/// Lifecycle of a single payment attempt against an order.
+enum PaymentTxnStatus {
+  PENDING // intent created, awaiting confirmation from the provider
+  SUCCESS // confirmed captured
+  FAILED // declined or abandoned
+  REFUNDED
+}
+
 enum TableStatus {
   AVAILABLE
   OCCUPIED
@@ -356,7 +364,8 @@ model Order {
   handledById String?
   handledBy   User?   @relation("OrderHandledBy", fields: [handledById], references: [id], onDelete: SetNull)
 
-  items OrderItem[]
+  items    OrderItem[]
+  payments Payment[]
 
   /// Status transition timestamps. Kept as discrete columns rather than
   /// derived from an event log so KDS timings and reports stay simple.
@@ -512,6 +521,50 @@ model RestaurantSettings {
   updatedAt DateTime @updatedAt
 
   @@map("restaurant_settings")
+}
+
+// ===========================================================================
+// Payments
+// ===========================================================================
+
+/// A payment attempt against an order.
+///
+/// Kept as its own record rather than only flags on Order, so the full
+/// payment history is queryable (the super admin views it) and a receipt can
+/// be reproduced. An order may have more than one row — e.g. a failed online
+/// attempt followed by a successful one, or a refund.
+///
+/// `provider` names who processed it ("mock" for the built-in demo gateway,
+/// "razorpay" once real keys are configured). `providerRef` is that provider's
+/// own transaction id. Swapping the provider changes these values, not the
+/// shape of this table.
+model Payment {
+  id String @id @default(cuid())
+
+  orderId String
+  order   Order  @relation(fields: [orderId], references: [id], onDelete: Cascade)
+
+  /// Exact amount captured. See the money note at the top of this file.
+  amount Decimal @db.Decimal(10, 2)
+
+  method   PaymentMethod
+  status   PaymentTxnStatus @default(PENDING)
+  provider String           @default("mock")
+
+  /// The provider's transaction reference, for reconciliation.
+  providerRef String?
+
+  /// Human-readable receipt number shown to the customer.
+  receiptNumber String? @unique
+
+  paidAt    DateTime?
+  createdAt DateTime  @default(now())
+  updatedAt DateTime  @updatedAt
+
+  @@index([orderId])
+  @@index([status])
+  @@index([createdAt])
+  @@map("payments")
 }
 
 // ===========================================================================

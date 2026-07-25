@@ -23,6 +23,7 @@ import TrackOrder from "./pages/customer/TrackOrder";
 import AdminDashboard from "./pages/staff/AdminDashboard";
 import AdminMenu from "./pages/staff/AdminMenu";
 import AdminAuditLogs from "./pages/staff/AdminAuditLogs";
+import AdminPayments from "./pages/staff/AdminPayments";
 import AdminReports from "./pages/staff/AdminReports";
 import AdminReservations from "./pages/staff/AdminReservations";
 import AdminRoles from "./pages/staff/AdminRoles";
@@ -90,6 +91,14 @@ const App = () => (
           element={
             <ProtectedRoute permission="report:view">
               <AdminReports />
+            </ProtectedRoute>
+          }
+        />
+        <Route
+          path="/admin/payments"
+          element={
+            <ProtectedRoute permission="report:view">
+              <AdminPayments />
             </ProtectedRoute>
           }
         />
