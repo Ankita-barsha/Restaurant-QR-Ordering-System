@@ -75,7 +75,7 @@ const Landing = () => {
       unwrap(await api.get<ApiResponse<Food[]>>("/foods?limit=6&sortBy=price&sortOrder=desc")),
   });
 
-  const restaurantName = settingsQuery.data?.name ?? "Aurelia";
+  const restaurantName = settingsQuery.data?.name ?? "Bite me Bistro";
   const signatures = signatureQuery.data ?? [];
   const special = signatures[0];
 

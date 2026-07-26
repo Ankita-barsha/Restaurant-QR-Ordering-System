@@ -81,7 +81,7 @@ const ScanTable = () => {
         <p className="animate-rise eyebrow">Welcome to</p>
 
         <h1 className="animate-rise delay-1 mt-4 text-5xl leading-tight text-ivory">
-          {settingsQuery.data?.name ?? "Aurelia"}
+          {settingsQuery.data?.name ?? "Bite me Bistro"}
         </h1>
 
         <div className="animate-rise delay-1 mt-6 flex items-center justify-center gap-4">

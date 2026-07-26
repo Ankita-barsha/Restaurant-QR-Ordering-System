@@ -49,7 +49,7 @@ const Navbar = () => {
     >
       <nav className="mx-auto flex max-w-7xl items-center justify-between gap-6 px-6 py-4">
         <Link to="/welcome" className="font-display text-2xl tracking-wide text-ivory">
-          Aurelia
+          Bite me Bistro
         </Link>
 
         <div className="hidden items-center gap-9 md:flex">

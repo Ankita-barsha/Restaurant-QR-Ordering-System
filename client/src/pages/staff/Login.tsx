@@ -64,7 +64,7 @@ const Login = () => {
         onSubmit={handleSubmit}
         className="glass rounded-luxe w-full max-w-sm p-9"
       >
-        <p className="eyebrow">Aurelia</p>
+        <p className="eyebrow">Bite me Bistro</p>
         <h1 className="mt-3 text-3xl leading-tight text-ivory">Staff sign in</h1>
         <div className="rule-fade mt-4 h-px w-20" />
         <p className="mt-4 text-[13px] text-ivory-faint">

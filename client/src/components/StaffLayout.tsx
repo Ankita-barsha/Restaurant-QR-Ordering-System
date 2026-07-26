@@ -109,7 +109,7 @@ const StaffLayout = () => {
       <header className="sticky top-0 z-40 border-b border-smoke bg-obsidian/90 backdrop-blur-xl">
         <div className="mx-auto flex max-w-[1600px] items-center gap-5 px-5 py-3">
           <span className="font-display shrink-0 text-xl tracking-wide text-ivory">
-            Aurelia
+            Bite me Bistro
           </span>
 
           <nav className="flex flex-1 gap-1 overflow-x-auto [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
