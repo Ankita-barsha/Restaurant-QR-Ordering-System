@@ -65,7 +65,7 @@ const App = () => (
         <Route path="/reserve" element={<Reserve />} />
         <Route path="/cart" element={<CustomerCart />} />
         <Route path="/track" element={<TrackOrder />} />
-        <Route path="/track/:orderNumber" element={<TrackOrder />} />
+        <Route path="/track/:token" element={<TrackOrder />} />
       </Route>
 
       {/* ---- Staff ---- */}

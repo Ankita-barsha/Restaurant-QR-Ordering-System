@@ -12,7 +12,7 @@ import {
   cancelOrderSchema,
   serveOrderSchema,
   orderListQuerySchema,
-  orderNumberParamSchema,
+  trackingTokenParamSchema,
   placeOrderSchema,
   updatePaymentSchema,
   updateStatusSchema,
@@ -31,9 +31,15 @@ const router = Router();
  */
 router.post("/", validate({ body: placeOrderSchema }), orderController.place);
 
+/**
+ * Tracking is authorised by possession of the order's tracking token, issued
+ * once in the response to POST /orders. It is NOT keyed on orderNumber: that
+ * is a sequence value, so keying it there would expose every order — and its
+ * pickup code — to anyone counting upwards.
+ */
 router.get(
-  "/track/:orderNumber",
-  validate({ params: orderNumberParamSchema }),
+  "/track/:token",
+  validate({ params: trackingTokenParamSchema }),
   orderController.track
 );
 

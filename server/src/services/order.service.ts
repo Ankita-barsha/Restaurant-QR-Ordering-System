@@ -223,6 +223,17 @@ const generateVerificationCode = (): string =>
     () => VERIFY_ALPHABET[crypto.randomInt(VERIFY_ALPHABET.length)]
   ).join("");
 
+/**
+ * Per-order secret handed to the diner exactly once, in the response to
+ * placing the order.
+ *
+ * Everything a diner alone may see — the tracking page, the pickup code, the
+ * payment flow — is keyed on this rather than on orderNumber, which is a
+ * sequence and can be walked by anyone.
+ */
+const generateTrackingToken = (): string =>
+  crypto.randomBytes(32).toString("hex");
+
 // ---------------------------------------------------------------------------
 // Commands
 // ---------------------------------------------------------------------------
@@ -296,6 +307,7 @@ export const placeOrder = async (input: PlaceOrderInput) => {
     const order = await tx.order.create({
       data: {
         orderNumber: await nextOrderNumber(tx),
+        trackingToken: generateTrackingToken(),
         verificationCode: generateVerificationCode(),
         type,
         tableId,
@@ -545,22 +557,27 @@ export const getOrderById = async (id: string) => {
 };
 
 /**
- * Public order tracking by order number.
+ * Public order tracking, keyed on the order's tracking token.
  *
- * Returns only what the diner's tracking screen needs — no staff details, no
- * customer contact information, since the order number is printed on a
- * receipt and is not a secret.
+ * The token — NOT the order number — is what authorises this read. An order
+ * number is a sequence value that anyone can walk, so keying tracking on it
+ * would hand every diner's pickup code to whoever counted upwards.
+ *
+ * Returns only what the diner's screen needs: no staff details and no
+ * customer contact information.
  */
-export const trackByOrderNumber = async (orderNumber: string) => {
+export const trackByToken = async (trackingToken: string) => {
   const order = await prisma.order.findUnique({
-    where: { orderNumber },
+    where: { trackingToken },
     select: {
       orderNumber: true,
+      // Echoed back so the client can keep using it for socket subscription
+      // and payment without re-reading it from the URL.
+      trackingToken: true,
       // Lets the tracking screen offer online payment while unpaid.
       paymentStatus: true,
-      // The pickup code the diner shows the waiter. Safe here: the tracking
-      // page is opened on the customer's own device, keyed by their own order
-      // number, which is not published anywhere else.
+      // The pickup code the diner shows the waiter. Safe to return here
+      // precisely because reaching this row required the unguessable token.
       verificationCode: true,
       status: true,
       type: true,

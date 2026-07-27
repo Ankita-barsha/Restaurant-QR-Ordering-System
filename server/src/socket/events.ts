@@ -39,8 +39,12 @@ export const ROOMS = {
   STAFF: "room:staff",
   /**
    * One room per order, joined by the anonymous customer tracking it.
-   * Scoped by ORDER NUMBER, which the diner already has on their receipt —
-   * so no authentication is needed and no other order is reachable.
+   *
+   * Scoped by the order's TRACKING TOKEN, never its order number. Order
+   * numbers come from a sequence, so a room named after one could be joined
+   * by anyone counting upwards — which would turn this room into a feed of
+   * other people's orders. The token is 32 random bytes and is given only to
+   * the diner who placed the order.
    */
-  order: (orderNumber: string): string => `room:order:${orderNumber}`,
+  order: (trackingToken: string): string => `room:order:${trackingToken}`,
 } as const;

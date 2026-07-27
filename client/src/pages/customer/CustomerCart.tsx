@@ -12,7 +12,7 @@ import { Link, useNavigate } from "react-router-dom";
 
 import { LuxeButton, LuxeEmpty, LuxeError } from "../../components/luxe";
 import { config } from "../../config/env";
-import { useCart } from "../../context/CartContext";
+import { LAST_ORDER_KEY, useCart } from "../../context/CartContext";
 import { api, getErrorMessage, unwrap } from "../../lib/api";
 import { formatMoney, imageUrl } from "../../lib/format";
 import type { ApiResponse, Order, PublicSettings } from "../../types/api";
@@ -64,7 +64,13 @@ const CustomerCart = () => {
     },
     onSuccess: (order) => {
       clearCart();
-      navigate(`/track/${order.orderNumber}`);
+
+      // The tracking token is issued exactly once, here. Persist it before
+      // navigating so a reload or a closed tab can still find the order —
+      // there is no way to look it up again from the order number.
+      sessionStorage.setItem(LAST_ORDER_KEY, order.trackingToken);
+
+      navigate(`/track/${order.trackingToken}`);
     },
   });
 

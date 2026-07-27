@@ -122,6 +122,14 @@ not rewrite what a customer was charged last week.
 **Order numbers come from a Postgres sequence.** `COUNT(*) + 1` and
 `MAX() + 1` both race under concurrent orders and eventually collide.
 
+**An order number is an identifier, never a credential.** Because it comes
+from a sequence, anyone can walk it. So every order also carries a
+`trackingToken` — 32 random bytes, handed to the diner exactly once in the
+response to placing the order. The public tracking page, the pickup code and
+the online payment flow are all keyed on the token; the order number is only
+for reading aloud. Keying any of them on the number would have let a stranger
+count upwards and collect other people's pickup codes.
+
 **Routes name capabilities, not roles.** `authorize("order:update")`, never
 `authorize("ADMIN")`. A new role is a data change in the admin UI — no code,
 no redeploy.

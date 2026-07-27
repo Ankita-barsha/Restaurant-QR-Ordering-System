@@ -26,12 +26,17 @@ interface Intent {
 }
 
 const DemoCheckout = ({
-  orderId,
+  trackingToken,
   amount,
   onPaid,
   onClose,
 }: {
-  orderId: string;
+  /**
+   * The order's tracking token. This both identifies the order and authorises
+   * paying it — the API accepts nothing else, deliberately, because an order
+   * number would let anyone open a payment against anyone's order.
+   */
+  trackingToken: string;
   amount: string;
   onPaid: (receiptNumber: string | null) => void;
   onClose: () => void;
@@ -41,7 +46,7 @@ const DemoCheckout = ({
   const start = useMutation({
     mutationFn: async () =>
       unwrap(
-        await api.post<ApiResponse<Intent>>("/payments/online", { orderId })
+        await api.post<ApiResponse<Intent>>("/payments/online", { trackingToken })
       ),
     onSuccess: setIntent,
   });

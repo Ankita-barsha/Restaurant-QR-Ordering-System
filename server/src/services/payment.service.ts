@@ -40,7 +40,11 @@ const loadOrderForEmit = async (tx: TxClient, orderId: string) => {
     select: {
       id: true,
       orderNumber: true,
+      // Required for the socket emit to reach the diner's own order room;
+      // without it the payment confirmation only lands on staff screens.
+      trackingToken: true,
       status: true,
+      paymentStatus: true,
       table: { select: { tableNumber: true } },
     },
   });
@@ -49,13 +53,14 @@ const loadOrderForEmit = async (tx: TxClient, orderId: string) => {
 /**
  * Starts an online payment for an order.
  *
- * Creates a PENDING Payment and a provider intent. The customer then confirms
- * it on the checkout screen. Public — the diner who placed the order pays it,
- * and they hold the unguessable payment id returned here.
+ * Public, and authorised by possession of the order's TRACKING TOKEN — the
+ * secret handed to the diner when they placed it. Keying this on orderNumber
+ * would let anyone open a payment against any order, because order numbers
+ * come from a sequence.
  */
-export const initiateOnlinePayment = async (orderNumber: string) => {
+export const initiateOnlinePayment = async (trackingToken: string) => {
   const order = await prisma.order.findUnique({
-    where: { orderNumber },
+    where: { trackingToken },
     select: {
       id: true,
       orderNumber: true,

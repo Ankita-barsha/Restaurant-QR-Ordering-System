@@ -62,6 +62,16 @@ const TABLE_KEY = "qr.table";
 const TOKEN_KEY = "qr.token";
 const CART_KEY = "qr.cart";
 
+/**
+ * Tracking token of the most recent order placed on this device.
+ *
+ * The token is issued once, in the response to placing the order, and is the
+ * only way back to the tracking page — so it is kept here to survive a reload
+ * or a closed tab. Exported because /track reads it when opened without a
+ * token in the URL.
+ */
+export const LAST_ORDER_KEY = "qr.lastOrder";
+
 const readStored = <T,>(key: string): T | null => {
   try {
     const raw = sessionStorage.getItem(key);

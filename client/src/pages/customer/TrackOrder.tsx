@@ -20,6 +20,7 @@ import {
 } from "../../hooks/useLiveOrders";
 import { api, getErrorMessage, unwrap } from "../../lib/api";
 import { formatMoney, formatTime } from "../../lib/format";
+import { LAST_ORDER_KEY } from "../../context/CartContext";
 import type { ApiResponse, OrderStatus, TrackedOrder } from "../../types/api";
 
 const STEPS: { status: OrderStatus; label: string; hint: string }[] = [
@@ -30,9 +31,22 @@ const STEPS: { status: OrderStatus; label: string; hint: string }[] = [
   { status: "SERVED", label: "Served", hint: "Enjoy your meal" },
 ];
 
+/**
+ * Landing for /track with no token in the URL.
+ *
+ * There is deliberately no "type your order number" form here any more. An
+ * order number identifies an order but does not prove you placed it, and this
+ * page shows the pickup code — so tracking is authorised by the tracking
+ * token instead, which the diner receives once when they order.
+ *
+ * The token is remembered in sessionStorage so that closing the tab, hitting
+ * back, or reloading still recovers the order. sessionStorage rather than
+ * localStorage for the same reason the table session uses it: the next diner
+ * on a shared device must not inherit it.
+ */
 const TrackLookup = () => {
-  const [value, setValue] = useState("");
   const navigate = useNavigate();
+  const lastToken = sessionStorage.getItem(LAST_ORDER_KEY);
 
   return (
     <div className="flex min-h-screen items-center justify-center bg-obsidian px-6 pt-20">
@@ -41,50 +55,51 @@ const TrackLookup = () => {
         <h1 className="mt-3 text-4xl leading-tight text-ivory">Track your order</h1>
         <div className="rule-fade mx-auto mt-5 h-px w-24" />
 
-        <p className="mt-6 text-[13px] leading-relaxed text-ivory-faint">
-          Enter the reference shown when you placed your order.
-        </p>
+        {lastToken ? (
+          <>
+            <p className="mt-6 text-[13px] leading-relaxed text-ivory-faint">
+              Pick up where you left off with your most recent order.
+            </p>
 
-        <input
-          value={value}
-          onChange={(event) => setValue(event.target.value.toUpperCase())}
-          placeholder="ORD-000123"
-          aria-label="Order number"
-          className="mt-7 w-full rounded-xl border border-smoke bg-charcoal px-4 py-3.5 text-center text-sm tracking-[0.15em] text-ivory placeholder:text-ivory-faint focus:border-gold/50 focus:outline-none"
-        />
-
-        <LuxeButton
-          className="mt-5 w-full"
-          disabled={!value}
-          onClick={() => value && navigate(`/track/${value}`)}
-        >
-          Track order
-        </LuxeButton>
+            <LuxeButton
+              className="mt-7 w-full"
+              onClick={() => navigate(`/track/${lastToken}`)}
+            >
+              View my order
+            </LuxeButton>
+          </>
+        ) : (
+          <p className="mt-6 text-[13px] leading-relaxed text-ivory-faint">
+            Your tracking link opens automatically when you place an order.
+            If you have lost it, any member of staff can look your order up
+            from the number on your receipt.
+          </p>
+        )}
       </div>
     </div>
   );
 };
 
 const TrackOrder = () => {
-  const { orderNumber } = useParams();
+  const { token } = useParams();
   const connected = useSocketStatus();
 
   const [checkoutOpen, setCheckoutOpen] = useState(false);
   const [paidReceipt, setPaidReceipt] = useState<string | null>(null);
 
-  useLiveOrderTracking(orderNumber);
+  useLiveOrderTracking(token);
 
   const orderQuery = useQuery({
-    queryKey: queryKeys.track(orderNumber ?? ""),
+    queryKey: queryKeys.track(token ?? ""),
     queryFn: async () =>
-      unwrap(await api.get<ApiResponse<TrackedOrder>>(`/orders/track/${orderNumber}`)),
-    enabled: Boolean(orderNumber),
+      unwrap(await api.get<ApiResponse<TrackedOrder>>(`/orders/track/${token}`)),
+    enabled: Boolean(token),
     // Safety net only — the socket is the primary path. This recovers from an
     // event missed while the phone was asleep or off Wi-Fi.
     refetchInterval: 30_000,
   });
 
-  if (!orderNumber) return <TrackLookup />;
+  if (!token) return <TrackLookup />;
 
   if (orderQuery.isLoading) {
     return (
@@ -271,7 +286,7 @@ const TrackOrder = () => {
 
       {checkoutOpen && (
         <DemoCheckout
-          orderId={order.orderNumber}
+          trackingToken={order.trackingToken}
           amount={order.totalAmount}
           onClose={() => setCheckoutOpen(false)}
           onPaid={(receipt) => {
