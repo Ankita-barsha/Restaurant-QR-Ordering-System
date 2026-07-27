@@ -108,9 +108,15 @@ export const orderListQuerySchema = paginationQuerySchema.extend({
   to: z.coerce.date().optional(),
 });
 
-/** Public order-tracking lookup. */
-export const orderNumberParamSchema = z.object({
-  orderNumber: z.string().min(1, "orderNumber is required"),
+/**
+ * Public order-tracking lookup.
+ *
+ * Keyed on the tracking token, not the order number. The minimum length
+ * rejects an order number pasted into the URL by habit, which would otherwise
+ * produce a confusing 404 rather than a clear validation error.
+ */
+export const trackingTokenParamSchema = z.object({
+  token: z.string().min(32, "A valid order tracking link is required"),
 });
 
 export type PlaceOrderInput = z.infer<typeof placeOrderSchema>;

@@ -77,18 +77,19 @@ export const useLiveOrders = (): void => {
 /**
  * Subscribes a diner to their own order.
  *
- * Joins the room named after the order number — which the customer already
- * has — so no authentication is needed and no other order is reachable.
+ * Joins the room named after the order's TRACKING TOKEN, which only the diner
+ * who placed it holds. Holding the token is what authorises the subscription;
+ * no account is involved and no other order is reachable.
  */
-export const useLiveOrderTracking = (orderNumber: string | undefined): void => {
+export const useLiveOrderTracking = (trackingToken: string | undefined): void => {
   const queryClient = useQueryClient();
 
   useEffect(() => {
-    if (!orderNumber) return;
+    if (!trackingToken) return;
 
     const socket = getSocket();
 
-    const join = () => socket.emit("order:subscribe", orderNumber);
+    const join = () => socket.emit("order:subscribe", trackingToken);
 
     // Re-joined on every reconnect: rooms are per-connection, so a dropped
     // socket silently stops receiving updates unless it re-subscribes.
@@ -96,7 +97,7 @@ export const useLiveOrderTracking = (orderNumber: string | undefined): void => {
     socket.on("connect", join);
 
     const refresh = () => {
-      void queryClient.invalidateQueries({ queryKey: queryKeys.track(orderNumber) });
+      void queryClient.invalidateQueries({ queryKey: queryKeys.track(trackingToken) });
     };
 
     socket.on(SOCKET_EVENTS.ORDER_STATUS_CHANGED, refresh);
@@ -104,13 +105,13 @@ export const useLiveOrderTracking = (orderNumber: string | undefined): void => {
     socket.on(SOCKET_EVENTS.ORDER_CANCELLED, refresh);
 
     return () => {
-      socket.emit("order:unsubscribe", orderNumber);
+      socket.emit("order:unsubscribe", trackingToken);
       socket.off("connect", join);
       socket.off(SOCKET_EVENTS.ORDER_STATUS_CHANGED, refresh);
       socket.off(SOCKET_EVENTS.ORDER_UPDATED, refresh);
       socket.off(SOCKET_EVENTS.ORDER_CANCELLED, refresh);
     };
-  }, [orderNumber, queryClient]);
+  }, [trackingToken, queryClient]);
 };
 
 /** Live connection indicator, so a kitchen tablet shows when it goes offline. */

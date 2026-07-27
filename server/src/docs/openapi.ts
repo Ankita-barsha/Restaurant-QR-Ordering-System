@@ -330,6 +330,11 @@ const components: Record<string, JsonSchema> = {
     properties: {
       id: { type: "string" },
       orderNumber: { type: "string", examples: ["ORD-000045"] },
+      trackingToken: {
+        type: "string",
+        description:
+          "Unguessable token that authorises tracking and payment for this order. Handed to the diner exactly once, here — there is no endpoint that returns it again. Keep it: it is the only way back to the order.",
+      },
       verificationCode: {
         type: ["string", "null"],
         description:
@@ -383,7 +388,16 @@ const components: Record<string, JsonSchema> = {
       "The trimmed view returned to a diner tracking their own order: no staff details and no other customer's contact information.",
     properties: {
       orderNumber: { type: "string" },
-      verificationCode: { type: ["string", "null"] },
+      trackingToken: {
+        type: "string",
+        description:
+          "Echoed back so the screen can subscribe to updates and start a payment without re-reading it from the URL.",
+      },
+      verificationCode: {
+        type: ["string", "null"],
+        description:
+          "The pickup code. Safe to return here precisely because reaching this order required the unguessable token.",
+      },
       status: { type: "string" },
       type: { type: "string" },
       paymentStatus: { type: "string" },
@@ -866,24 +880,29 @@ const paths: Record<string, Record<string, JsonSchema>> = {
     }),
   },
 
-  "/orders/track/{orderNumber}": {
+  "/orders/track/{token}": {
     get: operation({
       tag: "Orders",
       operationId: "trackOrder",
       summary: "Track an order",
       description:
-        "Public, keyed by the order number printed on the receipt. Returns a trimmed view — no staff details, no other customer's contact information.",
+        "Public, authorised by possession of the order's `trackingToken` — issued exactly once, in the response to placing the order.\n\nDeliberately NOT keyed on the order number: that is a sequence value, so anyone counting upwards could read every order and its pickup code. Returns a trimmed view — no staff details, no other customer's contact information.",
       limit: "public-lookup",
       parameters: [
         {
-          name: "orderNumber",
+          name: "token",
           in: "path",
           required: true,
-          description: "As printed, e.g. `ORD-000045`.",
-          schema: { type: "string", examples: ["ORD-000045"] },
+          description: "The `trackingToken` returned when the order was placed.",
+          schema: { type: "string", minLength: 32 },
         },
       ],
-      responses: { 200: ok("Live status.", ref("TrackedOrder")), ...notFound, ...rateLimited },
+      responses: {
+        200: ok("Live status.", ref("TrackedOrder")),
+        ...validationError,
+        ...notFound,
+        ...rateLimited,
+      },
     }),
   },
 

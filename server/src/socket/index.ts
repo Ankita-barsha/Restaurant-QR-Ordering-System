@@ -111,21 +111,26 @@ export const initSocketServer = (httpServer: HttpServer): SocketServer => {
     /**
      * A customer tracking their own order.
      *
-     * The room is keyed by order number, which the diner already has. It
-     * grants visibility of status pushes for that one order and nothing else,
-     * so no account is required and no other order is reachable.
+     * The room is keyed by the order's TRACKING TOKEN, which only the diner
+     * who placed the order holds. Holding the token is what authorises the
+     * subscription — there is no account to check, and nothing else the
+     * server could verify about an anonymous socket.
+     *
+     * The length floor rejects obvious junk cheaply. It is not a security
+     * control: joining a room named after a token you do not have simply
+     * means joining a room nothing is ever emitted to.
      */
-    socket.on("order:subscribe", (orderNumber: unknown) => {
-      if (typeof orderNumber !== "string" || orderNumber.length === 0) {
+    socket.on("order:subscribe", (trackingToken: unknown) => {
+      if (typeof trackingToken !== "string" || trackingToken.length < 32) {
         return;
       }
 
-      void socket.join(ROOMS.order(orderNumber));
+      void socket.join(ROOMS.order(trackingToken));
     });
 
-    socket.on("order:unsubscribe", (orderNumber: unknown) => {
-      if (typeof orderNumber === "string") {
-        void socket.leave(ROOMS.order(orderNumber));
+    socket.on("order:unsubscribe", (trackingToken: unknown) => {
+      if (typeof trackingToken === "string") {
+        void socket.leave(ROOMS.order(trackingToken));
       }
     });
   });
@@ -161,8 +166,62 @@ const emitToRooms = (rooms: string[], event: string, payload: unknown): void => 
  */
 const ALL_STAFF_ROOMS = [ROOMS.STAFF, ROOMS.KITCHEN, ROOMS.ADMIN];
 
-/** Broadcasts a new order to every staff screen. */
-export const emitOrderCreated = (order: { orderNumber: string }): void => {
+/**
+ * The shape an order event carries.
+ *
+ * Deliberately loose about the extra fields a staff payload contains: callers
+ * pass the full Prisma row, and `toCustomerView` below decides what a diner
+ * is allowed to see rather than trusting the caller to pre-filter.
+ */
+interface EmittableOrder {
+  orderNumber: string;
+  trackingToken?: string | null;
+  status?: string;
+  cancelReason?: string | null;
+  [key: string]: unknown;
+}
+
+/**
+ * The customer-visible projection of an order.
+ *
+ * Staff rooms receive the full row — they need the customer's name and phone
+ * to run the floor. The per-order customer room must NOT: it is joined by an
+ * anonymous socket, and the full row carries `customer.name`, `customer.phone`
+ * and `handledBy.fullName`.
+ *
+ * Whitelisted, not blacklisted. A field added to the Prisma include later is
+ * invisible here by default, which is the failure mode we want.
+ */
+const toCustomerView = (order: EmittableOrder) => ({
+  orderNumber: order.orderNumber,
+  status: order.status,
+  paymentStatus: order.paymentStatus,
+  cancelReason: order.cancelReason ?? null,
+});
+
+/**
+ * Emits an order event to staff (full payload) and, when the order has a
+ * tracking token, to the diner following it (reduced payload).
+ *
+ * Two emits rather than one because the two audiences are entitled to
+ * different data — the single biggest thing that was wrong with the previous
+ * broadcast-everything approach.
+ */
+const emitOrderEvent = (event: string, order: EmittableOrder): void => {
+  emitToRooms(ALL_STAFF_ROOMS, event, order);
+
+  if (order.trackingToken) {
+    emitToRooms([ROOMS.order(order.trackingToken)], event, toCustomerView(order));
+  }
+};
+
+/**
+ * Broadcasts a new order to every staff screen.
+ *
+ * Staff only: the diner who just placed it is looking at the response to
+ * their own POST, and no one else should learn that it exists.
+ */
+export const emitOrderCreated = (order: EmittableOrder): void => {
   emitToRooms(ALL_STAFF_ROOMS, SOCKET_EVENTS.ORDER_CREATED, order);
 };
 
@@ -172,34 +231,16 @@ export const emitOrderCreated = (order: { orderNumber: string }): void => {
  * This is what turns the tracking screen live: the diner sees "Preparing"
  * the moment the kitchen taps it, with no polling.
  */
-export const emitOrderStatusChanged = (order: {
-  orderNumber: string;
-  status: string;
-}): void => {
-  emitToRooms(
-    [...ALL_STAFF_ROOMS, ROOMS.order(order.orderNumber)],
-    SOCKET_EVENTS.ORDER_STATUS_CHANGED,
-    order
-  );
+export const emitOrderStatusChanged = (order: EmittableOrder): void => {
+  emitOrderEvent(SOCKET_EVENTS.ORDER_STATUS_CHANGED, order);
 };
 
-export const emitOrderUpdated = (order: { orderNumber: string }): void => {
-  emitToRooms(
-    [...ALL_STAFF_ROOMS, ROOMS.order(order.orderNumber)],
-    SOCKET_EVENTS.ORDER_UPDATED,
-    order
-  );
+export const emitOrderUpdated = (order: EmittableOrder): void => {
+  emitOrderEvent(SOCKET_EVENTS.ORDER_UPDATED, order);
 };
 
-export const emitOrderCancelled = (order: {
-  orderNumber: string;
-  cancelReason?: string | null;
-}): void => {
-  emitToRooms(
-    [...ALL_STAFF_ROOMS, ROOMS.order(order.orderNumber)],
-    SOCKET_EVENTS.ORDER_CANCELLED,
-    order
-  );
+export const emitOrderCancelled = (order: EmittableOrder): void => {
+  emitOrderEvent(SOCKET_EVENTS.ORDER_CANCELLED, order);
 };
 
 /** Tells every connected client a menu item sold out or came back. */

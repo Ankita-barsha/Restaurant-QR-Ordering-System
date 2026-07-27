@@ -82,6 +82,11 @@ export interface OrderItem {
 export interface Order {
   id: string;
   orderNumber: string;
+  /**
+   * Unguessable per-order secret. Present on the response to placing an order
+   * — that is the only time the diner receives it — and on staff reads.
+   */
+  trackingToken: string;
   /** Four-character pickup code the waiter must verify before serving. */
   verificationCode: string | null;
   status: OrderStatus;
@@ -110,6 +115,8 @@ export interface Order {
 /** The trimmed shape returned by the public tracking endpoint. */
 export interface TrackedOrder {
   orderNumber: string;
+  /** Echoed back so the page can subscribe and pay without re-parsing the URL. */
+  trackingToken: string;
   verificationCode: string | null;
   paymentStatus: PaymentStatus;
   status: OrderStatus;

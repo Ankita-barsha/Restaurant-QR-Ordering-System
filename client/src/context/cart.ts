@@ -41,6 +41,16 @@ export interface CartContextValue {
   clearCart: () => void;
 }
 
+/**
+ * Tracking token of the most recent order placed on this device.
+ *
+ * The token is issued once, in the response to placing the order, and is the
+ * only way back to the tracking page — so it is kept in sessionStorage to
+ * survive a reload or a closed tab. It lives here rather than in
+ * CartContext.tsx because that file exports only components.
+ */
+export const LAST_ORDER_KEY = "qr.lastOrder";
+
 export const CartContext = createContext<CartContextValue | null>(null);
 
 export const useCart = (): CartContextValue => {

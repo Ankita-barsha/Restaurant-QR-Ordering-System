@@ -332,7 +332,20 @@ model Order {
 
   /// Short human-readable reference shown to customers and kitchen staff.
   /// Distinct from `id`: staff must be able to read it aloud.
+  ///
+  /// It comes from a sequence, so it is ENUMERABLE and must never be treated
+  /// as a secret. Anything a diner is entitled to see and no one else is keyed
+  /// on `trackingToken` below.
   orderNumber String @unique
+
+  /// Unguessable per-order secret, handed to the diner once when the order is
+  /// placed. The public tracking page, the pickup code and the online payment
+  /// flow are all keyed on this.
+  ///
+  /// Separate from `id` for the same reason Table.qrToken is: this value
+  /// travels in URLs and can be rotated, whereas an id is referenced by other
+  /// rows and cannot.
+  trackingToken String @unique
 
   /// Four-character pickup code shown ONLY to the customer who placed the
   /// order. The waiter must ask for it and enter it before the order can be

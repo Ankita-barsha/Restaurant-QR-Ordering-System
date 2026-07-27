@@ -10,7 +10,7 @@ import type {
 } from "../validations/order.validation.js";
 
 type IdParams = { id: string };
-type OrderNumberParams = { orderNumber: string };
+type TrackingTokenParams = { token: string };
 type NoParams = Record<string, never>;
 
 /** POST /api/orders — PUBLIC, called by the customer app after a QR scan. */
@@ -27,9 +27,9 @@ export const place: RequestHandler<NoParams, unknown, PlaceOrderInput> = async (
   });
 };
 
-/** GET /api/orders/track/:orderNumber — PUBLIC order tracking. */
-export const track: RequestHandler<OrderNumberParams> = async (req, res) => {
-  const order = await orderService.trackByOrderNumber(req.params.orderNumber);
+/** GET /api/orders/track/:token — PUBLIC, authorised by the tracking token. */
+export const track: RequestHandler<TrackingTokenParams> = async (req, res) => {
+  const order = await orderService.trackByToken(req.params.token);
 
   res.json({ success: true, data: order });
 };

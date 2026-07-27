@@ -2446,26 +2446,24 @@
         }
       }
     },
-    "/orders/track/{orderNumber}": {
+    "/orders/track/{token}": {
       "get": {
         "tags": [
           "Orders"
         ],
         "operationId": "trackOrder",
         "summary": "Track an order",
-        "description": "Public, keyed by the order number printed on the receipt. Returns a trimmed view — no staff details, no other customer's contact information.\n\n**Access:** public — no authentication.\n\n**Rate limit:** 60 requests / 5 minutes per IP, to blunt enumeration of order numbers and booking references.",
+        "description": "Public, authorised by possession of the order's `trackingToken` — issued exactly once, in the response to placing the order.\n\nDeliberately NOT keyed on the order number: that is a sequence value, so anyone counting upwards could read every order and its pickup code. Returns a trimmed view — no staff details, no other customer's contact information.\n\n**Access:** public — no authentication.\n\n**Rate limit:** 60 requests / 5 minutes per IP, to blunt enumeration of order numbers and booking references.",
         "security": [],
         "parameters": [
           {
-            "name": "orderNumber",
+            "name": "token",
             "in": "path",
             "required": true,
-            "description": "As printed, e.g. `ORD-000045`.",
+            "description": "The `trackingToken` returned when the order was placed.",
             "schema": {
               "type": "string",
-              "examples": [
-                "ORD-000045"
-              ]
+              "minLength": 32
             }
           }
         ],
@@ -2491,6 +2489,16 @@
                   "required": [
                     "success"
                   ]
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Validation failed. `details` lists the offending fields.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
                 }
               }
             }
@@ -3426,13 +3434,13 @@
               "schema": {
                 "type": "object",
                 "properties": {
-                  "orderNumber": {
+                  "trackingToken": {
                     "type": "string",
-                    "minLength": 1
+                    "minLength": 32
                   }
                 },
                 "required": [
-                  "orderNumber"
+                  "trackingToken"
                 ]
               }
             }
@@ -9574,6 +9582,10 @@
               "ORD-000045"
             ]
           },
+          "trackingToken": {
+            "type": "string",
+            "description": "Unguessable token that authorises tracking and payment for this order. Handed to the diner exactly once, here — there is no endpoint that returns it again. Keep it: it is the only way back to the order."
+          },
           "verificationCode": {
             "type": [
               "string",
@@ -9769,11 +9781,16 @@
           "orderNumber": {
             "type": "string"
           },
+          "trackingToken": {
+            "type": "string",
+            "description": "Echoed back so the screen can subscribe to updates and start a payment without re-reading it from the URL."
+          },
           "verificationCode": {
             "type": [
               "string",
               "null"
-            ]
+            ],
+            "description": "The pickup code. Safe to return here precisely because reaching this order required the unguessable token."
           },
           "status": {
             "type": "string"

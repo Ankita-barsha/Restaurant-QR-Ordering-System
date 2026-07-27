@@ -9,9 +9,9 @@ type IdParams = { id: string };
 export const initiate: RequestHandler<
   Record<string, never>,
   unknown,
-  { orderNumber: string }
+  { trackingToken: string }
 > = async (req, res) => {
-  const intent = await paymentService.initiateOnlinePayment(req.body.orderNumber);
+  const intent = await paymentService.initiateOnlinePayment(req.body.trackingToken);
 
   res.status(201).json({ success: true, data: intent });
 };
