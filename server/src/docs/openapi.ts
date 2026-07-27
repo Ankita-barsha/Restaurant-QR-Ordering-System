@@ -13,7 +13,6 @@
 
 import { z } from "zod";
 
-import { config } from "../config/env.js";
 import { PERMISSIONS } from "../config/permissions.js";
 import {
   jsonBody,
@@ -1874,6 +1873,3 @@ export const openApiDocument = {
 
 /** Serialised once at startup; the document never changes at runtime. */
 export const openApiJson = JSON.stringify(openApiDocument, null, 2);
-
-/** Whether the interactive docs are mounted. See config.docs. */
-export const docsEnabled = config.docs.enabled;
