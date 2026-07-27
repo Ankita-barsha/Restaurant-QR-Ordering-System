@@ -10,10 +10,10 @@
  */
 
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { useEffect, useState } from "react";
+import { useState } from "react";
 
 import { Button, Card, ErrorBox, Spinner } from "../../components/ui";
-import { useAuth } from "../../context/AuthContext";
+import { useAuth } from "../../context/auth";
 import { api, getErrorMessage, unwrap } from "../../lib/api";
 import type { ApiResponse } from "../../types/api";
 
@@ -53,11 +53,20 @@ const AdminRoles = () => {
   const roles = rolesQuery.data ?? [];
   const selected = roles.find((role) => role.id === selectedId) ?? null;
 
-  // The draft resets whenever a different role is opened, so edits to one
-  // role can never leak into another.
-  useEffect(() => {
+  /**
+   * The draft resets whenever a different role is opened, so edits to one role
+   * can never leak into another.
+   *
+   * Adjusted during render rather than in an effect: an effect would render
+   * the newly-opened role's checklist showing the PREVIOUS role's ticks for a
+   * frame before correcting itself.
+   */
+  const [draftRoleId, setDraftRoleId] = useState<string | null>(null);
+
+  if (draftRoleId !== selectedId) {
+    setDraftRoleId(selectedId);
     setDraft(new Set(selected?.permissions ?? []));
-  }, [selected]);
+  }
 
   const invalidate = () => {
     void queryClient.invalidateQueries({ queryKey: ["admin", "roles"] });
@@ -100,7 +109,13 @@ const AdminRoles = () => {
   const toggle = (key: string) => {
     setDraft((previous) => {
       const next = new Set(previous);
-      next.has(key) ? next.delete(key) : next.add(key);
+
+      if (next.has(key)) {
+        next.delete(key);
+      } else {
+        next.add(key);
+      }
+
       return next;
     });
   };

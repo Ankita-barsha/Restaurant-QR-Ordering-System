@@ -109,10 +109,11 @@ model User {
   /// Restrict: a role still assigned to users cannot be deleted.
   role   Role   @relation(fields: [roleId], references: [id], onDelete: Restrict)
 
-  auditLogs     AuditLog[]
-  notifications Notification[]
-  handledOrders Order[]        @relation("OrderHandledBy")
-  refreshTokens RefreshToken[]
+  auditLogs         AuditLog[]
+  notifications     Notification[]
+  notificationReads NotificationRead[]
+  handledOrders     Order[]            @relation("OrderHandledBy")
+  refreshTokens     RefreshToken[]
 
   createdAt DateTime  @default(now())
   updatedAt DateTime  @updatedAt
@@ -470,17 +471,40 @@ model Notification {
   title   String
   message String
 
-  isRead Boolean   @default(false)
-  readAt DateTime?
+  /// Who has read it. Read state is per staff member — see NotificationRead.
+  reads NotificationRead[]
 
   /// Payload for deep-linking, e.g. { "orderId": "..." }.
   metadata Json?
 
   createdAt DateTime @default(now())
 
-  @@index([userId, isRead])
+  @@index([userId])
   @@index([createdAt])
   @@map("notifications")
+}
+
+/// One staff member having read one notification.
+///
+/// Read state CANNOT live on Notification itself. Almost every notification is
+/// a broadcast, so a single isRead flag meant the first person to open the bell
+/// marked it read for the entire team — the chef clearing their list hid the
+/// new order from every waiter. A row per (notification, user) is the only
+/// shape that lets each person have their own unread count.
+model NotificationRead {
+  notificationId String
+  notification   Notification @relation(fields: [notificationId], references: [id], onDelete: Cascade)
+
+  userId String
+  user   User   @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  readAt DateTime @default(now())
+
+  /// Composite key: reading the same notification twice is idempotent, not a
+  /// second row.
+  @@id([notificationId, userId])
+  @@index([userId])
+  @@map("notification_reads")
 }
 
 // ===========================================================================
@@ -556,6 +580,12 @@ model Payment {
 
   /// Human-readable receipt number shown to the customer.
   receiptNumber String? @unique
+
+  /// Refund trail. A refund reverses THIS row rather than creating a negative
+  /// one, so "collected" stays a simple sum over SUCCESS and can never be
+  /// double-counted.
+  refundedAt   DateTime?
+  refundReason String?
 
   paidAt    DateTime?
   createdAt DateTime  @default(now())

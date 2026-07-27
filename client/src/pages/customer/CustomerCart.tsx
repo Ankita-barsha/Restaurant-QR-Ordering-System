@@ -12,9 +12,10 @@ import { Link, useNavigate } from "react-router-dom";
 
 import { LuxeButton, LuxeEmpty, LuxeError } from "../../components/luxe";
 import { config } from "../../config/env";
-import { useCart } from "../../context/CartContext";
+import { useCart } from "../../context/cart";
 import { api, getErrorMessage, unwrap } from "../../lib/api";
 import { formatMoney, imageUrl } from "../../lib/format";
+import { fromMinor, quoteTotals, toMinor } from "../../lib/money";
 import type { ApiResponse, Order, PublicSettings } from "../../types/api";
 
 const fieldClass =
@@ -27,7 +28,7 @@ const CustomerCart = () => {
     qrToken,
     items,
     itemCount,
-    subtotal,
+    subtotalMinor,
     increase,
     decrease,
     removeItem,
@@ -84,9 +85,26 @@ const CustomerCart = () => {
     );
   }
 
-  const taxPercent = Number(settingsQuery.data?.taxPercent ?? "0");
-  const estimatedTax = (Number(subtotal) * taxPercent) / 100;
-  const estimatedTotal = Number(subtotal) + estimatedTax;
+  /**
+   * The quote.
+   *
+   * Both charges, computed in integer paise by the same rules the server uses,
+   * so what the diner is shown here is what they are asked to pay. Applying
+   * tax alone — as this screen once did — under-quoted every basket wherever a
+   * service charge was configured.
+   *
+   * Still an estimate: prices, availability and the charges themselves are
+   * re-read server-side when the order is placed. It is an honest one now.
+   */
+  const taxPercent = settingsQuery.data?.taxPercent ?? "0";
+  const servicePercent = settingsQuery.data?.serviceChargePercent ?? "0";
+  const quote = quoteTotals(subtotalMinor, taxPercent, servicePercent);
+
+  const currency = settingsQuery.data?.currency;
+  const money = (value: string) => formatMoney(value, currency);
+
+  const hasTax = toMinor(taxPercent) > 0;
+  const hasService = toMinor(servicePercent) > 0;
 
   return (
     <div className="min-h-screen bg-obsidian pb-40 pt-28">
@@ -124,12 +142,13 @@ const CustomerCart = () => {
                   <div className="flex items-start justify-between gap-4">
                     <h2 className="text-xl leading-tight text-ivory">{item.name}</h2>
                     <span className="font-display shrink-0 text-xl text-gold">
-                      {formatMoney(Number(item.price) * item.quantity)}
+                      {/* Multiplied in paise: 19.99 x 3 as floats is 59.97000000000001. */}
+                      {money(fromMinor(toMinor(item.price) * item.quantity))}
                     </span>
                   </div>
 
                   <p className="mt-1 text-xs text-ivory-faint">
-                    {formatMoney(item.price)} each
+                    {money(item.price)} each
                   </p>
 
                   <div className="mt-4 flex items-center gap-5">
@@ -217,12 +236,24 @@ const CustomerCart = () => {
           <dl className="space-y-3 text-sm">
             <div className="flex justify-between text-ivory-dim">
               <dt>Subtotal</dt>
-              <dd>{formatMoney(subtotal)}</dd>
+              <dd>{money(quote.subtotal)}</dd>
             </div>
-            <div className="flex justify-between text-ivory-dim">
-              <dt>Tax &amp; charges ({taxPercent}%)</dt>
-              <dd>{formatMoney(estimatedTax)}</dd>
-            </div>
+
+            {/* Listed separately, and only when charged, so the total is
+                arithmetic the diner can follow rather than a surprise. */}
+            {hasTax && (
+              <div className="flex justify-between text-ivory-dim">
+                <dt>Tax ({taxPercent}%)</dt>
+                <dd>{money(quote.tax)}</dd>
+              </div>
+            )}
+
+            {hasService && (
+              <div className="flex justify-between text-ivory-dim">
+                <dt>Service charge ({servicePercent}%)</dt>
+                <dd>{money(quote.serviceCharge)}</dd>
+              </div>
+            )}
           </dl>
 
           <div className="rule-fade my-5 h-px" />
@@ -230,7 +261,7 @@ const CustomerCart = () => {
           <div className="flex items-baseline justify-between">
             <span className="eyebrow">Total</span>
             <span className="font-display text-4xl text-gold">
-              {formatMoney(estimatedTotal)}
+              {money(quote.total)}
             </span>
           </div>
 

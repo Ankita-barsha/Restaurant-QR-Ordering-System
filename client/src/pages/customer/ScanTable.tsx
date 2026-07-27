@@ -11,7 +11,7 @@ import { useEffect } from "react";
 import { Link, useNavigate, useParams } from "react-router-dom";
 
 import { LuxeButton, LuxeError, LuxeLoader, Stars } from "../../components/luxe";
-import { useCart } from "../../context/CartContext";
+import { useCart } from "../../context/cart";
 import { api, getErrorMessage, unwrap } from "../../lib/api";
 import type { ApiResponse, PublicSettings, ScannedTable } from "../../types/api";
 

@@ -38,6 +38,11 @@ Render and Vercel both deploy from GitHub, so this has to happen first.
    them by hand and do not change them later — rotating either signs every
    staff member out.
 
+   `REPORT_TIMEZONE` defaults to `Asia/Kolkata` in `render.yaml`. Change it if
+   the restaurant trades elsewhere: it defines when the business day starts and
+   ends for every report. Render's servers run in UTC, so leaving it wrong
+   shifts every daily figure by the offset between the two.
+
 3. Wait for the first deploy. Migrations run automatically
    (`prisma migrate deploy`). Note the service URL, e.g.
    `https://restaurant-api.onrender.com`.

@@ -8,7 +8,7 @@
 
 import crypto from "node:crypto";
 
-import type { Prisma } from "../generated/prisma/client.js";
+import type { Prisma, PrismaClient } from "../generated/prisma/client.js";
 import { prisma } from "../config/prisma.js";
 import { AppError } from "../utils/AppError.js";
 import {
@@ -23,10 +23,45 @@ import type {
   UpdateReservationInput,
 } from "../validations/reservation.validation.js";
 
+/** Prisma transaction client — the type $transaction hands to its callback. */
+type TxClient = Omit<
+  PrismaClient,
+  "$connect" | "$disconnect" | "$on" | "$transaction" | "$extends"
+>;
+
+/** Either the shared client or a transaction, wherever the query may run. */
+type Db = PrismaClient | TxClient;
+
 const reservationInclude = {
   table: { select: { id: true, tableNumber: true, capacity: true } },
   customer: { select: { id: true, name: true, phone: true } },
 } satisfies Prisma.ReservationInclude;
+
+/**
+ * Advisory lock key guarding every capacity decision.
+ *
+ * Checking seats and then inserting a booking is a read-modify-write. Two
+ * requests arriving together both read "12 seats free", both decide a party of
+ * eight fits, and the house is overbooked by four covers — a bug that only
+ * appears under exactly the load where it matters most, so it never shows up in
+ * testing.
+ *
+ * pg_advisory_xact_lock takes a session-wide lock held until the transaction
+ * ends, so bookings queue behind one another for the few milliseconds the
+ * decision takes. A UNIQUE constraint cannot express this: the rule is a SUM
+ * across overlapping rows, not the uniqueness of any one value.
+ *
+ * The number is arbitrary but must be stable — every capacity decision has to
+ * ask for the SAME lock, or they do not exclude each other.
+ */
+const CAPACITY_LOCK_KEY = 4815162342n;
+
+const lockCapacity = async (tx: TxClient): Promise<void> => {
+  // $executeRaw, not $queryRaw: pg_advisory_xact_lock returns void, and
+  // $queryRaw tries to deserialize the result set — which fails outright on a
+  // void column. This statement is taken for its effect, not its value.
+  await tx.$executeRaw`SELECT pg_advisory_xact_lock(${CAPACITY_LOCK_KEY})`;
+};
 
 /** Bookings that still occupy capacity. */
 const ACTIVE_STATUSES: ReservationStatus[] = ["PENDING", "CONFIRMED", "SEATED"];
@@ -61,8 +96,8 @@ const generateReference = (): string => {
 };
 
 /** Total seats the house can serve at once. */
-const totalCapacity = async (): Promise<number> => {
-  const result = await prisma.table.aggregate({
+const totalCapacity = async (db: Db = prisma): Promise<number> => {
+  const result = await db.table.aggregate({
     _sum: { capacity: true },
     where: { isActive: true },
   });
@@ -80,14 +115,15 @@ const totalCapacity = async (): Promise<number> => {
 const seatsTakenDuring = async (
   start: Date,
   durationMinutes: number,
-  excludeId?: string
+  excludeId?: string,
+  db: Db = prisma
 ): Promise<number> => {
   const end = new Date(start.getTime() + durationMinutes * 60_000);
 
   // Widest possible sitting, so the candidate set is small but complete.
   const windowStart = new Date(start.getTime() - 6 * 3_600_000);
 
-  const nearby = await prisma.reservation.findMany({
+  const nearby = await db.reservation.findMany({
     where: {
       status: { in: ACTIVE_STATUSES },
       reservedAt: { gte: windowStart, lte: end },
@@ -107,15 +143,23 @@ const seatsTakenDuring = async (
     .reduce((sum, booking) => sum + booking.partySize, 0);
 };
 
-/** Seats free for a given moment. */
+/**
+ * Seats free for a given moment.
+ *
+ * Advisory only when called on its own (the availability endpoint, slot
+ * suggestions): the answer can be stale by the time the guest acts on it. The
+ * booking path re-runs this INSIDE the locked transaction, which is what makes
+ * the decision binding.
+ */
 export const checkAvailability = async (
   reservedAt: Date,
   partySize: number,
-  durationMinutes = 90
+  durationMinutes = 90,
+  db: Db = prisma
 ) => {
   const [capacity, taken] = await Promise.all([
-    totalCapacity(),
-    seatsTakenDuring(reservedAt, durationMinutes),
+    totalCapacity(db),
+    seatsTakenDuring(reservedAt, durationMinutes, undefined, db),
   ]);
 
   const remaining = capacity - taken;
@@ -151,49 +195,78 @@ export const suggestSlots = async (around: Date, partySize: number) => {
   return results.filter((slot): slot is string => slot !== null);
 };
 
+/**
+ * Takes a booking.
+ *
+ * The capacity check and the insert run in ONE locked transaction, so no other
+ * booking can slip between "there is room" and "the table is held". Without the
+ * lock, two parties requesting the last few covers simultaneously both saw them
+ * free and both were confirmed.
+ */
 export const createReservation = async (input: CreateReservationInput) => {
   const durationMinutes = 90;
 
-  const availability = await checkAvailability(
-    input.reservedAt,
-    input.partySize,
-    durationMinutes
-  );
+  // Set by the transaction when it refuses, and read afterwards to build the
+  // error. Assigning it inside is what lets the lock be released before the
+  // slow work of finding alternatives.
+  let seatsRemaining = 0;
 
-  if (!availability.available) {
+  const reservation = await prisma.$transaction(async (tx) => {
+    await lockCapacity(tx);
+
+    const availability = await checkAvailability(
+      input.reservedAt,
+      input.partySize,
+      durationMinutes,
+      tx
+    );
+
+    if (!availability.available) {
+      // Returns rather than throws: suggesting alternatives means several more
+      // capacity queries, and holding the lock while we shop for other times
+      // would block every other booking for no reason.
+      seatsRemaining = availability.seatsRemaining;
+
+      return null;
+    }
+
+    // Link a returning guest by phone so their history accumulates, exactly as
+    // ordering does — the same person should not become two records.
+    const customer = await tx.customer.upsert({
+      where: { phone: input.phone },
+      update: { name: input.name, email: input.email ?? undefined },
+      create: { phone: input.phone, name: input.name, email: input.email },
+    });
+
+    return tx.reservation.create({
+      data: {
+        reference: generateReference(),
+        name: input.name,
+        phone: input.phone,
+        email: input.email,
+        partySize: input.partySize,
+        reservedAt: input.reservedAt,
+        durationMinutes,
+        occasion: input.occasion,
+        notes: input.notes,
+        customerId: customer.id,
+      },
+      include: reservationInclude,
+    });
+  });
+
+  if (!reservation) {
     const alternatives = await suggestSlots(input.reservedAt, input.partySize);
 
     throw AppError.conflict(
       alternatives.length > 0
         ? "That time is fully booked. Nearby times are available."
         : "We are fully booked around that time. Please call the restaurant.",
-      { seatsRemaining: availability.seatsRemaining, alternatives }
+      { seatsRemaining, alternatives }
     );
   }
 
-  // Link a returning guest by phone so their history accumulates, exactly as
-  // ordering does — the same person should not become two records.
-  const customer = await prisma.customer.upsert({
-    where: { phone: input.phone },
-    update: { name: input.name, email: input.email ?? undefined },
-    create: { phone: input.phone, name: input.name, email: input.email },
-  });
-
-  return prisma.reservation.create({
-    data: {
-      reference: generateReference(),
-      name: input.name,
-      phone: input.phone,
-      email: input.email,
-      partySize: input.partySize,
-      reservedAt: input.reservedAt,
-      durationMinutes,
-      occasion: input.occasion,
-      notes: input.notes,
-      customerId: customer.id,
-    },
-    include: reservationInclude,
-  });
+  return reservation;
 };
 
 /** Public lookup by reference — returns only what the guest already knows. */
@@ -287,44 +360,51 @@ export const updateReservation = async (
 ) => {
   const existing = await getReservationById(id);
 
-  // Re-check capacity when the size or time moves, excluding this booking so
-  // it does not count itself as a clash.
-  if (input.partySize || input.reservedAt) {
-    const when = input.reservedAt ?? existing.reservedAt;
-    const size = input.partySize ?? existing.partySize;
-    const duration = input.durationMinutes ?? existing.durationMinutes;
+  // Same transaction and same lock as createReservation: moving a booking to a
+  // busy slot consumes capacity exactly as making one does, so it has to be
+  // serialised against concurrent bookings too.
+  return prisma.$transaction(async (tx) => {
+    if (input.partySize || input.reservedAt) {
+      await lockCapacity(tx);
 
-    const capacity = await totalCapacity();
-    const taken = await seatsTakenDuring(when, duration, id);
+      // Re-checked when the size or time moves, excluding this booking so it
+      // does not count itself as a clash.
+      const when = input.reservedAt ?? existing.reservedAt;
+      const size = input.partySize ?? existing.partySize;
+      const duration = input.durationMinutes ?? existing.durationMinutes;
 
-    if (capacity - taken < size) {
-      throw AppError.conflict("Not enough seats free at that time");
+      const capacity = await totalCapacity(tx);
+      const taken = await seatsTakenDuring(when, duration, id, tx);
+
+      if (capacity - taken < size) {
+        throw AppError.conflict("Not enough seats free at that time");
+      }
     }
-  }
 
-  if (input.tableId) {
-    const table = await prisma.table.findFirst({
-      where: { id: input.tableId, isActive: true },
-      select: { id: true, capacity: true },
+    if (input.tableId) {
+      const table = await tx.table.findFirst({
+        where: { id: input.tableId, isActive: true },
+        select: { id: true, capacity: true },
+      });
+
+      if (!table) {
+        throw AppError.badRequest("That table is not available");
+      }
+
+      const size = input.partySize ?? existing.partySize;
+
+      if (table.capacity < size) {
+        throw AppError.badRequest(
+          `That table seats ${table.capacity}; the booking is for ${size}`
+        );
+      }
+    }
+
+    return tx.reservation.update({
+      where: { id },
+      data: input,
+      include: reservationInclude,
     });
-
-    if (!table) {
-      throw AppError.badRequest("That table is not available");
-    }
-
-    const size = input.partySize ?? existing.partySize;
-
-    if (table.capacity < size) {
-      throw AppError.badRequest(
-        `That table seats ${table.capacity}; the booking is for ${size}`
-      );
-    }
-  }
-
-  return prisma.reservation.update({
-    where: { id },
-    data: input,
-    include: reservationInclude,
   });
 };
 

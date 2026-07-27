@@ -7,6 +7,7 @@
 
 import { Router } from "express";
 
+import * as adminController from "../controllers/admin.controller.js";
 import adminRoutes from "./admin.routes.js";
 import authRoutes from "./auth.routes.js";
 import categoryRoutes from "./category.routes.js";
@@ -18,8 +19,6 @@ import reservationRoutes from "./reservation.routes.js";
 import tableRoutes from "./table.routes.js";
 
 const router = Router();
-
-import * as adminController from "../controllers/admin.controller.js";
 
 router.get("/health", (_req, res) => {
   res.json({ success: true, message: "API is healthy" });
@@ -37,7 +36,5 @@ router.use("/notifications", notificationRoutes);
 router.use("/payments", paymentRoutes);
 router.use("/reservations", reservationRoutes);
 router.use("/tables", tableRoutes);
-
-// Feature routers are mounted here as they are built.
 
 export default router;

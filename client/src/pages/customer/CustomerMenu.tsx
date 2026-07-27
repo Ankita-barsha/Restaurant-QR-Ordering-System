@@ -24,8 +24,8 @@ import {
 } from "../../components/luxe";
 import DishSheet from "../../components/DishSheet";
 import { config } from "../../config/env";
-import { useCart } from "../../context/CartContext";
-import { useFavourites } from "../../context/FavouritesContext";
+import { useCart } from "../../context/cart";
+import { useFavourites } from "../../context/favourites";
 import { queryKeys, useLiveOrders } from "../../hooks/useLiveOrders";
 import { api, getErrorMessage, unwrap } from "../../lib/api";
 import { formatMoney, imageUrl } from "../../lib/format";

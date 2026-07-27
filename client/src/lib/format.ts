@@ -2,8 +2,11 @@
  * Display formatting.
  *
  * Money arrives from the API as an exact decimal STRING ("349.00"). It is
- * parsed to a number only at the final formatting step, never for arithmetic.
+ * parsed to a number only at the final formatting step, never for arithmetic —
+ * that lives in ./money, in integer paise.
  */
+
+import { fromMinor, sumLinesMinor } from "./money";
 
 /** Formats a decimal string as currency. */
 export const formatMoney = (value: string | number, currency = "INR"): string => {
@@ -19,19 +22,11 @@ export const formatMoney = (value: string | number, currency = "INR"): string =>
 /**
  * Sums decimal strings exactly, in integer paise.
  *
- * Used for the cart total. Adding the floats directly would drift:
+ * Used for the cart subtotal. Adding the floats directly would drift:
  * 0.1 + 0.2 !== 0.3.
  */
-export const sumMoney = (values: { price: string; quantity: number }[]): string => {
-  const totalPaise = values.reduce((sum, entry) => {
-    const [whole, fraction = ""] = entry.price.split(".");
-    const paise = Number(whole) * 100 + Number(fraction.padEnd(2, "0").slice(0, 2));
-
-    return sum + paise * entry.quantity;
-  }, 0);
-
-  return `${Math.trunc(totalPaise / 100)}.${String(totalPaise % 100).padStart(2, "0")}`;
-};
+export const sumMoney = (values: { price: string; quantity: number }[]): string =>
+  fromMinor(sumLinesMinor(values));
 
 /** "2 minutes ago" style relative time, for the kitchen ticket age. */
 export const timeAgo = (iso: string): string => {

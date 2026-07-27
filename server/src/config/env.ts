@@ -93,11 +93,55 @@ const envSchema = z.object({
   MAX_UPLOAD_MB: z.coerce.number().positive().max(25).default(2),
 
   /**
+   * IANA timezone every report is bucketed in, e.g. "Asia/Kolkata".
+   *
+   * A restaurant's trading day is a wall-clock day in the place it stands. The
+   * server and the database may sit in another zone entirely — a managed
+   * Postgres almost always runs in UTC — so "today" has to be stated once here
+   * rather than inferred separately by each query. When it was inferred, the
+   * dashboard counted from local midnight while the chart grouped by UTC
+   * midnight, and the two headline numbers disagreed for five and a half hours
+   * every day.
+   *
+   * Validated against the runtime's own timezone database, so a typo fails at
+   * startup instead of silently reporting the wrong days.
+   */
+  REPORT_TIMEZONE: z
+    .string()
+    .default("Asia/Kolkata")
+    .refine(
+      (zone) => {
+        try {
+          new Intl.DateTimeFormat("en-US", { timeZone: zone });
+          return true;
+        } catch {
+          return false;
+        }
+      },
+      { message: "REPORT_TIMEZONE must be a valid IANA timezone, e.g. Asia/Kolkata" }
+    ),
+
+  /**
    * Base URL encoded into table QR codes. Defaults to CORS_ORIGIN, since the
    * QR must open the customer app, not the API. Separate variable because in
    * production the public site and the allowed API origin can differ.
    */
   QR_BASE_URL: z.string().url().optional(),
+
+  /**
+   * Whether the interactive API documentation is mounted at /api/docs.
+   *
+   * Enabled by default, including in production: the spec describes endpoints
+   * that are already reachable and grants no access — every protected route is
+   * still behind a token and a permission. Discoverable docs are worth more
+   * here than the modest obscurity of hiding them.
+   *
+   * Set to "false" to withhold the map anyway; nothing else changes.
+   */
+  API_DOCS: z
+    .enum(["true", "false"])
+    .default("true")
+    .transform((value) => value === "true"),
 
   // Used only by the seed script; the server does not require them to boot.
   SEED_ADMIN_EMAIL: z.string().email().optional(),
@@ -145,6 +189,17 @@ export const config = Object.freeze({
   security: Object.freeze({
     bcryptRounds: env.BCRYPT_ROUNDS,
     corsOrigins: env.CORS_ORIGIN,
+  }),
+
+  reporting: Object.freeze({
+    /** The single definition of a trading day, shared by every report. */
+    timezone: env.REPORT_TIMEZONE,
+  }),
+
+  docs: Object.freeze({
+    enabled: env.API_DOCS,
+    /** Path the Swagger UI and the raw spec are mounted under. */
+    path: "/api/docs",
   }),
 
   qr: Object.freeze({

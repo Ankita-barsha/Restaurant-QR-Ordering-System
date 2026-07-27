@@ -4,6 +4,7 @@ import cors from "cors";
 import express from "express";
 
 import { config } from "./config/env.js";
+import docsRouter from "./docs/router.js";
 import { errorHandler, notFoundHandler } from "./middleware/errorHandler.js";
 import { apiLimiter, securityHeaders } from "./middleware/security.js";
 import apiRoutes from "./routes/index.js";
@@ -72,6 +73,21 @@ app.get("/", (_req, res) => {
     message: "Restaurant QR Ordering API is running 🚀",
   });
 });
+
+/**
+ * API documentation.
+ *
+ * Mounted BEFORE the rate limiter: Swagger UI pulls several static assets on
+ * every page load, and spending the caller's request budget on stylesheets
+ * would mean opening the docs could rate-limit the API calls you opened them
+ * to make.
+ *
+ * Registered before "/api" so the more specific path wins — Express matches in
+ * order, and the API router would otherwise 404 on /api/docs first.
+ */
+if (config.docs.enabled) {
+  app.use(config.docs.path, docsRouter);
+}
 
 app.use("/api", apiLimiter, apiRoutes);
 

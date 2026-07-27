@@ -17,7 +17,7 @@ import ImagePicker from "../../components/ImagePicker";
 import Modal from "../../components/Modal";
 import { Button, Card, EmptyState, ErrorBox, Spinner } from "../../components/ui";
 import { config } from "../../config/env";
-import { useAuth } from "../../context/AuthContext";
+import { useAuth } from "../../context/auth";
 import { queryKeys } from "../../hooks/useLiveOrders";
 import { api, getErrorMessage, unwrap } from "../../lib/api";
 import { formatMoney, imageUrl } from "../../lib/format";

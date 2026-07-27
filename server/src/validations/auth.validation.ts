@@ -11,10 +11,18 @@ export const loginSchema = z.object({
   email: z
     .string()
     .min(1, "Email is required")
-    .email("Enter a valid email address")
-    // Emails are case-insensitive in practice; normalising here prevents
-    // "Admin@x.com" failing to match the stored "admin@x.com".
-    .transform((value) => value.toLowerCase().trim()),
+    /**
+     * Normalised BEFORE the format check, not after.
+     *
+     * Emails are case-insensitive in practice, so lowercasing prevents
+     * "Admin@x.com" failing to match the stored "admin@x.com". Trimming has to
+     * come first too: a trailing space — which phone keyboards and password
+     * managers add routinely — otherwise fails the format check outright, and
+     * the user is told their address is invalid when it is merely padded.
+     */
+    .trim()
+    .toLowerCase()
+    .email("Enter a valid email address"),
 
   password: z.string().min(1, "Password is required"),
 });
@@ -22,12 +30,22 @@ export const loginSchema = z.object({
 /**
  * Refresh token input.
  *
- * Optional in the body because the token may instead arrive as an httpOnly
+ * Optional in the body because the token normally arrives as an httpOnly
  * cookie; the controller accepts either.
+ *
+ * `.default({})` is what makes the COOKIE path work at all. A browser calling
+ * this endpoint has nothing to send — the token is in a cookie it cannot read —
+ * so it posts no body, and Express 5 leaves `req.body` as `undefined` rather
+ * than the empty object Express 4 supplied. Without the default, `z.object()`
+ * rejected `undefined` with a 400 before the controller ever looked at the
+ * cookie, so restoring a session on page load always failed and every staff
+ * member was signed out by a browser refresh.
  */
-export const refreshSchema = z.object({
-  refreshToken: z.string().min(1).optional(),
-});
+export const refreshSchema = z
+  .object({
+    refreshToken: z.string().min(1).optional(),
+  })
+  .default({});
 
 /** Password strength policy, applied wherever a password is chosen. */
 export const passwordSchema = z

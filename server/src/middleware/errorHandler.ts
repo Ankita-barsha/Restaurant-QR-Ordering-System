@@ -3,6 +3,7 @@ import { ZodError } from "zod";
 
 import { config } from "../config/env.js";
 import { AppError } from "../utils/AppError.js";
+import { prismaErrorToAppError } from "../utils/prismaError.js";
 import { isMulterError, multerErrorToAppError } from "./upload.js";
 
 /** Shape returned for every failed request, without exception. */
@@ -35,9 +36,18 @@ export const errorHandler: ErrorRequestHandler = (err, req, res, _next) => {
   let message = "Something went wrong";
   let details: unknown;
 
-  // Multer signals oversized or unexpected uploads with its own error type.
-  // These are client mistakes, so they must not surface as 500s.
-  const normalised = isMulterError(err) ? multerErrorToAppError(err) : err;
+  /**
+   * Errors thrown by libraries carry their own types. Each is translated to an
+   * AppError here so the switch below only ever deals with one shape.
+   *
+   * Both of these represent CLIENT mistakes — an oversized upload, a duplicate
+   * email — and must not surface as 500s. Prisma in particular throws for every
+   * constraint violation, and treating those as server faults told the caller
+   * to retry a request that could never succeed.
+   */
+  const normalised = isMulterError(err)
+    ? multerErrorToAppError(err)
+    : (prismaErrorToAppError(err) ?? err);
 
   if (normalised instanceof ZodError) {
     // Validation failure — report which fields failed and why.

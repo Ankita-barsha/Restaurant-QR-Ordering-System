@@ -9,7 +9,7 @@
 import { useEffect, useState } from "react";
 import { Link, NavLink, useLocation } from "react-router-dom";
 
-import { useCart } from "../context/CartContext";
+import { useCart } from "../context/cart";
 
 const LINKS = [
   { to: "/menu", label: "Menu" },
@@ -36,8 +36,21 @@ const Navbar = () => {
     return () => window.removeEventListener("scroll", onScroll);
   }, []);
 
-  // Close the mobile menu on navigation, or it covers the page you moved to.
-  useEffect(() => setMenuOpen(false), [pathname]);
+  /**
+   * Close the mobile menu on navigation, or it covers the page you moved to.
+   *
+   * Adjusted during render rather than in an effect. An effect would paint the
+   * new page with the menu still over it, then immediately re-render to hide
+   * it — a visible flicker, and the cascading render the hooks lint warns
+   * about. React re-runs this component before touching the DOM, so the menu
+   * is simply never drawn open on the new route.
+   */
+  const [menuPath, setMenuPath] = useState(pathname);
+
+  if (menuPath !== pathname) {
+    setMenuPath(pathname);
+    setMenuOpen(false);
+  }
 
   const solid = scrolled || !overHero;
 

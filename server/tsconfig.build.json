@@ -9,5 +9,13 @@
 
   "include": [
     "src"
+  ],
+
+  // Tests live beside the code they cover, but they import vitest — a dev
+  // dependency that is not installed in production — so they must not be
+  // emitted into dist/.
+  "exclude": [
+    "src/**/*.test.ts",
+    "src/test"
   ]
 }

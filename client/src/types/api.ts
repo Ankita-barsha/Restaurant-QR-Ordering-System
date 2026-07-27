@@ -141,7 +141,15 @@ export interface AuthUser {
 }
 
 export interface DashboardSummary {
-  today: { revenue: string; orders: number; averageOrderValue: string };
+  today: {
+    /** The trading day these figures cover, "YYYY-MM-DD" in `timezone`. */
+    date: string;
+    /** IANA zone the restaurant's trading day is measured in. */
+    timezone: string;
+    revenue: string;
+    orders: number;
+    averageOrderValue: string;
+  };
   live: { openOrders: number; pending: number; preparing: number; ready: number };
   tables: { total: number; occupied: number; free: number };
   menu: { total: number; soldOut: number };

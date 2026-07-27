@@ -9,27 +9,11 @@
  * should survive closing the tab and be there on the next visit.
  */
 
-import {
-  createContext,
-  useCallback,
-  useContext,
-  useEffect,
-  useMemo,
-  useState,
-  type ReactNode,
-} from "react";
+import { useCallback, useEffect, useMemo, useState, type ReactNode } from "react";
+
+import { FavouritesContext } from "./favourites";
 
 const STORAGE_KEY = "qr.favourites";
-
-interface FavouritesContextValue {
-  favourites: string[];
-  isFavourite: (foodId: string) => boolean;
-  toggle: (foodId: string) => void;
-  clear: () => void;
-  count: number;
-}
-
-const FavouritesContext = createContext<FavouritesContextValue | null>(null);
 
 export const FavouritesProvider = ({ children }: { children: ReactNode }) => {
   const [favourites, setFavourites] = useState<string[]>(() => {
@@ -79,12 +63,3 @@ export const FavouritesProvider = ({ children }: { children: ReactNode }) => {
   );
 };
 
-export const useFavourites = (): FavouritesContextValue => {
-  const context = useContext(FavouritesContext);
-
-  if (!context) {
-    throw new Error("useFavourites must be used inside <FavouritesProvider>");
-  }
-
-  return context;
-};

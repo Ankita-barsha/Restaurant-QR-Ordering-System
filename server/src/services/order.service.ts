@@ -381,6 +381,95 @@ export const addItems = async (orderId: string, input: AddItemsInput) => {
 };
 
 /**
+ * Performs a status transition in ONE transaction.
+ *
+ * Everything a transition implies — the guard, the timestamp, the first-actor
+ * stamp and releasing the table — happens here, atomically. Splitting it across
+ * several statements (as an earlier version did) left windows in which an order
+ * was cancelled but its table still read as occupied, and made the cancel path
+ * write the same row twice.
+ *
+ * Emits nothing: the caller decides which event describes what happened, and
+ * events must only fire once the transaction has committed.
+ *
+ * @param actorId staff member making the change, recorded for accountability
+ * @param extra   additional columns the specific transition sets, e.g. a
+ *                cancellation reason, written in the SAME update
+ */
+const applyStatusChange = async (
+  orderId: string,
+  next: OrderStatus,
+  actorId?: string,
+  // Unchecked, because handledById is set below as a raw column rather than
+  // through the relation.
+  extra: Prisma.OrderUncheckedUpdateInput = {}
+) => {
+  return prisma.$transaction(async (tx) => {
+    const order = await tx.order.findUnique({
+      where: { id: orderId },
+      select: { id: true, status: true, tableId: true, handledById: true },
+    });
+
+    if (!order) {
+      throw AppError.notFound("Order not found");
+    }
+
+    const current = order.status as OrderStatus;
+
+    if (current === next) {
+      throw AppError.conflict(`Order is already ${next.toLowerCase()}`);
+    }
+
+    if (!canTransition(current, next)) {
+      const allowed = ALLOWED_TRANSITIONS[current];
+
+      throw AppError.conflict(
+        allowed.length === 0
+          ? `Order is ${current.toLowerCase()} and can no longer be changed`
+          : `Cannot go from ${current} to ${next}. Allowed: ${allowed.join(", ")}`
+      );
+    }
+
+    const timestampField = STATUS_TIMESTAMP[next];
+
+    const updated = await tx.order.update({
+      where: { id: orderId },
+      data: {
+        ...extra,
+        status: next,
+        ...(timestampField ? { [timestampField]: new Date() } : {}),
+        // Recorded on the FIRST staff action only. Overwriting it on every
+        // later transition would mean the order was attributed to whoever
+        // happened to serve it, erasing who actually accepted it.
+        ...(actorId && !order.handledById ? { handledById: actorId } : {}),
+      },
+      include: orderInclude,
+    });
+
+    // Free the table once the order reaches a terminal state and nothing else
+    // is open on it. Inside the transaction, so the count cannot be taken
+    // against a state the update above has not yet reached.
+    if (order.tableId && (next === "SERVED" || next === "CANCELLED")) {
+      const openOrders = await tx.order.count({
+        where: {
+          tableId: order.tableId,
+          status: { notIn: ["SERVED", "CANCELLED"] },
+        },
+      });
+
+      if (openOrders === 0) {
+        await tx.table.update({
+          where: { id: order.tableId },
+          data: { status: "AVAILABLE" },
+        });
+      }
+    }
+
+    return updated;
+  });
+};
+
+/**
  * Advances an order through the status workflow.
  *
  * @param actorId staff member making the change, recorded for accountability
@@ -390,61 +479,7 @@ export const updateStatus = async (
   next: OrderStatus,
   actorId?: string
 ) => {
-  const order = await prisma.order.findUnique({
-    where: { id: orderId },
-    select: { id: true, status: true, tableId: true },
-  });
-
-  if (!order) {
-    throw AppError.notFound("Order not found");
-  }
-
-  const current = order.status as OrderStatus;
-
-  if (current === next) {
-    throw AppError.conflict(`Order is already ${next.toLowerCase()}`);
-  }
-
-  if (!canTransition(current, next)) {
-    const allowed = ALLOWED_TRANSITIONS[current];
-
-    throw AppError.conflict(
-      allowed.length === 0
-        ? `Order is ${current.toLowerCase()} and can no longer be changed`
-        : `Cannot go from ${current} to ${next}. Allowed: ${allowed.join(", ")}`
-    );
-  }
-
-  const timestampField = STATUS_TIMESTAMP[next];
-
-  const updated = await prisma.order.update({
-    where: { id: orderId },
-    data: {
-      status: next,
-      ...(timestampField ? { [timestampField]: new Date() } : {}),
-      // Recorded on first staff action, and not overwritten afterwards.
-      ...(actorId ? { handledById: actorId } : {}),
-    },
-    include: orderInclude,
-  });
-
-  // Free the table once the order reaches a terminal state and nothing else
-  // is open on it.
-  if (order.tableId && (next === "SERVED" || next === "CANCELLED")) {
-    const openOrders = await prisma.order.count({
-      where: {
-        tableId: order.tableId,
-        status: { notIn: ["SERVED", "CANCELLED"] },
-      },
-    });
-
-    if (openOrders === 0) {
-      await prisma.table.update({
-        where: { id: order.tableId },
-        data: { status: "AVAILABLE" },
-      });
-    }
-  }
+  const updated = await applyStatusChange(orderId, next, actorId);
 
   emitOrderStatusChanged(updated);
   notifyOrderStatus(updated);
@@ -492,18 +527,22 @@ export const serveOrder = async (
   return updateStatus(orderId, "SERVED", actorId);
 };
 
-/** Cancels an order with a mandatory reason. */
+/**
+ * Cancels an order with a mandatory reason.
+ *
+ * The reason is written in the SAME update as the status, so there is never an
+ * instant where an order reads as cancelled with no explanation — and only one
+ * event is emitted. Announcing both a status change and a cancellation for the
+ * same act made every listening screen refetch twice and raised two entries in
+ * the notification bell for one cancellation.
+ */
 export const cancelOrder = async (
   orderId: string,
   reason: string,
   actorId?: string
 ) => {
-  await updateStatus(orderId, "CANCELLED", actorId);
-
-  const cancelled = await prisma.order.update({
-    where: { id: orderId },
-    data: { cancelReason: reason },
-    include: orderInclude,
+  const cancelled = await applyStatusChange(orderId, "CANCELLED", actorId, {
+    cancelReason: reason,
   });
 
   emitOrderCancelled(cancelled);
@@ -512,20 +551,9 @@ export const cancelOrder = async (
   return cancelled;
 };
 
-/** Records payment against an order. */
-export const updatePayment = async (
-  orderId: string,
-  paymentStatus: "UNPAID" | "PAID" | "REFUNDED",
-  paymentMethod?: "CASH" | "CARD" | "UPI" | "ONLINE"
-) => {
-  await getOrderById(orderId);
-
-  return prisma.order.update({
-    where: { id: orderId },
-    data: { paymentStatus, paymentMethod },
-    include: orderInclude,
-  });
-};
+// Payment settlement deliberately does NOT live here. Order.paymentStatus is
+// only a summary of the Payment rows, so writing it without writing the ledger
+// leaves the two disagreeing; see settleOrderPayment in payment.service.
 
 // ---------------------------------------------------------------------------
 // Queries

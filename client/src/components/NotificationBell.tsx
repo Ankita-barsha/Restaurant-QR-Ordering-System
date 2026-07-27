@@ -5,6 +5,9 @@
  * recent notifications. New notifications arrive live over Socket.IO and bump
  * the badge without a refresh; a soft chime is intentionally omitted, since a
  * busy floor does not want the browser making noise.
+ *
+ * Read state is this user's alone. Clearing the bell no longer hides a new
+ * order from the rest of the team.
  */
 
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
@@ -73,10 +76,18 @@ const NotificationBell = () => {
     return () => document.removeEventListener("mousedown", onClick);
   }, [open]);
 
+  const invalidate = () =>
+    queryClient.invalidateQueries({ queryKey: NOTIFICATIONS_KEY });
+
   const markAllRead = useMutation({
     mutationFn: async () => api.post("/notifications/read-all"),
-    onSuccess: () =>
-      queryClient.invalidateQueries({ queryKey: NOTIFICATIONS_KEY }),
+    onSuccess: invalidate,
+  });
+
+  /** Opening one entry clears just that one, for this user. */
+  const markRead = useMutation({
+    mutationFn: async (id: string) => api.patch(`/notifications/${id}/read`),
+    onSuccess: invalidate,
   });
 
   const unread = query.data?.unread ?? 0;
@@ -126,10 +137,15 @@ const NotificationBell = () => {
               </p>
             ) : (
               notifications.map((notification) => (
-                <div
+                <button
                   key={notification.id}
-                  className={`flex gap-3 border-b border-smoke/60 px-4 py-3 ${
-                    notification.isRead ? "opacity-60" : ""
+                  type="button"
+                  // Unread entries are clickable to clear; already-read ones
+                  // have nothing to do, so they are not offered as buttons.
+                  disabled={notification.isRead}
+                  onClick={() => markRead.mutate(notification.id)}
+                  className={`flex w-full gap-3 border-b border-smoke/60 px-4 py-3 text-left transition-colors ${
+                    notification.isRead ? "opacity-60" : "hover:bg-graphite/60"
                   }`}
                 >
                   <span
@@ -148,7 +164,7 @@ const NotificationBell = () => {
                       {timeAgo(notification.createdAt)}
                     </p>
                   </div>
-                </div>
+                </button>
               ))
             )}
           </div>

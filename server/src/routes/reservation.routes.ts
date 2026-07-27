@@ -6,6 +6,7 @@ import * as reservationController from "../controllers/reservation.controller.js
 import { audit } from "../middleware/audit.js";
 import { authenticate } from "../middleware/authenticate.js";
 import { authorize } from "../middleware/authorize.js";
+import { publicLookupLimiter, publicWriteLimiter } from "../middleware/security.js";
 import { validate } from "../middleware/validate.js";
 import { idParamSchema } from "../validations/common.validation.js";
 import {
@@ -24,21 +25,28 @@ const router = Router();
  *
  * Literal paths are registered before "/:id" so Express does not treat
  * "availability" or "lookup" as a reservation id.
+ *
+ * Rate limited per IP: unmetered, these let anyone hold every table in the
+ * house with fabricated bookings, or grind through six-character references
+ * until one resolves.
  */
 router.get(
   "/availability",
+  publicLookupLimiter,
   validate({ query: availabilityQuerySchema }),
   reservationController.availability
 );
 
 router.post(
   "/",
+  publicWriteLimiter,
   validate({ body: createReservationSchema }),
   reservationController.create
 );
 
 router.get(
   "/lookup/:reference",
+  publicLookupLimiter,
   validate({ params: referenceParamSchema }),
   reservationController.lookup
 );
@@ -50,6 +58,7 @@ router.get(
  */
 router.post(
   "/lookup/:reference/cancel",
+  publicWriteLimiter,
   validate({
     params: referenceParamSchema,
     body: z.object({ phone: z.string().trim().min(6) }),

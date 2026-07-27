@@ -147,12 +147,61 @@ client could receive every order in the restaurant.
 ```bash
 # server/
 npm run dev          npm run build        npm start
-npm run typecheck    npm run seed         npm run seed:demo
+npm run typecheck    npm run test         npm run test:watch
+npm run docs         npm run seed         npm run seed:demo
 npm run db:migrate   npm run db:studio    npm run db:generate
 
 # client/
 npm run dev          npm run build        npm run lint
+npm run typecheck    npm run test         npm run test:watch
 ```
+
+---
+
+## API documentation
+
+With the server running:
+
+| | |
+|---|---|
+| **http://localhost:5000/api/docs** | Swagger UI — browse and call every endpoint |
+| **http://localhost:5000/api/docs/openapi.json** | the raw OpenAPI 3.1 document |
+| [`server/openapi.json`](server/openapi.json) | the same document, committed — import it into Postman or generate a client |
+
+82 operations across 10 tags. Every one states the permission it needs, so the
+docs answer "who can call this?" without opening the route files.
+
+Request shapes are **generated from the Zod schemas the server validates with**,
+so they cannot drift from the code — and a test walks the real Express routers
+to assert every registered route is documented and nothing is documented that
+does not exist. Adding an endpoint without describing it fails the build.
+
+```bash
+cd server && npm run docs     # regenerate server/openapi.json
+```
+
+Set `API_DOCS=false` to withhold the docs. It changes nothing else: every
+protected route is behind a token and a permission either way.
+
+---
+
+## Tests
+
+```bash
+cd server && npm test     # money, trading-day calendar, error mapping, state machine
+cd client && npm test     # the cart quote, staff landing routes
+```
+
+Both suites are pure logic and need no database, so they run in about a second
+and cannot fail for reasons unrelated to the code. They cover the places where
+being subtly wrong is expensive and invisible: money arithmetic, where a float
+loses a paisa; the trading-day boundary, where a timezone shifts a day's takings
+onto the wrong day; and the order state machine, where an illegal transition
+would let a settled bill be reopened.
+
+[`.github/workflows/ci.yml`](.github/workflows/ci.yml) runs both on every push,
+alongside the type-check, the lint and a budget on the JavaScript a diner has to
+download before they can see the menu.
 
 ---
 

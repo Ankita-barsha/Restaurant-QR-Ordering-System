@@ -48,6 +48,60 @@ export const apiLimiter = rateLimit({
 });
 
 /**
+ * Unauthenticated WRITE limiter.
+ *
+ * The customer flow is deliberately open — a diner who scanned a QR code has no
+ * account — which leaves POST /orders, POST /reservations and the payment
+ * endpoints writable by anyone who can reach the API. The general apiLimiter
+ * above allows 300 requests a minute, so under it a single script could fill
+ * the kitchen display with hundreds of junk orders, hold every table with fake
+ * bookings, and bury the real ones.
+ *
+ * Twenty writes per ten minutes is far more than any real diner performs (an
+ * order, perhaps a second round, a payment) and far less than an abusive script
+ * needs to be worth running.
+ *
+ * Keyed on IP alone: there is no account to key on, and anything the client
+ * sends (a phone number, an order number) is chosen by the attacker and so
+ * worthless as a limit key.
+ */
+export const publicWriteLimiter = rateLimit({
+  windowMs: 10 * 60_000,
+  limit: 20,
+  standardHeaders: "draft-7",
+  legacyHeaders: false,
+  skip: () => config.isDevelopment,
+  handler: () => {
+    throw new AppError(
+      "Too many requests from this device. Please wait a few minutes, or ask a member of staff.",
+      429
+    );
+  },
+});
+
+/**
+ * Unauthenticated LOOKUP limiter.
+ *
+ * Order numbers are sequential (ORD-000123) and booking references are six
+ * characters, so both are guessable given enough attempts. Neither exposes
+ * anything catastrophic, but unmetered they let someone enumerate the day's
+ * trade — and the reference is half of what guest cancellation requires.
+ *
+ * Looser than the write limiter: a diner watching their order refreshes the
+ * tracking page repeatedly, and that is legitimate.
+ */
+export const publicLookupLimiter = rateLimit({
+  windowMs: 5 * 60_000,
+  limit: 60,
+  standardHeaders: "draft-7",
+  legacyHeaders: false,
+  skip: () => config.isDevelopment,
+  handler: () => {
+    throw new AppError("Too many lookups. Please wait a few minutes.", 429);
+  },
+});
+
+/**
  * Login and refresh limiter.
  *
  * Strict: 10 attempts per 15 minutes per IP+email pair. Keyed on the EMAIL as

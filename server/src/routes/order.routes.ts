@@ -5,6 +5,7 @@ import * as orderController from "../controllers/order.controller.js";
 import { audit } from "../middleware/audit.js";
 import { authenticate } from "../middleware/authenticate.js";
 import { authorize, authorizeAny } from "../middleware/authorize.js";
+import { publicLookupLimiter, publicWriteLimiter } from "../middleware/security.js";
 import { validate } from "../middleware/validate.js";
 import { idParamSchema } from "../validations/common.validation.js";
 import {
@@ -28,11 +29,21 @@ const router = Router();
  *
  * Both literal paths are registered before "/:id" so Express does not treat
  * "track" or "kitchen" as an order id.
+ *
+ * Rate limited per IP. With no account to authenticate, the limiter is the only
+ * thing standing between an open write endpoint and a kitchen display full of
+ * junk orders.
  */
-router.post("/", validate({ body: placeOrderSchema }), orderController.place);
+router.post(
+  "/",
+  publicWriteLimiter,
+  validate({ body: placeOrderSchema }),
+  orderController.place
+);
 
 router.get(
   "/track/:orderNumber",
+  publicLookupLimiter,
   validate({ params: orderNumberParamSchema }),
   orderController.track
 );

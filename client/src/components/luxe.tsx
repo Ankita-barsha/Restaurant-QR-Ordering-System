@@ -14,7 +14,7 @@ import { useEffect, useRef, useState, type ReactNode } from "react";
  * work off the main thread, so a long page stays smooth on a phone.
  * `once` is the default because re-animating on every pass is distracting.
  */
-export const useReveal = <T extends HTMLElement>() => {
+const useReveal = <T extends HTMLElement>() => {
   const ref = useRef<T>(null);
   const [shown, setShown] = useState(false);
 

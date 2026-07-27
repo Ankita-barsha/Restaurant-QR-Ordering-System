@@ -9,7 +9,7 @@ import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useState, type FormEvent } from "react";
 
 import { Button, Card, ErrorBox, Spinner } from "../../components/ui";
-import { useAuth } from "../../context/AuthContext";
+import { useAuth } from "../../context/auth";
 import { api, getErrorMessage, unwrap } from "../../lib/api";
 import type { ApiResponse } from "../../types/api";
 

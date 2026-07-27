@@ -1,6 +1,7 @@
 import type { RequestHandler } from "express";
 
 import * as orderService from "../services/order.service.js";
+import * as paymentService from "../services/payment.service.js";
 import type {
   AddItemsInput,
   OrderListQuery,
@@ -114,19 +115,26 @@ export const cancel: RequestHandler<IdParams, unknown, { reason: string }> = asy
   res.json({ success: true, message: "Order cancelled", data: order });
 };
 
-/** PATCH /api/orders/:id/payment */
+/**
+ * PATCH /api/orders/:id/payment
+ *
+ * Handled by the payment service, not the order service: settling an order
+ * writes the ledger as well as the summary, and the two must move together.
+ */
 export const updatePayment: RequestHandler<
   IdParams,
   unknown,
   {
     paymentStatus: "UNPAID" | "PAID" | "REFUNDED";
     paymentMethod?: "CASH" | "CARD" | "UPI" | "ONLINE";
+    reason?: string;
   }
 > = async (req, res) => {
-  const order = await orderService.updatePayment(
+  const order = await paymentService.settleOrderPayment(
     req.params.id,
     req.body.paymentStatus,
-    req.body.paymentMethod
+    req.body.paymentMethod,
+    req.body.reason
   );
 
   res.json({ success: true, message: "Payment updated", data: order });

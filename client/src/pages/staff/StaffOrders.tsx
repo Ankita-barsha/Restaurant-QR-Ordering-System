@@ -11,7 +11,7 @@ import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useState } from "react";
 
 import { Button, EmptyState, ErrorBox, Spinner, StatusBadge } from "../../components/ui";
-import { useAuth } from "../../context/AuthContext";
+import { useAuth } from "../../context/auth";
 import { queryKeys } from "../../hooks/useLiveOrders";
 import { api, getErrorMessage, unwrap } from "../../lib/api";
 import { formatMoney, timeAgo } from "../../lib/format";

@@ -1,0 +1,113 @@
+# Continuous integration.
+#
+# Runs on every push and pull request. The two packages are independent — the
+# client has no reason to wait for the server's Prisma client to generate — so
+# they run as parallel jobs and a failure names which half broke.
+#
+# `npm ci`, never `npm install`: it installs exactly what the lockfile pins, so
+# CI cannot pass on a dependency version that nobody's machine has.
+
+name: CI
+
+on:
+  push:
+    branches: ["**"]
+  pull_request:
+
+# A new push supersedes the run already in flight for the same branch. Without
+# this, a series of quick pushes queues a run per commit and the useful one
+# waits behind results nobody will read.
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  server:
+    name: Server
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: server
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+          cache-dependency-path: server/package-lock.json
+
+      - run: npm ci
+
+      # The Prisma client is generated code that is not committed in a usable
+      # state for a fresh checkout, and the type-check cannot resolve the
+      # models without it.
+      - name: Generate Prisma client
+        run: npx prisma generate
+
+      - name: Type-check
+        run: npm run typecheck
+
+      - name: Test
+        run: npm test
+
+      # The spec is generated from the validation schemas, so the committed
+      # copy goes stale the moment a schema changes. Regenerating and diffing
+      # turns that into a failed build rather than documentation that quietly
+      # describes an older API.
+      - name: Check the committed OpenAPI document is current
+        run: |
+          npm run docs
+          git diff --exit-code -- openapi.json \
+            || { echo "::error::openapi.json is out of date. Run 'npm run docs' in server/ and commit the result."; exit 1; }
+
+      - name: Lint the OpenAPI document
+        run: npm run docs:lint
+
+      - name: Build
+        run: npm run build
+
+  client:
+    name: Client
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: client
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+          cache-dependency-path: client/package-lock.json
+
+      - run: npm ci
+
+      - name: Lint
+        run: npm run lint
+
+      - name: Test
+        run: npm test
+
+      # Type-checks and bundles. Also the guard on the bundle budget below.
+      - name: Build
+        run: npm run build
+
+      # The customer app is opened on a phone, on mobile data, by someone
+      # waiting to order. This fails the build if the eagerly-loaded bundle
+      # creeps back towards shipping the admin screens to every diner.
+      - name: Check the diner's bundle stays small
+        run: |
+          # Currently ~480 kB. The headroom is for ordinary growth, not for
+          # another page's worth of screens.
+          BUDGET_KB=520
+          SIZE_KB=$(du -ck dist/assets/index-*.js dist/assets/vendor-*.js | tail -1 | cut -f1)
+          echo "Eagerly-loaded JavaScript: ${SIZE_KB} kB (budget ${BUDGET_KB} kB)"
+          if [ "$SIZE_KB" -gt "$BUDGET_KB" ]; then
+            echo "::error::Bundle is ${SIZE_KB} kB, over the ${BUDGET_KB} kB budget."
+            echo "Lazy-load the new screen with React.lazy, as the staff routes are."
+            exit 1
+          fi

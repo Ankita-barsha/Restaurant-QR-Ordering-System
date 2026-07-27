@@ -20,6 +20,14 @@ export const cashPaymentSchema = z.object({
   orderId: z.string().min(1, "orderId is required"),
 });
 
+/**
+ * Reversing a payment. The reason is mandatory: a refund is money leaving the
+ * business, and "why" is the first question asked of it afterwards.
+ */
+export const refundPaymentSchema = z.object({
+  reason: z.string().trim().min(1, "A refund reason is required").max(300),
+});
+
 export const paymentListQuerySchema = paginationQuerySchema.extend({
   status: z.enum(["PENDING", "SUCCESS", "FAILED", "REFUNDED"]).optional(),
   method: z.enum(["CASH", "CARD", "UPI", "ONLINE"]).optional(),

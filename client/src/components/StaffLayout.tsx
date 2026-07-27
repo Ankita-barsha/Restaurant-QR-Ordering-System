@@ -11,7 +11,7 @@
 
 import { NavLink, Outlet, useNavigate } from "react-router-dom";
 
-import { useAuth } from "../context/AuthContext";
+import { useAuth } from "../context/auth";
 import { useLiveOrders, useSocketStatus } from "../hooks/useLiveOrders";
 import NotificationBell from "./NotificationBell";
 

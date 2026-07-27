@@ -77,8 +77,14 @@ const AdminDashboard = () => {
       <h1 className="text-xl font-bold text-slate-900">Dashboard</h1>
 
       <section>
-        <h2 className="mb-2 text-sm font-semibold uppercase tracking-wide text-slate-500">
+        <h2 className="mb-2 flex flex-wrap items-baseline gap-x-2 text-sm font-semibold uppercase tracking-wide text-slate-500">
           Today
+          {/* Which day, under whose clock. The trading day is a wall-clock day
+              in the restaurant's own timezone, which need not be the one this
+              browser is in. */}
+          <span className="text-xs font-normal normal-case tracking-normal text-slate-400">
+            {summary.today.date} · {summary.today.timezone}
+          </span>
         </h2>
         <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
           <Stat

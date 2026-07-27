@@ -11,7 +11,7 @@ import { useEffect, useState } from "react";
 
 import { Button, Card, ErrorBox, Spinner } from "../../components/ui";
 import { config } from "../../config/env";
-import { useAuth } from "../../context/AuthContext";
+import { useAuth } from "../../context/auth";
 import { queryKeys } from "../../hooks/useLiveOrders";
 import { api, getAccessToken, getErrorMessage, unwrap } from "../../lib/api";
 import type { ApiResponse, Table, TableStatus } from "../../types/api";

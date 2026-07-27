@@ -56,6 +56,17 @@ services:
       - key: BCRYPT_ROUNDS
         value: "12"
 
+      # The restaurant's own timezone. Render runs in UTC, so without this
+      # every report would split the trading day at UTC midnight — 05:30 local
+      # in India — and the dashboard's "today" would disagree with the chart.
+      - key: REPORT_TIMEZONE
+        value: Asia/Kolkata
+
+      # Interactive API docs at /api/docs. Set to "false" to withhold them;
+      # every protected route stays behind a token and a permission either way.
+      - key: API_DOCS
+        value: "true"
+
       # Both must be set to the deployed CLIENT origin, not the API's own URL.
       # CORS_ORIGIN wrong => login fails silently in the browser.
       # QR_BASE_URL wrong => printed QR codes open the wrong site.

@@ -1,15 +1,20 @@
 /**
  * Payment history — the ledger.
  *
- * Read-only list of every payment attempt: online and cash, successful and
- * failed. Filterable by status and method so the manager can reconcile the
- * till or investigate a failed online attempt.
+ * Every payment attempt: online and cash, successful and failed. Filterable by
+ * status and method so the manager can reconcile the till or investigate a
+ * failed online attempt.
+ *
+ * A successful payment can be refunded here. That is the only route back: the
+ * order screen deliberately refuses to mark a paid order unpaid, because doing
+ * so would orphan a receipt the customer is holding.
  */
 
-import { useQuery } from "@tanstack/react-query";
+import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useState } from "react";
 
 import { Card, EmptyState, ErrorBox, Spinner } from "../../components/ui";
+import { useAuth } from "../../context/auth";
 import { api, getErrorMessage } from "../../lib/api";
 import { formatMoney } from "../../lib/format";
 import type { ApiResponse, PaginationMeta } from "../../types/api";
@@ -24,6 +29,10 @@ interface Payment {
   paidAt: string | null;
   createdAt: string;
   order: { orderNumber: string } | null;
+}
+
+interface PaymentsResponse extends ApiResponse<Payment[]> {
+  summary?: { totalCollected: string };
 }
 
 const STATUS_STYLE: Record<Payment["status"], string> = {
@@ -43,6 +52,12 @@ const FILTERS: { label: string; status?: Payment["status"]; method?: string }[] 
 
 const AdminPayments = () => {
   const [filter, setFilter] = useState(0);
+  const queryClient = useQueryClient();
+  const { can } = useAuth();
+
+  // Refunding is a financial reversal, gated on the same capability as voiding
+  // an order — waiting staff who can take a payment must not be able to undo it.
+  const canRefund = can("order:cancel");
 
   const query = useQuery({
     queryKey: ["payments", filter],
@@ -53,13 +68,36 @@ const AdminPayments = () => {
       if (active.status) params.set("status", active.status);
       if (active.method) params.set("method", active.method);
 
-      const response = await api.get<ApiResponse<Payment[]>>(
+      const response = await api.get<PaymentsResponse>(
         `/payments?${params.toString()}`
       );
 
-      return { payments: response.data.data, meta: response.data.meta as PaginationMeta };
+      return {
+        payments: response.data.data,
+        meta: response.data.meta as PaginationMeta,
+        totalCollected: response.data.summary?.totalCollected ?? "0.00",
+      };
     },
   });
+
+  const refund = useMutation({
+    mutationFn: async ({ id, reason }: { id: string; reason: string }) =>
+      api.post(`/payments/${id}/refund`, { reason }),
+    onSuccess: () => queryClient.invalidateQueries({ queryKey: ["payments"] }),
+  });
+
+  const askAndRefund = (payment: Payment) => {
+    const reason = window.prompt(
+      `Refund ${formatMoney(payment.amount)} for ${
+        payment.order?.orderNumber ?? "this payment"
+      }?\n\nReason (recorded against the payment):`
+    );
+
+    // Cancelled, or left blank — the reason is mandatory, so nothing happens.
+    if (!reason?.trim()) return;
+
+    refund.mutate({ id: payment.id, reason: reason.trim() });
+  };
 
   if (query.isLoading) return <Spinner label="Loading payments" />;
 
@@ -80,6 +118,23 @@ const AdminPayments = () => {
       <p className="mt-0.5 text-sm text-slate-500">
         Every payment attempt, online and cash.
       </p>
+
+      {/* Collected under the CURRENT filter, so the figure always describes
+          the rows below it. Refunded payments are excluded. */}
+      <Card className="mt-4">
+        <p className="text-xs font-medium uppercase tracking-wide text-slate-500">
+          Collected ({FILTERS[filter].label.toLowerCase()})
+        </p>
+        <p className="mt-1 text-2xl font-bold text-slate-900">
+          {formatMoney(query.data?.totalCollected ?? "0.00")}
+        </p>
+      </Card>
+
+      {refund.isError && (
+        <div className="mt-4">
+          <ErrorBox message={getErrorMessage(refund.error)} />
+        </div>
+      )}
 
       <div className="mt-4 flex gap-2 overflow-x-auto pb-2">
         {FILTERS.map((option, index) => (
@@ -135,6 +190,17 @@ const AdminPayments = () => {
               <span className="w-24 text-right text-sm font-bold text-slate-900">
                 {formatMoney(payment.amount)}
               </span>
+
+              {canRefund && payment.status === "SUCCESS" && (
+                <button
+                  type="button"
+                  onClick={() => askAndRefund(payment)}
+                  disabled={refund.isPending}
+                  className="rounded-lg px-3 py-1.5 text-xs font-semibold text-red-600 ring-1 ring-red-200 transition hover:bg-red-50 disabled:opacity-50"
+                >
+                  Refund
+                </button>
+              )}
             </div>
           ))}
         </Card>

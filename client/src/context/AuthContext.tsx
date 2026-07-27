@@ -6,30 +6,12 @@
  * security control — the server enforces the same permission on every route.
  */
 
-import {
-  createContext,
-  useCallback,
-  useContext,
-  useEffect,
-  useMemo,
-  useState,
-  type ReactNode,
-} from "react";
+import { useCallback, useEffect, useMemo, useState, type ReactNode } from "react";
 
 import { api, setAccessToken, setSessionExpiredHandler, unwrap } from "../lib/api";
 import { disconnectSocket, reconnectSocket } from "../lib/socket";
 import type { ApiResponse, AuthUser } from "../types/api";
-
-interface AuthContextValue {
-  user: AuthUser | null;
-  /** True until the initial silent-refresh attempt finishes. */
-  isLoading: boolean;
-  login: (email: string, password: string) => Promise<void>;
-  logout: () => Promise<void>;
-  can: (...permissions: string[]) => boolean;
-}
-
-const AuthContext = createContext<AuthContextValue | null>(null);
+import { AuthContext } from "./auth";
 
 export const AuthProvider = ({ children }: { children: ReactNode }) => {
   const [user, setUser] = useState<AuthUser | null>(null);
@@ -120,14 +102,4 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
   );
 
   return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>;
-};
-
-export const useAuth = (): AuthContextValue => {
-  const context = useContext(AuthContext);
-
-  if (!context) {
-    throw new Error("useAuth must be used inside <AuthProvider>");
-  }
-
-  return context;
 };

@@ -229,6 +229,194 @@ export const recordCashPayment = async (orderId: string) => {
   return result.payment;
 };
 
+// ---------------------------------------------------------------------------
+// Reconciliation: keeping the ledger and the order summary in step
+// ---------------------------------------------------------------------------
+
+/**
+ * The order shape returned to staff after a settlement, matching what the
+ * orders screen already renders.
+ */
+const orderSummarySelect = {
+  id: true,
+  orderNumber: true,
+  status: true,
+  paymentStatus: true,
+  paymentMethod: true,
+  totalAmount: true,
+  table: { select: { tableNumber: true } },
+} satisfies Prisma.OrderSelect;
+
+/**
+ * Settles an order's payment from the staff screen.
+ *
+ * Order.paymentStatus is only ever a SUMMARY of the Payment rows. Writing it on
+ * its own — which the orders screen used to do — produced orders marked PAID
+ * with nothing in the ledger to show for it, so the payments report and the
+ * order list gave different answers about the same money and neither could be
+ * reconciled against the till.
+ *
+ * Every branch here writes both, in one transaction:
+ *
+ *   PAID      records a Payment if none has succeeded yet
+ *   REFUNDED  reverses the successful payments, with a reason
+ *   UNPAID    is only permitted while nothing has been collected
+ */
+export const settleOrderPayment = async (
+  orderId: string,
+  paymentStatus: "UNPAID" | "PAID" | "REFUNDED",
+  paymentMethod?: "CASH" | "CARD" | "UPI" | "ONLINE",
+  reason?: string
+) => {
+  return prisma.$transaction(async (tx) => {
+    const order = await tx.order.findUnique({
+      where: { id: orderId },
+      select: {
+        id: true,
+        totalAmount: true,
+        paymentStatus: true,
+        paymentMethod: true,
+        payments: {
+          where: { status: "SUCCESS" },
+          select: { id: true, method: true, amount: true },
+        },
+      },
+    });
+
+    if (!order) {
+      throw AppError.notFound("Order not found");
+    }
+
+    const settled = order.payments;
+
+    if (paymentStatus === "PAID") {
+      if (settled.length > 0) {
+        throw AppError.conflict("This order is already paid");
+      }
+
+      // The method matters: it is what the manager reconciles the till
+      // against, so it cannot be left to a default.
+      if (!paymentMethod) {
+        throw AppError.badRequest("Tell us how the customer paid");
+      }
+
+      await tx.payment.create({
+        data: {
+          orderId: order.id,
+          amount: order.totalAmount,
+          method: paymentMethod,
+          status: "SUCCESS",
+          // Named for what actually happened: taken by hand at the counter,
+          // not processed by any gateway.
+          provider: "manual",
+          paidAt: new Date(),
+          receiptNumber: generateReceiptNumber(),
+        },
+      });
+    } else if (paymentStatus === "REFUNDED") {
+      if (settled.length === 0) {
+        throw AppError.conflict(
+          "There is no successful payment on this order to refund"
+        );
+      }
+
+      await tx.payment.updateMany({
+        where: { orderId: order.id, status: "SUCCESS" },
+        data: {
+          status: "REFUNDED",
+          refundedAt: new Date(),
+          refundReason: reason ?? "Refunded by staff",
+        },
+      });
+    } else if (settled.length > 0) {
+      // Marking a paid order unpaid would silently orphan a receipt the
+      // customer is holding. Refunding is the honest reversal.
+      throw AppError.conflict(
+        "This order has a recorded payment. Refund it instead of marking it unpaid."
+      );
+    }
+
+    const updated = await tx.order.update({
+      where: { id: order.id },
+      data: {
+        paymentStatus,
+        // Cleared on the way back to unpaid, so a stale method cannot linger
+        // and be reported as cash the till never saw.
+        paymentMethod: paymentStatus === "UNPAID" ? null : (paymentMethod ?? undefined),
+      },
+      select: orderSummarySelect,
+    });
+
+    return updated;
+  });
+};
+
+/**
+ * Refunds one payment from the ledger screen.
+ *
+ * The row is reversed in place rather than offset by a negative one, so
+ * "collected" stays a plain SUM over SUCCESS and cannot double-count. The
+ * order summary follows: once nothing successful remains, the order is
+ * REFUNDED.
+ */
+export const refundPayment = async (paymentId: string, reason: string) => {
+  const result = await prisma.$transaction(async (tx) => {
+    const payment = await tx.payment.findUnique({
+      where: { id: paymentId },
+      select: { id: true, orderId: true, status: true },
+    });
+
+    if (!payment) {
+      throw AppError.notFound("Payment not found");
+    }
+
+    if (payment.status !== "SUCCESS") {
+      throw AppError.conflict(
+        `Only a successful payment can be refunded; this one is ${payment.status.toLowerCase()}`
+      );
+    }
+
+    const refunded = await tx.payment.update({
+      where: { id: payment.id },
+      data: {
+        status: "REFUNDED",
+        refundedAt: new Date(),
+        refundReason: reason,
+      },
+    });
+
+    const stillPaid = await tx.payment.count({
+      where: { orderId: payment.orderId, status: "SUCCESS" },
+    });
+
+    // A partly refunded order (several payments, one reversed) is still paid.
+    // Only when nothing successful is left does the summary change.
+    if (stillPaid === 0) {
+      await tx.order.update({
+        where: { id: payment.orderId },
+        data: { paymentStatus: "REFUNDED" },
+      });
+    }
+
+    const order = await loadOrderForEmit(tx, payment.orderId);
+
+    return { payment: refunded, order };
+  });
+
+  if (result.order) {
+    emitOrderUpdated(result.order);
+
+    void recordNotification({
+      type: "SYSTEM",
+      title: "Payment refunded",
+      message: `${result.order.orderNumber} refunded — ${reason}`,
+      metadata: { orderId: result.order.id, orderNumber: result.order.orderNumber },
+    });
+  }
+
+  return result.payment;
+};
+
 /** Receipt for a single payment. Public: the id is an unguessable cuid. */
 export const getReceipt = async (paymentId: string) => {
   const payment = await prisma.payment.findUnique({
@@ -268,7 +456,7 @@ export const listPayments = async (query: {
   limit?: number;
   status?: "PENDING" | "SUCCESS" | "FAILED" | "REFUNDED";
   method?: "CASH" | "CARD" | "UPI" | "ONLINE";
-}): Promise<{ payments: unknown[]; meta: PaginationMeta; totalCollectedMinor: number }> => {
+}): Promise<{ payments: unknown[]; meta: PaginationMeta; totalCollected: string }> => {
   const pagination = getPagination(query.page, query.limit);
 
   const where: Prisma.PaymentWhereInput = {
@@ -297,7 +485,10 @@ export const listPayments = async (query: {
     prisma.payment.count({ where }),
     prisma.payment.aggregate({
       _sum: { amount: true },
-      where: { status: "SUCCESS" },
+      // Narrowed by the SAME filter as the list, so the figure at the top of
+      // the screen describes the rows underneath it. Refunded rows are excluded
+      // by status: SUCCESS, which is what makes this the money actually held.
+      where: { ...where, status: "SUCCESS" },
     }),
   ]);
 
@@ -308,7 +499,7 @@ export const listPayments = async (query: {
   return {
     payments,
     meta: buildPaginationMeta(pagination, total),
-    totalCollectedMinor,
+    totalCollected: fromMinorUnits(totalCollectedMinor),
   };
 };
 

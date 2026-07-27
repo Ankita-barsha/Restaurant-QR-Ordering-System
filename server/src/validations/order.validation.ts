@@ -80,10 +80,23 @@ export const cancelOrderSchema = z.object({
   reason: z.string().trim().min(1, "A cancellation reason is required").max(300),
 });
 
-export const updatePaymentSchema = z.object({
-  paymentStatus: paymentStatusSchema,
-  paymentMethod: paymentMethodSchema.optional(),
-});
+/**
+ * Settling an order from the staff screen.
+ *
+ * The method is required when marking an order PAID — it is what the manager
+ * reconciles the till against — and a refund carries the reason the money went
+ * back, which the ledger records.
+ */
+export const updatePaymentSchema = z
+  .object({
+    paymentStatus: paymentStatusSchema,
+    paymentMethod: paymentMethodSchema.optional(),
+    reason: z.string().trim().min(1).max(300).optional(),
+  })
+  .refine(
+    (input) => input.paymentStatus !== "PAID" || Boolean(input.paymentMethod),
+    { message: "Tell us how the customer paid", path: ["paymentMethod"] }
+  );
 
 export const orderListQuerySchema = paginationQuerySchema.extend({
   status: orderStatusSchema.optional(),

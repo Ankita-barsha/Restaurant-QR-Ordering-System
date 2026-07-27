@@ -8,6 +8,10 @@
     "dev": "tsx watch src/server.ts",
     "build": "tsc -p tsconfig.build.json",
     "typecheck": "tsc",
+    "test": "vitest run",
+    "test:watch": "vitest",
+    "docs": "tsx src/docs/write.ts",
+    "docs:lint": "redocly lint openapi.json",
     "start": "node dist/server.js",
     "seed": "prisma db seed",
     "db:migrate": "prisma migrate dev",
@@ -34,9 +38,11 @@
     "pg": "^8.22.0",
     "qrcode": "^1.5.4",
     "socket.io": "^4.8.3",
+    "swagger-ui-dist": "^5.32.11",
     "zod": "^4.4.3"
   },
   "devDependencies": {
+    "@redocly/cli": "^2.40.0",
     "@types/bcrypt": "^6.0.0",
     "@types/compression": "^1.8.1",
     "@types/cookie-parser": "^1.4.10",
@@ -47,8 +53,10 @@
     "@types/node": "^26.1.1",
     "@types/pg": "^8.20.0",
     "@types/qrcode": "^1.5.6",
+    "@types/swagger-ui-dist": "^3.30.6",
     "prisma": "^7.9.0",
     "tsx": "^4.23.1",
-    "typescript": "^7.0.2"
+    "typescript": "^7.0.2",
+    "vitest": "^4.1.10"
   }
 }

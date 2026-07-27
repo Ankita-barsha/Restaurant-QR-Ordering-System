@@ -56,11 +56,30 @@ export const recordCash: RequestHandler<
   });
 };
 
+/** POST /api/payments/:id/refund — a manager reverses a payment. */
+export const refund: RequestHandler<IdParams, unknown, { reason: string }> = async (
+  req,
+  res
+) => {
+  const payment = await paymentService.refundPayment(
+    req.params.id,
+    req.body.reason
+  );
+
+  res.json({
+    success: true,
+    message: "Payment refunded",
+    data: { paymentId: payment.id, status: payment.status },
+  });
+};
+
 /** GET /api/payments — staff payment history (ledger). */
 export const list: RequestHandler = async (req, res) => {
-  const { payments, meta } = await paymentService.listPayments(
+  const { payments, meta, totalCollected } = await paymentService.listPayments(
     req.validatedQuery as PaymentListQuery
   );
 
-  res.json({ success: true, data: payments, meta });
+  // The collected figure describes the FILTERED rows, so it is returned
+  // alongside them rather than as a separate, easily-desynchronised call.
+  res.json({ success: true, data: payments, meta, summary: { totalCollected } });
 };

@@ -1,10 +1,15 @@
 /**
  * Staff notifications.
  *
- * Notifications are broadcast to all staff (userId = null) and each staff
- * member's "read" state is tracked per row once they open it. Customers are
- * NOT notified here — their live order tracking already reflects every stage,
- * and they have no account to attach a notification to.
+ * Notifications are broadcast to all staff (userId = null); a row may also be
+ * addressed to one person. Customers are NOT notified here — their live order
+ * tracking already reflects every stage, and they have no account to attach a
+ * notification to.
+ *
+ * READ STATE IS PER STAFF MEMBER. It lives in NotificationRead, one row per
+ * (notification, user), never as a flag on the notification itself: a shared
+ * flag meant the chef clearing their bell also cleared it for every waiter, so
+ * a new order could vanish from a screen nobody had looked at.
  *
  * Creating a notification must never break the action that triggered it, so
  * recordNotification swallows its own errors, exactly like the audit trail.
@@ -12,6 +17,7 @@
 
 import type { NotificationType, Prisma } from "../generated/prisma/client.js";
 import { prisma } from "../config/prisma.js";
+import { AppError } from "../utils/AppError.js";
 import { emitNotification } from "../socket/index.js";
 
 interface CreateInput {
@@ -52,36 +58,90 @@ export const recordNotification = async (input: CreateInput): Promise<void> => {
 };
 
 /**
- * A notification is "read" for a user when a NotificationRead row exists —
- * but rather than add a table, read state is stored on the row itself and
- * only broadcast notifications (userId null) are shared. To keep per-user
- * read state simple without a new model, we treat isRead as global once any
- * staff marks it, which suits a small team sharing one board.
- *
- * List the most recent notifications for the bell.
+ * Notifications this user is entitled to see: broadcasts, plus any addressed
+ * to them personally.
  */
-export const listNotifications = async (limit = 30) => {
-  return prisma.notification.findMany({
+const visibleTo = (userId: string): Prisma.NotificationWhereInput => ({
+  OR: [{ userId: null }, { userId }],
+});
+
+/**
+ * The most recent notifications for one staff member's bell, each carrying
+ * THAT person's read state.
+ */
+export const listNotifications = async (userId: string, limit = 30) => {
+  const notifications = await prisma.notification.findMany({
+    where: visibleTo(userId),
     orderBy: { createdAt: "desc" },
     take: limit,
+    // Only this user's read row is joined, so `reads` is either empty or a
+    // single entry — which is exactly the boolean the bell needs.
+    include: { reads: { where: { userId }, select: { readAt: true } } },
+  });
+
+  return notifications.map(({ reads, ...notification }) => ({
+    ...notification,
+    isRead: reads.length > 0,
+    readAt: reads[0]?.readAt ?? null,
+  }));
+};
+
+/** How many of this user's visible notifications they have not opened. */
+export const unreadCount = async (userId: string): Promise<number> => {
+  return prisma.notification.count({
+    where: {
+      ...visibleTo(userId),
+      // "none" over the join, filtered to this user: unread means no read row
+      // of their own, regardless of who else has read it.
+      reads: { none: { userId } },
+    },
   });
 };
 
-export const unreadCount = async (): Promise<number> => {
-  return prisma.notification.count({ where: { isRead: false } });
-};
+/**
+ * Marks one notification read for one user.
+ *
+ * upsert, not create: opening the same notification twice is idempotent rather
+ * than a unique-constraint error.
+ */
+export const markRead = async (id: string, userId: string): Promise<void> => {
+  // Checked first so an unknown id is a clear 404 rather than a foreign-key
+  // violation, and so one user cannot mark another's private notification.
+  const exists = await prisma.notification.findFirst({
+    where: { id, ...visibleTo(userId) },
+    select: { id: true },
+  });
 
-export const markRead = async (id: string): Promise<void> => {
-  await prisma.notification.updateMany({
-    where: { id, isRead: false },
-    data: { isRead: true, readAt: new Date() },
+  if (!exists) {
+    throw AppError.notFound("Notification not found");
+  }
+
+  await prisma.notificationRead.upsert({
+    where: { notificationId_userId: { notificationId: id, userId } },
+    update: {},
+    create: { notificationId: id, userId },
   });
 };
 
-export const markAllRead = async (): Promise<number> => {
-  const result = await prisma.notification.updateMany({
-    where: { isRead: false },
-    data: { isRead: true, readAt: new Date() },
+/** Clears this user's bell. Returns how many were newly marked. */
+export const markAllRead = async (userId: string): Promise<number> => {
+  const unread = await prisma.notification.findMany({
+    where: { ...visibleTo(userId), reads: { none: { userId } } },
+    select: { id: true },
+  });
+
+  if (unread.length === 0) {
+    return 0;
+  }
+
+  // skipDuplicates guards the race where the same person clears the bell from
+  // two tabs at once.
+  const result = await prisma.notificationRead.createMany({
+    data: unread.map((notification) => ({
+      notificationId: notification.id,
+      userId,
+    })),
+    skipDuplicates: true,
   });
 
   return result.count;

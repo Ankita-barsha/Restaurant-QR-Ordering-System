@@ -11,25 +11,9 @@ import { useState, type FormEvent } from "react";
 import { Navigate, useNavigate } from "react-router-dom";
 
 import { LuxeButton, LuxeError } from "../../components/luxe";
-import { useAuth } from "../../context/AuthContext";
+import { useAuth } from "../../context/auth";
 import { getErrorMessage } from "../../lib/api";
-import type { AuthUser } from "../../types/api";
-
-/** Chooses the landing screen from what the user can actually do. */
-export const homeRouteFor = (user: AuthUser): string => {
-  const isSuperAdmin = user.role.name === "SUPER_ADMIN";
-  const has = (permission: string) =>
-    isSuperAdmin || user.permissions.includes(permission);
-
-  // Each role lands on the single screen its job is built around.
-  if (user.role.name === "KITCHEN") return "/kitchen";
-  if (user.role.name === "STAFF") return "/serve";
-  if (has("dashboard:view")) return "/admin";
-  if (has("kitchen:access")) return "/kitchen";
-  if (has("order:read")) return "/staff";
-
-  return "/serve";
-};
+import { homeRouteFor } from "../../lib/homeRoute";
 
 const Login = () => {
   const { login, user } = useAuth();

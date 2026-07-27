@@ -10,46 +10,11 @@
  * price when the order is placed, so a tampered cart changes nothing.
  */
 
-import {
-  createContext,
-  useCallback,
-  useContext,
-  useEffect,
-  useMemo,
-  useState,
-  type ReactNode,
-} from "react";
+import { useCallback, useEffect, useMemo, useState, type ReactNode } from "react";
 
-import { sumMoney } from "../lib/format";
+import { fromMinor, sumLinesMinor } from "../lib/money";
 import type { Food, ScannedTable } from "../types/api";
-
-export interface CartItem {
-  foodId: string;
-  name: string;
-  price: string;
-  imageUrl: string | null;
-  quantity: number;
-  notes?: string;
-}
-
-interface CartContextValue {
-  table: ScannedTable | null;
-  qrToken: string | null;
-  setTableSession: (table: ScannedTable, qrToken: string) => void;
-  clearTableSession: () => void;
-
-  items: CartItem[];
-  itemCount: number;
-  subtotal: string;
-  addItem: (food: Food) => void;
-  removeItem: (foodId: string) => void;
-  increase: (foodId: string) => void;
-  decrease: (foodId: string) => void;
-  setNotes: (foodId: string, notes: string) => void;
-  clearCart: () => void;
-}
-
-const CartContext = createContext<CartContextValue | null>(null);
+import { CartContext, type CartItem } from "./cart";
 
 /**
  * sessionStorage, not localStorage.
@@ -155,46 +120,38 @@ export const CartProvider = ({ children }: { children: ReactNode }) => {
 
   const clearCart = useCallback(() => setItems([]), []);
 
-  const value = useMemo(
-    () => ({
+  const value = useMemo(() => {
+    const subtotalMinor = sumLinesMinor(items);
+
+    return {
       table,
       qrToken,
       setTableSession,
       clearTableSession,
       items,
       itemCount: items.reduce((sum, item) => sum + item.quantity, 0),
-      subtotal: sumMoney(items),
+      subtotalMinor,
+      subtotal: fromMinor(subtotalMinor),
       addItem,
       removeItem,
       increase,
       decrease,
       setNotes,
       clearCart,
-    }),
-    [
-      table,
-      qrToken,
-      items,
-      setTableSession,
-      clearTableSession,
-      addItem,
-      removeItem,
-      increase,
-      decrease,
-      setNotes,
-      clearCart,
-    ]
-  );
+    };
+  }, [
+    table,
+    qrToken,
+    items,
+    setTableSession,
+    clearTableSession,
+    addItem,
+    removeItem,
+    increase,
+    decrease,
+    setNotes,
+    clearCart,
+  ]);
 
   return <CartContext.Provider value={value}>{children}</CartContext.Provider>;
-};
-
-export const useCart = (): CartContextValue => {
-  const context = useContext(CartContext);
-
-  if (!context) {
-    throw new Error("useCart must be used inside <CartProvider>");
-  }
-
-  return context;
 };

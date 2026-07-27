@@ -1,0 +1,27 @@
+# Rules for linting openapi.json (`npm run docs:lint`).
+#
+# Starts from Redocly's recommended set. The two rules turned off below are
+# turned off with a reason, not to make a number go green — everything else in
+# the recommended set stays on, so a genuinely malformed spec still fails.
+
+extends:
+  - recommended
+
+rules:
+  # These paths are ambiguous AS TEMPLATES — `/orders/track/{orderNumber}` and
+  # `/orders/{id}/items` have the same shape, so a generic matcher could not
+  # tell them apart. Express can: it matches in registration order, and the
+  # route files register every literal segment ("track", "kitchen", "scan",
+  # "lookup", "slug") BEFORE the "/:id" route precisely for this reason.
+  #
+  # The alternative is renaming public URLs that are already printed on QR
+  # stickers and receipts, which is a real cost to remove a theoretical
+  # ambiguity the server does not actually have.
+  no-ambiguous-paths: off
+
+  # The rule assumes a spec published for third parties, where a localhost
+  # server entry is a leftover. This API is self-hosted and the spec ships with
+  # it: the first server is the relative "/api" that Swagger UI uses, and the
+  # localhost entry is there so the document is usable straight out of Postman
+  # against a development machine.
+  no-server-example.com: off
