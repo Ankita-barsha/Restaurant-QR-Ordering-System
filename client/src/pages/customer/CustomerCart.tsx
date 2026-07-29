@@ -40,6 +40,7 @@ const CustomerCart = () => {
   const [name, setName] = useState("");
   const [phone, setPhone] = useState("");
   const [orderNotes, setOrderNotes] = useState("");
+  const [includeServiceCharge, setIncludeServiceCharge] = useState(true);
 
   const settingsQuery = useQuery({
     queryKey: ["settings", "public"],
@@ -104,8 +105,6 @@ const CustomerCart = () => {
    * Still an estimate: prices, availability and the charges themselves are
    * re-read server-side when the order is placed. It is an honest one now.
    */
-  const [includeServiceCharge, setIncludeServiceCharge] = useState(true);
-
   const taxPercent = settingsQuery.data?.taxPercent ?? "0";
   const rawServicePercent = settingsQuery.data?.serviceChargePercent ?? "0";
   const servicePercent = includeServiceCharge ? rawServicePercent : "0";

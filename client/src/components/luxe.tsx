@@ -23,8 +23,8 @@ const useReveal = <T extends HTMLElement>() => {
     if (!node) return;
 
     if (typeof IntersectionObserver === "undefined") {
-      setShown(true);
-      return;
+      const timer = setTimeout(() => setShown(true), 0);
+      return () => clearTimeout(timer);
     }
 
     // Safety fallback: if IntersectionObserver takes too long or fails to trigger, show content automatically after 400ms
