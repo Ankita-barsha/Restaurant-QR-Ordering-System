@@ -115,7 +115,7 @@ export const Button = ({
       type={type}
       onClick={onClick}
       disabled={disabled}
-      className={`rounded-xl px-4 py-2.5 text-sm font-semibold transition disabled:cursor-not-allowed ${variants[variant]} ${className}`}
+      className={`inline-flex min-h-11 items-center justify-center rounded-xl px-4 py-2.5 text-sm font-semibold transition disabled:cursor-not-allowed ${variants[variant]} ${className}`}
     >
       {children}
     </button>
@@ -129,7 +129,7 @@ export const Card = ({
   children: ReactNode;
   className?: string;
 }) => (
-  <div className={`rounded-2xl border border-slate-200 bg-white p-5 ${className}`}>
+  <div className={`rounded-2xl border border-slate-200 bg-white p-4 sm:p-5 ${className}`}>
     {children}
   </div>
 );

@@ -5,8 +5,14 @@
  * site earns its impression from restraint: one photograph, one line of type,
  * one action — not a carousel competing with itself.
  *
- * Everything below it is real data from the API, not placeholder content:
- * the signature dishes and the chef's special are the actual menu.
+ * Nothing below it is placeholder content. The signature dishes and the chef's
+ * recommendations are the real menu, the testimonials are real rows an admin
+ * published, and every line of prose comes from the CMS.
+ *
+ * Each piece of copy falls back to the wording written here when the CMS field
+ * is blank. That is deliberate: a restaurant that never opens the content
+ * screen still gets a finished page, and clearing a box in the admin restores
+ * this text rather than leaving a hole in the layout.
  */
 
 import { useQuery } from "@tanstack/react-query";
@@ -16,6 +22,8 @@ import {
   DietMark,
   LuxeButton,
   LuxeSkeleton,
+  OfferBadge,
+  PriceTag,
   Reveal,
   SectionHeading,
   Stars,
@@ -24,7 +32,14 @@ import { config } from "../../config/env";
 import { queryKeys } from "../../hooks/useLiveOrders";
 import { api, unwrap } from "../../lib/api";
 import { formatMoney, imageUrl } from "../../lib/format";
-import type { ApiResponse, Food, PublicSettings } from "../../types/api";
+import { effectivePrice, offerBadge, strikethroughPrice } from "../../lib/offer";
+import type {
+  ApiResponse,
+  Food,
+  PublicSettings,
+  Review,
+  SiteContent,
+} from "../../types/api";
 
 import heroImage from "../../assets/image/hero.jpg";
 import biryaniImage from "../../assets/image/biriyani.jpg";
@@ -32,27 +47,6 @@ import dessertImage from "../../assets/image/dessert.jpg";
 import latteImage from "../../assets/image/latte.webp";
 import pizzaImage from "../../assets/image/margherita-pizza.jpg";
 import burgerImage from "../../assets/image/burger.jpg";
-
-const REVIEWS = [
-  {
-    quote:
-      "The tasting menu moved at exactly the right pace. Every course arrived the moment the last was forgotten.",
-    name: "Ananya Sen",
-    detail: "Dined in March",
-  },
-  {
-    quote:
-      "I have eaten in rooms with three stars that were less considered than this. The service never once interrupted the table.",
-    name: "Rohan Mehta",
-    detail: "Chef's table",
-  },
-  {
-    quote:
-      "We scanned the code and ordered without ever flagging anyone down. It felt effortless rather than automated.",
-    name: "Priya Raghavan",
-    detail: "Anniversary dinner",
-  },
-];
 
 const GALLERY = [
   { src: biryaniImage, alt: "Slow-cooked biryani", span: "row-span-2" },
@@ -63,10 +57,25 @@ const GALLERY = [
   { src: heroImage, alt: "The dining room", span: "" },
 ];
 
+/**
+ * Copy used when the CMS field is empty.
+ *
+ * `?? ""` would not do: a field an editor cleared comes back as null, and a
+ * field they never touched comes back as null too. Both mean "use the house
+ * wording", so one helper covers both and the JSX below stays readable.
+ */
+const text = (value: string | null | undefined, fallback: string): string =>
+  value?.trim() ? value : fallback;
+
 const Landing = () => {
   const settingsQuery = useQuery({
     queryKey: ["settings", "public"],
     queryFn: async () => unwrap(await api.get<ApiResponse<PublicSettings>>("/settings")),
+  });
+
+  const contentQuery = useQuery({
+    queryKey: ["content"],
+    queryFn: async () => unwrap(await api.get<ApiResponse<SiteContent>>("/content")),
   });
 
   const signatureQuery = useQuery({
@@ -75,9 +84,34 @@ const Landing = () => {
       unwrap(await api.get<ApiResponse<Food[]>>("/foods?limit=6&sortBy=price&sortOrder=desc")),
   });
 
+  /**
+   * The chef's recommendations.
+   *
+   * Read live on every visit, so the page always shows whatever the admin has
+   * ticked right now — there is nothing to publish and no cache to clear.
+   */
+  const featuredQuery = useQuery({
+    queryKey: [...queryKeys.foods, "featured"],
+    queryFn: async () =>
+      unwrap(await api.get<ApiResponse<Food[]>>("/foods?isFeatured=true&limit=6")),
+  });
+
+  const reviewsQuery = useQuery({
+    queryKey: ["content", "reviews"],
+    queryFn: async () =>
+      unwrap(await api.get<ApiResponse<Review[]>>("/content/reviews?limit=12")),
+  });
+
+  const content = contentQuery.data;
   const restaurantName = settingsQuery.data?.name ?? "Bite me Bistro";
   const signatures = signatureQuery.data ?? [];
-  const special = signatures[0];
+  const featured = featuredQuery.data ?? [];
+  const reviews = reviewsQuery.data ?? [];
+
+  // The lead recommendation gets the full-width treatment; if nothing is
+  // featured, the most expensive dish stands in so the section is never empty.
+  const special = featured[0] ?? signatures[0];
+  const banner = content?.bannerText?.trim();
 
   return (
     <div className="bg-obsidian">
@@ -97,10 +131,12 @@ const Landing = () => {
         </div>
 
         <div className="relative z-10 mx-auto max-w-3xl px-6 text-center">
-          <p className="animate-rise eyebrow delay-1">Est. 2019 · Fine Dining</p>
+          <p className="animate-rise eyebrow delay-1">
+            {text(content?.heroEyebrow, "Est. 2019 · Fine Dining")}
+          </p>
 
-          <h1 className="animate-rise delay-2 mt-7 text-[clamp(3rem,11vw,7rem)] leading-[0.92] text-ivory">
-            {restaurantName}
+          <h1 className="animate-rise delay-2 mt-7 text-[clamp(2.25rem,10vw,7rem)] leading-[0.92] text-ivory">
+            {text(content?.heroTitle, restaurantName)}
           </h1>
 
           <div className="animate-rise delay-2 mx-auto mt-8 flex items-center justify-center gap-5">
@@ -110,12 +146,15 @@ const Landing = () => {
           </div>
 
           <p className="animate-rise delay-3 mx-auto mt-8 max-w-xl text-[15px] leading-relaxed text-ivory-dim">
-            {settingsQuery.data?.tagline ??
-              "A seasonal menu built around fire, patience and produce picked the same morning. Scan, order, and let the kitchen do the rest."}
+            {text(
+              content?.heroLede,
+              settingsQuery.data?.tagline ??
+                "A seasonal menu built around fire, patience and produce picked the same morning. Scan, order, and let the kitchen do the rest."
+            )}
           </p>
 
           <div className="animate-rise delay-4 mt-12 flex flex-wrap items-center justify-center gap-4">
-            <LuxeButton href="#menu">Explore the menu</LuxeButton>
+            <LuxeButton href="#signatures">Explore the menu</LuxeButton>
             <Link to="/reserve">
               <LuxeButton variant="outline">Reserve a table</LuxeButton>
             </Link>
@@ -132,8 +171,19 @@ const Landing = () => {
         </a>
       </section>
 
-      {/* -------------------------------------------------------- signatures */}
-      <section id="signatures" className="mx-auto max-w-7xl px-6 py-28 md:py-36">
+      {/* -------------------------------------------------------------- banner */}
+      {/* Rendered only when there is something to say — an empty gold strip
+          would read as a loading bug. */}
+      {banner && (
+        <aside className="border-y border-gold/20 bg-gold/[0.06]">
+          <p className="mx-auto max-w-7xl px-6 py-4 text-center text-[12px] uppercase tracking-[0.22em] text-gold">
+            {banner}
+          </p>
+        </aside>
+      )}
+
+      {/* ---------------------------------------------------------- signatures */}
+      <section id="signatures" className="mx-auto max-w-7xl px-4 py-20 sm:px-6 sm:py-28 md:py-36">
         <Reveal>
           <SectionHeading
             eyebrow="Signature"
@@ -145,7 +195,7 @@ const Landing = () => {
         <div className="mt-16 grid gap-8 sm:grid-cols-2 lg:grid-cols-3">
           {signatureQuery.isLoading &&
             Array.from({ length: 6 }, (_, index) => (
-              <LuxeSkeleton key={index} className="h-[420px]" />
+              <LuxeSkeleton key={index} className="h-[360px] sm:h-[420px]" />
             ))}
 
           {signatures.map((food, index) => {
@@ -153,7 +203,7 @@ const Landing = () => {
 
             return (
               <Reveal key={food.id} delay={index * 90}>
-                <article className="lift group relative h-[420px] overflow-hidden rounded-luxe">
+                <article className="lift group relative h-[360px] overflow-hidden rounded-luxe sm:h-[420px]">
                   {image ? (
                     <img
                       src={image}
@@ -166,6 +216,19 @@ const Landing = () => {
                   )}
 
                   <div className="absolute inset-0 bg-gradient-to-t from-obsidian via-obsidian/25 to-transparent" />
+
+                  {food.isFeatured && (
+                    <span className="absolute right-5 top-5 rounded-full border border-gold/50 bg-obsidian/70 px-3 py-1 text-[10px] uppercase tracking-[0.18em] text-gold backdrop-blur">
+                      Chef's pick
+                    </span>
+                  )}
+
+                  {offerBadge(food) && (
+                    <OfferBadge
+                      label={offerBadge(food) as string}
+                      className="absolute left-5 top-5"
+                    />
+                  )}
 
                   <div className="absolute inset-x-0 bottom-0 p-7">
                     <div className="flex items-center gap-2.5">
@@ -181,10 +244,14 @@ const Landing = () => {
                       </p>
                     )}
 
-                    <div className="mt-5 flex items-center justify-between">
-                      <span className="font-display text-2xl text-gold">
-                        {formatMoney(food.price)}
-                      </span>
+                    <div className="mt-5 flex flex-wrap items-center justify-between gap-x-4 gap-y-2">
+                      <PriceTag
+                        price={formatMoney(effectivePrice(food))}
+                        listPrice={
+                          strikethroughPrice(food) &&
+                          formatMoney(strikethroughPrice(food) as string)
+                        }
+                      />
 
                       {/* Reveals on hover on desktop; always visible on touch,
                           where there is no hover to reveal it. */}
@@ -203,10 +270,91 @@ const Landing = () => {
         </div>
       </section>
 
+      {/* ------------------------------------------------------ chef's picks */}
+      {/* The whole section is conditional: with nothing featured, a heading
+          over an empty row would look broken rather than restrained. */}
+      {featured.length > 0 && (
+        <section id="featured" className="border-y border-smoke bg-charcoal py-20 sm:py-28 md:py-36">
+          <div className="mx-auto max-w-7xl px-4 sm:px-6">
+            <Reveal>
+              <SectionHeading
+                eyebrow={text(content?.featuredEyebrow, "Chef's recommendation")}
+                title={text(content?.featuredTitle, "What we would order")}
+                lede={text(
+                  content?.featuredLede,
+                  "The plates the kitchen is proudest of tonight. Prices are live from the menu you will order from."
+                )}
+              />
+            </Reveal>
+
+            <div className="mt-16 grid gap-6 sm:grid-cols-2 lg:grid-cols-3">
+              {featured.map((food, index) => {
+                const image = imageUrl(food.imageUrl, config.apiUrl);
+
+                return (
+                  <Reveal key={food.id} delay={index * 90}>
+                    <article className="glass rounded-luxe relative flex h-full flex-col overflow-hidden">
+                      {offerBadge(food) && (
+                        <OfferBadge
+                          label={offerBadge(food) as string}
+                          className="absolute left-4 top-4 z-10"
+                        />
+                      )}
+
+                      {image && (
+                        <img
+                          src={image}
+                          alt={food.name}
+                          loading="lazy"
+                          className="h-48 w-full object-cover"
+                        />
+                      )}
+
+                      <div className="flex flex-1 flex-col p-6">
+                        <div className="flex items-center gap-2.5">
+                          <DietMark vegetarian={food.isVegetarian} />
+                          <span className="eyebrow">{food.category.name}</span>
+                        </div>
+
+                        <h3 className="mt-3 text-2xl leading-tight text-ivory">
+                          {food.name}
+                        </h3>
+
+                        {food.description && (
+                          <p className="mt-2 line-clamp-3 flex-1 text-[13px] leading-relaxed text-ivory-dim">
+                            {food.description}
+                          </p>
+                        )}
+
+                        <div className="mt-5 flex flex-wrap items-center justify-between gap-x-4 gap-y-2">
+                          <PriceTag
+                            price={formatMoney(effectivePrice(food))}
+                            listPrice={
+                              strikethroughPrice(food) &&
+                              formatMoney(strikethroughPrice(food) as string)
+                            }
+                          />
+                          <Link
+                            to="/menu"
+                            className="text-[10px] uppercase tracking-[0.24em] text-ivory-dim transition-colors hover:text-gold"
+                          >
+                            Order →
+                          </Link>
+                        </div>
+                      </div>
+                    </article>
+                  </Reveal>
+                );
+              })}
+            </div>
+          </div>
+        </section>
+      )}
+
       {/* ------------------------------------------------------ chef special */}
       {special && (
-        <section className="relative overflow-hidden bg-charcoal py-28 md:py-36">
-          <div className="mx-auto grid max-w-7xl items-center gap-16 px-6 lg:grid-cols-2">
+        <section className="relative overflow-hidden py-20 sm:py-28 md:py-36">
+          <div className="mx-auto grid max-w-7xl items-center gap-12 px-4 sm:px-6 lg:gap-16 lg:grid-cols-2">
             <Reveal>
               <div className="relative">
                 <img
@@ -233,11 +381,20 @@ const Landing = () => {
                   "Composed each morning around whatever the market gives us. The kitchen will not tell you what is in it until it reaches the table."}
               </p>
 
-              <dl className="mt-10 grid grid-cols-3 gap-6 border-y border-smoke py-7">
+              {/* Two columns before 416px: three left ~90px each, which a
+                  discounted price ("₹400" over a struck-through "₹500")
+                  cannot sit in without spilling. */}
+              <dl className="mt-10 grid grid-cols-2 gap-5 border-y border-smoke py-7 xs:grid-cols-3 sm:gap-6">
                 <div>
                   <dt className="eyebrow">Price</dt>
-                  <dd className="font-display mt-1.5 text-2xl text-gold">
-                    {formatMoney(special.price)}
+                  <dd className="mt-1.5">
+                    <PriceTag
+                      price={formatMoney(effectivePrice(special))}
+                      listPrice={
+                        strikethroughPrice(special) &&
+                        formatMoney(strikethroughPrice(special) as string)
+                      }
+                    />
                   </dd>
                 </div>
                 <div>
@@ -265,36 +422,27 @@ const Landing = () => {
       )}
 
       {/* ------------------------------------------------------------- about */}
-      <section id="about" className="mx-auto max-w-7xl px-6 py-28 md:py-36">
+      <section id="about" className="mx-auto max-w-7xl px-4 py-20 sm:px-6 sm:py-28 md:py-36">
         <div className="grid items-center gap-16 lg:grid-cols-2">
           <Reveal>
-            <SectionHeading eyebrow="The house" title="A room built around one table" align="left" />
+            <SectionHeading
+              eyebrow={text(content?.aboutEyebrow, "The house")}
+              title={text(content?.aboutTitle, "A room built around one table")}
+              align="left"
+            />
 
             <div className="mt-7 space-y-5 text-[15px] leading-loose text-ivory-dim">
-              <p>
-                We seat forty. The kitchen is open to the room because there is
-                nothing in it we would rather you did not see. Everything is
-                cooked to order, which is the honest reason some plates take
-                longer than others.
-              </p>
-              <p>
-                The menu changes when the produce changes — not on a schedule.
-                Scan the code at your table and it will always show you what we
-                can actually cook tonight.
-              </p>
-            </div>
-
-            <div className="mt-10 grid grid-cols-3 gap-8">
-              {[
-                { figure: "40", label: "Seats" },
-                { figure: "12", label: "Courses" },
-                { figure: "6", label: "Years" },
-              ].map((stat) => (
-                <div key={stat.label}>
-                  <p className="font-display text-5xl text-gold-gradient">{stat.figure}</p>
-                  <p className="eyebrow mt-1">{stat.label}</p>
-                </div>
-              ))}
+              {/* Blank lines in the CMS become paragraphs. Rendered as text
+                  nodes, never as HTML: this is editor-supplied content, and
+                  dangerouslySetInnerHTML here would be a stored-XSS hole. */}
+              {text(
+                content?.aboutBody,
+                "The kitchen is open to the room because there is nothing in it we would rather you did not see. Everything is cooked to order, which is the honest reason some plates take longer than others.\n\nThe menu changes when the produce changes — not on a schedule. Scan the code at your table and it will always show you what we can actually cook tonight."
+              )
+                .split(/\n{2,}/)
+                .map((paragraph, index) => (
+                  <p key={index}>{paragraph}</p>
+                ))}
             </div>
           </Reveal>
 
@@ -309,7 +457,7 @@ const Landing = () => {
 
               {/* Chef card overlapping the photo — glass over food imagery is
                   where the treatment earns its keep. */}
-              <div className="glass rounded-luxe absolute -bottom-8 -left-4 max-w-[16rem] p-6 sm:-left-8">
+              <div className="glass rounded-luxe absolute -bottom-6 left-0 max-w-[14rem] p-5 sm:-bottom-8 sm:-left-8 sm:max-w-[16rem] sm:p-6">
                 <p className="eyebrow">Executive Chef</p>
                 <p className="font-display mt-2 text-3xl text-ivory">Arjun Kapadia</p>
                 <p className="mt-2 text-[13px] leading-relaxed text-ivory-faint">
@@ -322,13 +470,13 @@ const Landing = () => {
       </section>
 
       {/* ----------------------------------------------------------- gallery */}
-      <section id="gallery" className="bg-charcoal py-28 md:py-36">
-        <div className="mx-auto max-w-7xl px-6">
+      <section id="gallery" className="bg-charcoal py-20 sm:py-28 md:py-36">
+        <div className="mx-auto max-w-7xl px-4 sm:px-6">
           <Reveal>
             <SectionHeading eyebrow="Gallery" title="From the pass" />
           </Reveal>
 
-          <div className="mt-16 grid auto-rows-[220px] grid-cols-2 gap-4 lg:grid-cols-4">
+          <div className="mt-16 grid auto-rows-[140px] grid-cols-2 gap-3 sm:auto-rows-[220px] sm:gap-4 lg:grid-cols-4">
             {GALLERY.map((item, index) => (
               <Reveal key={item.alt} delay={index * 70} className={item.span}>
                 <figure className="group relative h-full overflow-hidden rounded-luxe">
@@ -351,31 +499,69 @@ const Landing = () => {
       </section>
 
       {/* ----------------------------------------------------------- reviews */}
-      <section className="mx-auto max-w-7xl px-6 py-28 md:py-36">
-        <Reveal>
-          <SectionHeading eyebrow="Guests" title="What the room says" />
-        </Reveal>
+      {/* Real rows from the database. Hidden entirely when none are published,
+          for the same reason the featured section is: an empty testimonials
+          block advertises that nobody has said anything. */}
+      {reviews.length > 0 && (
+        <section id="reviews" className="mx-auto max-w-7xl px-4 py-20 sm:px-6 sm:py-28 md:py-36">
+          <Reveal>
+            <SectionHeading eyebrow="Guests" title="What the room says" />
+          </Reveal>
 
-        <div className="mt-16 grid gap-6 md:grid-cols-3">
-          {REVIEWS.map((review, index) => (
-            <Reveal key={review.name} delay={index * 110}>
-              <figure className="glass rounded-luxe flex h-full flex-col justify-between p-8">
-                <div>
-                  <Stars />
-                  <blockquote className="font-display mt-6 text-[22px] leading-snug text-ivory">
-                    “{review.quote}”
-                  </blockquote>
-                </div>
+          {/* A scroll-snapping row on a phone and a grid from tablet up. One
+              layout, no carousel library and no autoplay to fight with — a
+              guest reads at their own pace, which is the whole point. */}
+          <div className="mt-16 flex snap-x snap-mandatory gap-6 overflow-x-auto pb-4 [scrollbar-width:none] md:grid md:grid-cols-3 md:overflow-visible md:pb-0 [&::-webkit-scrollbar]:hidden">
+            {reviews.map((review, index) => (
+              <Reveal
+                key={review.id}
+                delay={index * 110}
+                className="w-[85vw] shrink-0 snap-center sm:w-[60vw] md:w-auto"
+              >
+                <figure className="glass rounded-luxe flex h-full flex-col justify-between p-8">
+                  <div>
+                    <Stars rating={review.rating} />
 
-                <figcaption className="mt-8 border-t border-smoke pt-5">
-                  <p className="text-sm text-ivory">{review.name}</p>
-                  <p className="eyebrow mt-1">{review.detail}</p>
-                </figcaption>
-              </figure>
-            </Reveal>
-          ))}
-        </div>
-      </section>
+                    <blockquote className="font-display mt-6 text-[22px] leading-snug text-ivory">
+                      “{review.comment}”
+                    </blockquote>
+                  </div>
+
+                  <figcaption className="mt-8 flex items-center gap-3 border-t border-smoke pt-5">
+                    {review.imageUrl ? (
+                      <img
+                        src={imageUrl(review.imageUrl, config.apiUrl) ?? ""}
+                        alt=""
+                        loading="lazy"
+                        className="h-10 w-10 shrink-0 rounded-full object-cover"
+                      />
+                    ) : (
+                      <span className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full border border-gold/30 text-sm text-gold">
+                        {review.customerName.slice(0, 1).toUpperCase()}
+                      </span>
+                    )}
+
+                    <div className="min-w-0">
+                      <p className="truncate text-sm text-ivory">
+                        {review.customerName}
+                      </p>
+                      {review.visitedOn && (
+                        <p className="eyebrow mt-1">
+                          Dined{" "}
+                          {new Date(review.visitedOn).toLocaleDateString("en-IN", {
+                            month: "long",
+                            year: "numeric",
+                          })}
+                        </p>
+                      )}
+                    </div>
+                  </figcaption>
+                </figure>
+              </Reveal>
+            ))}
+          </div>
+        </section>
+      )}
 
       {/* --------------------------------------------- reserve / events / CTA */}
       <section id="reserve" className="relative overflow-hidden">
@@ -387,12 +573,12 @@ const Landing = () => {
         />
         <div className="absolute inset-0 bg-obsidian/88" />
 
-        <div className="relative mx-auto max-w-4xl px-6 py-28 text-center md:py-36">
+        <div className="relative mx-auto max-w-4xl px-4 py-20 text-center sm:px-6 sm:py-28 md:py-36">
           <Reveal>
             <SectionHeading
               eyebrow="Reservations & private dining"
               title="Join us for dinner"
-              lede="Tables are held for fifteen minutes. For parties of eight or more, or for the chef's table, please call the house directly."
+              lede="For parties of eight or more, or for the chef's table, please call the house directly."
             />
 
             <div className="mt-12 grid gap-4 sm:grid-cols-3">
@@ -424,7 +610,7 @@ const Landing = () => {
 
       {/* ----------------------------------------------------------- contact */}
       <footer id="contact" className="border-t border-smoke bg-obsidian">
-        <div className="mx-auto grid max-w-7xl gap-12 px-6 py-20 md:grid-cols-3">
+        <div className="mx-auto grid max-w-7xl gap-10 px-4 py-14 sm:px-6 sm:py-20 md:grid-cols-3">
           <div>
             <h3 className="text-3xl text-ivory">{restaurantName}</h3>
             <div className="rule-fade mt-4 h-px w-24" />
@@ -461,8 +647,8 @@ const Landing = () => {
               <Link to="/menu" className="block hover:text-gold">
                 View the menu
               </Link>
-              <Link to="/track" className="block hover:text-gold">
-                Track an order
+              <Link to="/reserve" className="block hover:text-gold">
+                Reserve a table
               </Link>
               <Link to="/login" className="block hover:text-gold">
                 Staff sign in
@@ -473,7 +659,7 @@ const Landing = () => {
 
         <div className="border-t border-smoke px-6 py-7">
           <p className="mx-auto max-w-7xl text-center text-[11px] uppercase tracking-[0.2em] text-ivory-faint">
-            {restaurantName} — scan, order, dine
+            {restaurantName} — {text(content?.footerNote, "scan, order, dine")}
           </p>
         </div>
       </footer>

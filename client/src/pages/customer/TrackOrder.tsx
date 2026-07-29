@@ -12,6 +12,7 @@ import { useState } from "react";
 import { useNavigate, useParams } from "react-router-dom";
 
 import DemoCheckout from "../../components/DemoCheckout";
+import InvoiceSheet from "../../components/InvoiceSheet";
 import { LuxeButton, LuxeError, LuxeLoader } from "../../components/luxe";
 import { LAST_ORDER_KEY } from "../../context/cart";
 import {
@@ -36,8 +37,8 @@ const STEPS: { status: OrderStatus; label: string; hint: string }[] = [
  *
  * There is deliberately no "type your order number" form here any more. An
  * order number identifies an order but does not prove you placed it, and this
- * page shows the pickup code — so tracking is authorised by the tracking
- * token instead, which the diner receives once when they order.
+ * page shows the bill — so tracking is authorised by the tracking token
+ * instead, which the diner receives once when they order.
  *
  * The token is remembered in sessionStorage so that closing the tab, hitting
  * back, or reloading still recovers the order. sessionStorage rather than
@@ -85,6 +86,7 @@ const TrackOrder = () => {
   const connected = useSocketStatus();
 
   const [checkoutOpen, setCheckoutOpen] = useState(false);
+  const [invoiceOpen, setInvoiceOpen] = useState(false);
   const [paidReceipt, setPaidReceipt] = useState<string | null>(null);
 
   useLiveOrderTracking(token);
@@ -134,14 +136,14 @@ const TrackOrder = () => {
   };
 
   return (
-    <div className="min-h-screen bg-obsidian px-6 pb-20 pt-28">
+    <div className="min-h-screen bg-obsidian px-4 pb-16 pt-24 sm:px-6 sm:pb-20 sm:pt-28">
       <div className="mx-auto max-w-md">
         <header className="text-center">
           <p className="eyebrow">
             {order.table ? `Table ${order.table.tableNumber}` : "Takeaway"}
           </p>
 
-          <h1 className="font-display mt-3 text-5xl leading-none text-ivory">
+          <h1 className="font-display mt-3 text-[clamp(2.25rem,11vw,3rem)] leading-none text-ivory">
             {order.orderNumber}
           </h1>
 
@@ -156,22 +158,6 @@ const TrackOrder = () => {
             </span>
           </div>
         </header>
-
-        {/* Pickup code — the diner shows this to the waiter, who must enter it
-            before the order can be served. Hidden once served, since it has
-            done its job and need not linger on screen. */}
-        {order.verificationCode && !cancelled && order.status !== "SERVED" && (
-          <div className="glass rounded-luxe mt-10 p-7 text-center">
-            <p className="eyebrow">Your pickup code</p>
-            <p className="font-display mt-3 text-6xl tracking-[0.3em] text-gold-gradient">
-              {order.verificationCode}
-            </p>
-            <p className="mt-4 text-[13px] leading-relaxed text-ivory-faint">
-              Show this to your waiter when the food arrives. It makes sure your
-              order reaches your table and no one else's.
-            </p>
-          </div>
-        )}
 
         {cancelled ? (
           <div className="glass rounded-luxe mt-12 p-8 text-center">
@@ -189,7 +175,7 @@ const TrackOrder = () => {
               const at = timestamps[step.status];
 
               return (
-                <li key={step.status} className="flex gap-5">
+                <li key={step.status} className="flex gap-4 sm:gap-5">
                   <div className="flex flex-col items-center">
                     <span
                       className={`flex h-9 w-9 shrink-0 items-center justify-center rounded-full border text-[11px] transition-all duration-700 ${
@@ -231,7 +217,7 @@ const TrackOrder = () => {
           </ol>
         )}
 
-        <section className="glass rounded-luxe mt-8 p-7">
+        <section className="glass rounded-luxe mt-8 p-5 sm:p-7">
           <p className="eyebrow">Your order</p>
 
           <ul className="mt-5 space-y-4">
@@ -254,7 +240,7 @@ const TrackOrder = () => {
 
           <div className="flex items-baseline justify-between">
             <span className="eyebrow">Total</span>
-            <span className="font-display text-3xl text-gold">
+            <span className="font-display text-2xl text-gold sm:text-3xl">
               {formatMoney(order.totalAmount)}
             </span>
           </div>
@@ -281,8 +267,27 @@ const TrackOrder = () => {
               )}
             </div>
           )}
+
+          {/* The diner's own bill — printable, or saveable as a PDF — so they
+              never have to ask a member of staff for a copy. */}
+          <div className="mt-4">
+            <LuxeButton
+              variant="outline"
+              className="w-full"
+              onClick={() => setInvoiceOpen(true)}
+            >
+              View invoice
+            </LuxeButton>
+          </div>
         </section>
       </div>
+
+      {invoiceOpen && (
+        <InvoiceSheet
+          source={{ trackingToken: order.trackingToken }}
+          onClose={() => setInvoiceOpen(false)}
+        />
+      )}
 
       {checkoutOpen && (
         <DemoCheckout
@@ -303,7 +308,7 @@ const TrackOrder = () => {
           onClick={() => setPaidReceipt(null)}
           role="presentation"
         >
-          <div className="animate-rise max-w-sm rounded-luxe border border-smoke bg-charcoal p-8 text-center">
+          <div className="animate-rise w-full max-w-sm rounded-luxe border border-smoke bg-charcoal p-6 text-center sm:p-8">
             <div className="mx-auto flex h-14 w-14 items-center justify-center rounded-full border border-emerald-500/50">
               <svg width="26" height="26" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="text-emerald-400">
                 <path d="M20 6 9 17l-5-5" />

@@ -10,6 +10,7 @@ import {
   getPagination,
   type PaginationMeta,
 } from "../utils/pagination.js";
+import { assertOfferIsCoherent, deriveOfferPrice } from "../utils/offer.js";
 import { uniqueSlug } from "../utils/slug.js";
 import { emitFoodAvailabilityChanged } from "../socket/index.js";
 import { storage } from "../utils/storage.js";
@@ -61,6 +62,10 @@ export const listFoods = async (
     // is a real filter, and a truthy check would silently ignore it.
     ...(query.isVegetarian !== undefined
       ? { isVegetarian: query.isVegetarian }
+      : {}),
+    ...(query.isFeatured !== undefined ? { isFeatured: query.isFeatured } : {}),
+    ...(query.isOfferActive !== undefined
+      ? { isOfferActive: query.isOfferActive }
       : {}),
     ...(query.search
       ? {
@@ -117,6 +122,41 @@ export const getFoodBySlug = async (slug: string) => {
   return food;
 };
 
+/**
+ * Resolves the offer columns to write.
+ *
+ * `offerPrice` is DERIVED here and nowhere else. It is never read from the
+ * request — a client that could post its own offer price could sell itself a
+ * dish for a rupee, which is the same reasoning that keeps prices off the
+ * order endpoint.
+ *
+ * Switching an offer off nulls the derived price but KEEPS the type and value,
+ * so a seasonal promotion can be switched back on next month without being
+ * re-entered. `isOfferActive` alone decides what a diner pays.
+ */
+const offerColumns = (
+  price: string | { toString(): string },
+  offer: {
+    isOfferActive?: boolean;
+    offerType?: "PERCENTAGE" | "FIXED";
+    offerValue?: string;
+    offerLabel?: string;
+  }
+) => {
+  // Throws a 400 naming the mistake, e.g. a ₹600 discount on a ₹500 dish.
+  assertOfferIsCoherent(price, offer);
+
+  return {
+    isOfferActive: offer.isOfferActive ?? false,
+    offerType: offer.offerType ?? null,
+    offerValue: offer.offerValue ?? null,
+    // Normalised to null so "no custom label" has one representation. An empty
+    // string would display identically but read differently.
+    offerLabel: offer.offerLabel?.trim() ? offer.offerLabel.trim() : null,
+    offerPrice: deriveOfferPrice(price, offer),
+  };
+};
+
 export const createFood = async (
   input: CreateFoodInput,
   imageUrl?: string
@@ -136,7 +176,9 @@ export const createFood = async (
       categoryId: input.categoryId,
       isAvailable: input.isAvailable ?? true,
       isVegetarian: input.isVegetarian ?? false,
+      isFeatured: input.isFeatured ?? false,
       preparationMinutes: input.preparationMinutes,
+      ...offerColumns(input.price, input),
     },
     include: foodInclude,
   });
@@ -157,12 +199,30 @@ export const updateFood = async (
     ? await uniqueSlug(input.name, (candidate) => slugExists(candidate, id))
     : undefined;
 
+  /**
+   * The offer is re-derived from the MERGED row, not from the patch.
+   *
+   * A PATCH may carry any subset, and the offer price depends on all of it.
+   * Deriving from the request alone would mean that dropping a dish's price
+   * from ₹500 to ₹300 while a 20% offer ran left `offerPrice` at ₹400 — a
+   * dish advertised, and charged, ABOVE its own list price.
+   */
+  const nextPrice = input.price ?? existing.price.toString();
+
+  const offer = offerColumns(nextPrice, {
+    isOfferActive: input.isOfferActive ?? existing.isOfferActive,
+    offerType: input.offerType ?? existing.offerType ?? undefined,
+    offerValue: input.offerValue ?? existing.offerValue?.toString(),
+    offerLabel: input.offerLabel ?? existing.offerLabel ?? undefined,
+  });
+
   const updated = await prisma.food.update({
     where: { id },
     data: {
       ...input,
       ...(slug ? { slug } : {}),
       ...(imageUrl ? { imageUrl } : {}),
+      ...offer,
     },
     include: foodInclude,
   });
@@ -210,4 +270,21 @@ export const setAvailability = async (id: string, isAvailable: boolean) => {
   });
 
   return updated;
+};
+
+/**
+ * Marks a dish as the chef's recommendation, or takes the badge off.
+ *
+ * Any number of dishes may be featured at once: the welcome page renders them
+ * as a set, and forcing a single choice would mean unfeaturing one dish as a
+ * side effect of featuring another — a surprise the admin never asked for.
+ */
+export const setFeatured = async (id: string, isFeatured: boolean) => {
+  await getFoodById(id);
+
+  return prisma.food.update({
+    where: { id },
+    data: { isFeatured },
+    include: foodInclude,
+  });
 };

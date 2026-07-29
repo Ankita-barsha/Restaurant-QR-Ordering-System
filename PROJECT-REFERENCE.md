@@ -33,12 +33,12 @@ is the flat reference: the technology per part, and the API surface as a list.
 | Folder | Holds |
 | --- | --- |
 | `pages/customer/` | Diner screens: `ScanTable`, `Landing`, `CustomerMenu`, `CustomerCart`, `TrackOrder`, `Reserve` |
-| `pages/staff/` | Staff screens: `Login`, `KitchenDisplay`, `StaffOrders`, `WaiterServe`, and the ten `Admin*` screens |
-| `components/` | Shared pieces: `Navbar`, `Modal`, `DishSheet`, `ImagePicker`, `NotificationBell`, `ProtectedRoute`, `DemoCheckout`, the `luxe`/`ui` primitives |
+| `pages/staff/` | Staff screens: `Login`, `KitchenDisplay`, `StaffOrders`, `WaiterServe`, and the eleven `Admin*` screens (including `AdminContent`, the CMS) |
+| `components/` | Shared pieces: `Navbar`, `Modal`, `DishSheet`, `ImagePicker`, `InvoiceSheet`, `NotificationBell`, `ProtectedRoute`, `DemoCheckout`, the `luxe`/`ui` primitives |
 | `layouts/` | `MainLayout` (customer chrome); `StaffLayout` sits in `components/` |
 | `context/` | `AuthContext`, `CartContext`, `FavouritesContext`. Each is split in two — the `.tsx` file exports only components, the `.ts` file the context, hook and types, so React Fast Refresh keeps working |
 | `hooks/` | `useLiveOrders` — the socket subscriptions and their query-cache updates |
-| `lib/` | `api` (Axios), `socket`, `money` (integer paise arithmetic), `format`, `homeRoute` |
+| `lib/` | `api` (Axios), `socket`, `money` (integer paise arithmetic), `offer` (offer pricing, mirroring the server), `format`, `homeRoute` |
 | `types/` | `api.ts` — the response types shared with the server's shapes |
 
 ### 1.2 Backend — `server/`
@@ -73,25 +73,27 @@ is the flat reference: the technology per part, and the API surface as a list.
 | `services/` | All business logic and every database call — 13 services |
 | `middleware/` | `authenticate`, `authorize`, `validate`, `audit`, `upload`, `security`, `errorHandler` |
 | `validations/` | Zod schemas. Also the single source the OpenAPI request shapes are generated from |
-| `utils/` | `money` (integer paise), `tradingDay` (timezone-correct day boundaries), `jwt`, `password`, `AppError`, `prismaError`, `pagination`, `qrcode`, `slug`, `storage`, `paymentProvider` |
+| `utils/` | `money` (integer paise), `offer` (offer price derivation — the single source both the menu and the order path use), `tradingDay` (timezone-correct day boundaries), `jwt`, `password`, `AppError`, `prismaError`, `pagination`, `qrcode`, `slug`, `storage`, `paymentProvider` |
 | `socket/` | `index.ts` (rooms, auth on connect), `events.ts` (what is emitted, and the trimmed projection sent to diners) |
 | `docs/` | `openapi.ts` (the document), `schema.ts` (Zod → JSON Schema), `router.ts` (Swagger UI), `write.ts` (`npm run docs`) |
 | `config/` | `env.ts`, `permissions.ts`, `prisma.ts` |
 
 ### 1.3 Database — `server/prisma/`
 
-PostgreSQL, 17 models and 8 enums.
+PostgreSQL, 19 models and 9 enums.
 
 | Area | Models |
 | --- | --- |
 | People & access | `User`, `RefreshToken`, `Role`, `Permission`, `RolePermission` |
-| Menu | `Category`, `Food` |
+| Menu | `Category`, `Food` (list price + promotional offer columns) |
 | Service | `Table`, `Customer`, `Order`, `OrderItem`, `Reservation` |
 | Money | `Payment` |
 | Operations | `Notification`, `NotificationRead`, `AuditLog`, `RestaurantSettings` |
+| Content | `SiteContent` (welcome-page copy, single row), `Review` |
 
 Enums: `OrderStatus`, `OrderType`, `PaymentStatus`, `PaymentMethod`,
-`PaymentTxnStatus`, `TableStatus`, `ReservationStatus`, `NotificationType`.
+`PaymentTxnStatus`, `TableStatus`, `ReservationStatus`, `NotificationType`,
+`OfferType`.
 
 ### 1.4 Realtime events — Socket.IO
 
@@ -123,7 +125,7 @@ default.
 
 **Base URL:** `/api` — e.g. `http://localhost:5000/api/orders`.
 
-**82 operations across 62 paths.** Interactive docs run at `/api/docs`;
+**92 operations across 69 paths.** Interactive docs run at `/api/docs`;
 the machine-readable document is [server/openapi.json](server/openapi.json).
 
 **Access column:** *Public* needs no login. *Signed in* needs a valid access
@@ -146,7 +148,7 @@ token. A `permission:name` needs that permission granted to the caller's role.
 | `POST` | `/auth/logout-all` | Sign out everywhere | Signed in |
 | `GET` | `/auth/me` | The signed-in staff member | Signed in |
 
-### Menu (13)
+### Menu (14)
 
 | Method | Path | Purpose | Access |
 | --- | --- | --- | --- |
@@ -163,24 +165,64 @@ token. A `permission:name` needs that permission granted to the caller's role.
 | `PATCH` | `/foods/{id}` | Edit a dish | `food:update` |
 | `DELETE` | `/foods/{id}` | Delete a dish | `food:delete` |
 | `PATCH` | `/foods/{id}/availability` | Mark a dish sold out or back on | `food:read` |
+| `PATCH` | `/foods/{id}/featured` | Mark a dish as the chef's recommendation | `food:update` |
 
-### Orders (9)
+Offers ride on the existing create/update endpoints rather than adding new
+ones: `isOfferActive`, `offerType`, `offerValue` and `offerLabel` are fields on
+`POST /foods` and `PATCH /foods/{id}`. **`offerPrice` is not accepted** — the
+server derives it from the price and the discount, and re-derives it on every
+patch from the merged row. `GET /foods?isOfferActive=true` narrows the menu to
+what is currently discounted.
+
+Featuring sits behind `food:update` rather than `food:read`, unlike the
+sold-out switch: it changes what the public welcome page advertises, which is
+an editorial decision rather than a service-floor one.
+
+### Content (7)
+
+| Method | Path | Purpose | Access |
+| --- | --- | --- | --- |
+| `GET` | `/content` | Welcome-page copy | Public |
+| `PATCH` | `/content` | Edit the welcome page | `content:update` |
+| `GET` | `/content/reviews` | Customer testimonials | Public |
+| `POST` | `/content/reviews` | Publish a review | `review:create` |
+| `PATCH` | `/content/reviews/{id}` | Edit a review | `review:update` |
+| `PATCH` | `/content/reviews/{id}/visibility` | Publish or hide a review | `review:update` |
+| `DELETE` | `/content/reviews/{id}` | Delete a review | `review:delete` |
+
+Every content field is nullable and the page falls back to its built-in copy,
+so an untouched CMS renders the site exactly as it was before one existed.
+`GET /content/reviews` is public but richer for staff: `includeHidden` is
+honoured from the access token, never from the query string alone.
+
+### Orders (11)
 
 | Method | Path | Purpose | Access |
 | --- | --- | --- | --- |
 | `GET` | `/orders` | List orders | `order:read` |
 | `POST` | `/orders` | Place an order | Public |
 | `GET` | `/orders/track/{token}` | Track an order | Public |
+| `GET` | `/orders/track/{token}/invoice` | Your own invoice | Public |
 | `GET` | `/orders/kitchen` | The Kitchen Display queue | `kitchen:access` |
 | `GET` | `/orders/{id}` | Fetch an order | `order:read` |
+| `GET` | `/orders/{id}/invoice` | The invoice for an order | `order:read` |
 | `POST` | `/orders/{id}/items` | Add to a running tab | `order:create` |
 | `PATCH` | `/orders/{id}/status` | Advance an order | `order:updateStatus` |
-| `POST` | `/orders/{id}/serve` | Serve, after verifying the pickup code | `order:updateStatus` |
+| `POST` | `/orders/{id}/serve` | Mark an order delivered to the table | `order:updateStatus` |
 | `POST` | `/orders/{id}/cancel` | Cancel an order | `order:cancel` |
 
-`POST /orders` returns a `trackingToken` **once**. Tracking, the pickup code
-and the payment flow are all keyed on that token, never on the order number —
+`POST /orders` returns a `trackingToken` **once**. Tracking, the invoice and
+the payment flow are all keyed on that token, never on the order number —
 order numbers come from a sequence and can be guessed by counting.
+
+`POST /orders/{id}/serve` takes **no body**. The four-character pickup code it
+once required has been removed from the product: it added a step to every
+service and told the waiter nothing the table number on the ticket did not
+already say.
+
+Invoice figures come from the order's own stored columns and its line-item
+snapshots, so a reprint years later reproduces the original bill even if the
+dish has since been renamed, repriced or removed from the menu.
 
 ### Payments (7)
 
@@ -268,9 +310,14 @@ from a screen nobody has looked at.
 | `GET` | `/admin/reports/dashboard` | Dashboard summary | `dashboard:view` |
 | `GET` | `/admin/reports/sales` | Revenue per day | `report:view` |
 | `GET` | `/admin/reports/revenue` | Revenue by period | `report:view` |
-| `GET` | `/admin/reports/top-items` | Best sellers | `report:view` |
+| `GET` | `/admin/reports/top-items` | Highest-selling items | `report:view` |
 | `GET` | `/admin/reports/order-status` | Orders by status | `report:view` |
 | `GET` | `/admin/reports/top-customers` | Highest-spending guests | `report:view` |
+
+`/admin/reports/top-items` ranks by `sort=quantity` (the default) or
+`sort=revenue`, and counts **completed** orders by default — an order still in
+the pass may yet be cancelled, so including it would let the ranking move
+backwards during service. `scope=all` widens it to every non-cancelled order.
 
 ---
 
@@ -289,6 +336,7 @@ so a permission can be moved between roles without a code change.
 | Access control | `role:read`, `role:create`, `role:update`, `role:delete`, `permission:read`, `permission:assign` |
 | Insight | `dashboard:view`, `report:view`, `auditLog:read` |
 | Settings | `settings:read`, `settings:update` |
+| Content | `content:update`, `review:read`, `review:create`, `review:update`, `review:delete` |
 
 ---
 

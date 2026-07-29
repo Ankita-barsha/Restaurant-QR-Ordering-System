@@ -10,8 +10,15 @@ import { useEffect } from "react";
 
 import { config } from "../config/env";
 import { formatMoney, imageUrl } from "../lib/format";
+import { fromMinor } from "../lib/money";
+import {
+  effectivePrice,
+  offerBadge,
+  savingMinor,
+  strikethroughPrice,
+} from "../lib/offer";
 import type { Food } from "../types/api";
-import { DietMark, LuxeButton } from "./luxe";
+import { DietMark, LuxeButton, OfferBadge, PriceTag } from "./luxe";
 
 const DishSheet = ({
   food,
@@ -43,6 +50,9 @@ const DishSheet = ({
   if (!food) return null;
 
   const image = imageUrl(food.imageUrl, config.apiUrl);
+  const badge = offerBadge(food);
+  const listPrice = strikethroughPrice(food);
+  const saving = savingMinor(food);
 
   return (
     <div
@@ -55,7 +65,7 @@ const DishSheet = ({
         aria-modal="true"
         aria-label={food.name}
         onClick={(event) => event.stopPropagation()}
-        className="animate-rise max-h-[92vh] w-full max-w-lg overflow-y-auto rounded-t-luxe border border-smoke bg-charcoal sm:rounded-luxe"
+        className="animate-rise max-h-[92svh] w-full max-w-lg overflow-y-auto overscroll-contain rounded-t-luxe border border-smoke bg-charcoal sm:rounded-luxe"
       >
         <div className="relative">
           {image ? (
@@ -72,24 +82,30 @@ const DishSheet = ({
             type="button"
             onClick={onClose}
             aria-label="Close"
-            className="glass absolute right-4 top-4 flex h-9 w-9 items-center justify-center rounded-full text-ivory transition hover:text-gold"
+            className="glass absolute right-4 top-4 flex h-11 w-11 items-center justify-center rounded-full text-ivory transition hover:text-gold"
           >
             <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round">
               <path d="M18 6 6 18M6 6l12 12" />
             </svg>
           </button>
 
+          {badge && (
+            <OfferBadge label={badge} className="absolute bottom-4 left-4 sm:left-5" />
+          )}
+
           {/* Grab handle — signals "drag to dismiss" on touch, harmless on desktop */}
           <span className="absolute inset-x-0 top-2 mx-auto h-1 w-10 rounded-full bg-ivory/25 sm:hidden" />
         </div>
 
-        <div className="p-7">
+        <div className="p-5 sm:p-7">
           <div className="flex items-center gap-2.5">
             <DietMark vegetarian={food.isVegetarian} />
             <span className="eyebrow">{food.category.name}</span>
           </div>
 
-          <h2 className="mt-3 text-4xl leading-tight text-ivory">{food.name}</h2>
+          <h2 className="mt-3 text-[clamp(1.75rem,7vw,2.25rem)] leading-tight text-ivory">
+            {food.name}
+          </h2>
 
           {food.description && (
             <p className="mt-4 text-[15px] leading-loose text-ivory-dim">
@@ -97,12 +113,23 @@ const DishSheet = ({
             </p>
           )}
 
-          <dl className="mt-7 grid grid-cols-2 gap-5 border-y border-smoke py-6">
+          <dl className="mt-6 grid grid-cols-1 gap-5 border-y border-smoke py-6 xs:grid-cols-2 sm:mt-7">
             <div>
               <dt className="eyebrow">Price</dt>
-              <dd className="font-display mt-1.5 text-3xl text-gold">
-                {formatMoney(food.price)}
+              <dd className="mt-1.5">
+                <PriceTag
+                  size="lg"
+                  price={formatMoney(effectivePrice(food))}
+                  listPrice={listPrice && formatMoney(listPrice)}
+                />
               </dd>
+              {/* Stated in money rather than left as a percentage to work out:
+                  "you save ₹100" is the fact the diner actually wants. */}
+              {saving > 0 && (
+                <dd className="mt-1 text-[11px] uppercase tracking-[0.16em] text-ember">
+                  You save {formatMoney(fromMinor(saving))}
+                </dd>
+              )}
             </div>
 
             {food.preparationMinutes !== null && (

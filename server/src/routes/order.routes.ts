@@ -11,7 +11,6 @@ import { idParamSchema } from "../validations/common.validation.js";
 import {
   addItemsSchema,
   cancelOrderSchema,
-  serveOrderSchema,
   orderListQuerySchema,
   trackingTokenParamSchema,
   placeOrderSchema,
@@ -45,13 +44,25 @@ router.post(
  * Tracking is authorised by possession of the order's tracking token, issued
  * once in the response to POST /orders. It is NOT keyed on orderNumber: that
  * is a sequence value, so keying it there would expose every order — and its
- * pickup code — to anyone counting upwards.
+ * invoice — to anyone counting upwards.
  */
 router.get(
   "/track/:token",
   publicLookupLimiter,
   validate({ params: trackingTokenParamSchema }),
   orderController.track
+);
+
+/**
+ * The diner's own invoice, authorised by the same token as tracking.
+ *
+ * Registered here, beside its sibling, and before "/:id" for the same reason.
+ */
+router.get(
+  "/track/:token/invoice",
+  publicLookupLimiter,
+  validate({ params: trackingTokenParamSchema }),
+  orderController.trackedInvoice
 );
 
 /** Kitchen Display queue — kitchen staff or anyone who may read orders. */
@@ -79,6 +90,21 @@ router.get(
   orderController.getById
 );
 
+/**
+ * The invoice for an order.
+ *
+ * Behind order:read rather than a permission of its own: it restates figures
+ * anyone who can open the order already sees, printed on the restaurant's
+ * letterhead.
+ */
+router.get(
+  "/:id/invoice",
+  authenticate,
+  authorize(PERMISSIONS.ORDER_READ),
+  validate({ params: idParamSchema }),
+  orderController.invoice
+);
+
 /** Staff adding to a running tab, e.g. "and another naan". */
 router.post(
   "/:id/items",
@@ -99,14 +125,18 @@ router.patch(
 );
 
 /**
- * Serving requires the customer's pickup code. Behind order:updateStatus,
- * the same capability waiting staff already hold to advance orders.
+ * The waiter has taken the food to the table.
+ *
+ * Behind order:updateStatus, the same capability waiting staff already hold to
+ * advance orders. It carries no body: the pickup code this endpoint once
+ * required is gone from the product, and the table number on the ticket is
+ * what the waiter actually works from.
  */
 router.post(
   "/:id/serve",
   authenticate,
   authorize(PERMISSIONS.ORDER_UPDATE_STATUS),
-  validate({ params: idParamSchema, body: serveOrderSchema }),
+  validate({ params: idParamSchema }),
   audit({ action: "order.serve", entity: "Order" }),
   orderController.serve
 );

@@ -20,6 +20,8 @@ import {
   LuxeEmpty,
   LuxeError,
   LuxeSkeleton,
+  OfferBadge,
+  PriceTag,
   Reveal,
 } from "../../components/luxe";
 import DishSheet from "../../components/DishSheet";
@@ -29,6 +31,7 @@ import { useFavourites } from "../../context/favourites";
 import { queryKeys, useLiveOrders } from "../../hooks/useLiveOrders";
 import { api, getErrorMessage, unwrap } from "../../lib/api";
 import { formatMoney, imageUrl } from "../../lib/format";
+import { effectivePrice, offerBadge, strikethroughPrice } from "../../lib/offer";
 import type { ApiResponse, Category, Food } from "../../types/api";
 
 const CustomerMenu = () => {
@@ -36,6 +39,7 @@ const CustomerMenu = () => {
   const [categorySlug, setCategorySlug] = useState<string | null>(null);
   const [vegOnly, setVegOnly] = useState(false);
   const [favouritesOnly, setFavouritesOnly] = useState(false);
+  const [offersOnly, setOffersOnly] = useState(false);
   const [openDish, setOpenDish] = useState<Food | null>(null);
 
   const { table, items, itemCount, addItem, subtotal } = useCart();
@@ -49,13 +53,16 @@ const CustomerMenu = () => {
   });
 
   const foodsQuery = useQuery({
-    queryKey: [...queryKeys.foods, search, categorySlug, vegOnly],
+    queryKey: [...queryKeys.foods, search, categorySlug, vegOnly, offersOnly],
     queryFn: async () => {
       const params = new URLSearchParams({ limit: "100" });
 
       if (search) params.set("search", search);
       if (categorySlug) params.set("category", categorySlug);
       if (vegOnly) params.set("isVegetarian", "true");
+      // Filtered server-side, unlike favourites: whether a dish is on offer is
+      // something the database knows and the device does not.
+      if (offersOnly) params.set("isOfferActive", "true");
 
       return unwrap(await api.get<ApiResponse<Food[]>>(`/foods?${params.toString()}`));
     },
@@ -75,7 +82,7 @@ const CustomerMenu = () => {
   return (
     <div className="min-h-screen bg-obsidian pb-32">
       {/* ------------------------------------------------------ page header */}
-      <header className="border-b border-smoke px-6 pb-10 pt-14">
+      <header className="border-b border-smoke px-4 pb-8 pt-12 sm:px-6 sm:pb-10 sm:pt-14">
         <div className="mx-auto max-w-6xl text-center">
           <p className="eyebrow animate-rise">
             {table ? `Table ${table.tableNumber}` : "À la carte"}
@@ -91,7 +98,7 @@ const CustomerMenu = () => {
 
       {/* -------------------------------------------------- search & filters */}
       <div className="sticky top-[68px] z-30 border-b border-smoke bg-obsidian/85 backdrop-blur-xl">
-        <div className="mx-auto max-w-6xl px-6 py-4">
+        <div className="mx-auto max-w-6xl px-4 py-3 sm:px-6 sm:py-4">
           <div className="relative">
             <svg
               className="pointer-events-none absolute left-4 top-1/2 -translate-y-1/2 text-ivory-faint"
@@ -108,7 +115,7 @@ const CustomerMenu = () => {
               onChange={(event) => setSearch(event.target.value)}
               placeholder="Search the menu"
               aria-label="Search the menu"
-              className="w-full rounded-full border border-smoke bg-charcoal py-3 pl-11 pr-4 text-sm text-ivory placeholder:text-ivory-faint focus:border-gold/50 focus:outline-none"
+              className="w-full rounded-full border border-smoke bg-charcoal py-3 pl-11 pr-4 text-base text-ivory placeholder:text-ivory-faint focus:border-gold/50 focus:outline-none sm:text-sm"
             />
           </div>
 
@@ -137,6 +144,13 @@ const CustomerMenu = () => {
               Vegetarian
             </FilterPill>
 
+            <FilterPill
+              active={offersOnly}
+              onClick={() => setOffersOnly((value) => !value)}
+            >
+              Offers
+            </FilterPill>
+
             {favouriteCount > 0 && (
               <FilterPill
                 active={favouritesOnly}
@@ -151,7 +165,7 @@ const CustomerMenu = () => {
       </div>
 
       {/* --------------------------------------------------------- the dishes */}
-      <div className="mx-auto max-w-6xl px-6 py-12">
+      <div className="mx-auto max-w-6xl px-4 py-8 sm:px-6 sm:py-12">
         {foodsQuery.isLoading && (
           <div className="grid gap-6 sm:grid-cols-2 lg:grid-cols-3">
             {Array.from({ length: 6 }, (_, index) => (
@@ -183,6 +197,7 @@ const CustomerMenu = () => {
                   setCategorySlug(null);
                   setVegOnly(false);
                   setFavouritesOnly(false);
+                  setOffersOnly(false);
                 }}
               >
                 Show everything
@@ -195,6 +210,8 @@ const CustomerMenu = () => {
           {foods.map((food, index) => {
             const image = imageUrl(food.imageUrl, config.apiUrl);
             const quantity = inCart.get(food.id) ?? 0;
+            const badge = offerBadge(food);
+            const listPrice = strikethroughPrice(food);
 
             return (
               <Reveal key={food.id} delay={Math.min(index, 5) * 70}>
@@ -227,6 +244,15 @@ const CustomerMenu = () => {
                     )}
                   </button>
 
+                  {/* Bottom-left of the photo, clear of the quantity pill above
+                      it and the favourite button opposite. */}
+                  {badge && (
+                    <OfferBadge
+                      label={badge}
+                      className="pointer-events-none absolute bottom-3 left-3"
+                    />
+                  )}
+
                   {/* Outside the photo button: nesting a button inside a
                       button is invalid HTML and breaks keyboard navigation. */}
                   <button
@@ -238,12 +264,12 @@ const CustomerMenu = () => {
                         ? `Remove ${food.name} from favourites`
                         : `Save ${food.name} to favourites`
                     }
-                    className="glass absolute right-3 top-3 flex h-9 w-9 items-center justify-center rounded-full transition-transform duration-500 hover:scale-110"
+                    className="glass absolute right-3 top-3 flex h-11 w-11 items-center justify-center rounded-full transition-transform duration-500 hover:scale-110"
                   >
                     <HeartIcon filled={isFavourite(food.id)} />
                   </button>
 
-                  <div className="flex flex-1 flex-col p-6">
+                  <div className="flex flex-1 flex-col p-5 sm:p-6">
                     <div className="flex items-start gap-2.5">
                       <span className="mt-1.5">
                         <DietMark vegetarian={food.isVegetarian} />
@@ -260,15 +286,20 @@ const CustomerMenu = () => {
                       </p>
                     )}
 
-                    <div className="mt-auto flex items-center justify-between gap-4 pt-6">
-                      <span className="font-display text-2xl text-gold">
-                        {formatMoney(food.price)}
-                      </span>
+                    {/* Wraps rather than compressing: with a struck-through
+                        original beside the price, a fixed row squeezed the Add
+                        button off the card at 320px. */}
+                    <div className="mt-auto flex flex-wrap items-center justify-between gap-x-4 gap-y-3 pt-6">
+                      <PriceTag
+                        price={formatMoney(effectivePrice(food))}
+                        listPrice={listPrice && formatMoney(listPrice)}
+                      />
 
                       <button
                         type="button"
                         onClick={() => addItem(food)}
-                        className="rounded-full border border-gold/40 px-5 py-2 text-[10px] uppercase tracking-[0.2em] text-gold transition-all duration-500 hover:bg-gold hover:text-obsidian"
+                        aria-label={`Add ${food.name} to your order`}
+                        className="min-h-11 rounded-full border border-gold/40 px-6 py-2.5 text-[10px] uppercase tracking-[0.2em] text-gold transition-all duration-500 hover:bg-gold hover:text-obsidian"
                       >
                         Add
                       </button>
@@ -283,10 +314,10 @@ const CustomerMenu = () => {
 
       {/* -------------------------------------------------------- cart bar */}
       {itemCount > 0 && (
-        <div className="fixed inset-x-0 bottom-0 z-40 px-4 pb-4">
+        <div className="fixed inset-x-0 bottom-0 z-40 px-3 pb-[max(0.75rem,env(safe-area-inset-bottom))] sm:px-4 sm:pb-4">
           <Link
             to="/cart"
-            className="glass mx-auto flex max-w-2xl items-center justify-between gap-4 rounded-full px-6 py-4 shadow-[0_20px_50px_-20px_rgba(0,0,0,0.9)] transition-transform duration-500 hover:scale-[1.02]"
+            className="glass mx-auto flex min-h-14 max-w-2xl items-center justify-between gap-3 rounded-full px-5 py-3.5 shadow-[0_20px_50px_-20px_rgba(0,0,0,0.9)] transition-transform duration-500 hover:scale-[1.02] sm:gap-4 sm:px-6 sm:py-4"
           >
             <span className="flex items-center gap-3">
               <span className="flex h-8 w-8 items-center justify-center rounded-full bg-gold text-sm font-medium text-obsidian">
@@ -344,7 +375,7 @@ const FilterPill = ({
     type="button"
     onClick={onClick}
     aria-pressed={active}
-    className={`flex shrink-0 items-center gap-2 whitespace-nowrap rounded-full border px-5 py-2 text-[11px] uppercase tracking-[0.18em] transition-all duration-500 ${
+    className={`flex min-h-11 shrink-0 items-center gap-2 whitespace-nowrap rounded-full border px-5 py-2 text-[11px] uppercase tracking-[0.18em] transition-all duration-500 ${
       active
         ? "border-gold bg-gold text-obsidian"
         : "border-smoke text-ivory-dim hover:border-gold/40 hover:text-gold"

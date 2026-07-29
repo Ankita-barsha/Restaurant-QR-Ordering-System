@@ -34,16 +34,36 @@ export interface Category {
   _count?: { foods: number };
 }
 
+/** How a menu offer reduces a dish's price. */
+export type OfferType = "PERCENTAGE" | "FIXED";
+
 export interface Food {
   id: string;
   name: string;
   slug: string;
   description: string | null;
-  /** Exact decimal string, e.g. "349.00". */
+  /**
+   * The LIST price, as an exact decimal string, e.g. "349.00".
+   *
+   * An offer never rewrites this. What a dish actually costs is
+   * `offerPrice` when an offer is running — use `effectivePrice()` from
+   * lib/offer rather than reading either field directly.
+   */
   price: string;
+  /** Master switch. False means the dish sells at `price`. */
+  isOfferActive: boolean;
+  offerType: OfferType | null;
+  /** A percentage (0-100) for PERCENTAGE, otherwise an amount of money. */
+  offerValue: string | null;
+  /** Derived server-side. Null when no offer is running. */
+  offerPrice: string | null;
+  /** Custom badge wording; blank falls back to one derived from the discount. */
+  offerLabel: string | null;
   imageUrl: string | null;
   isAvailable: boolean;
   isVegetarian: boolean;
+  /** The chef's recommendation. Featured dishes lead the welcome page. */
+  isFeatured: boolean;
   preparationMinutes: number | null;
   categoryId: string;
   category: { id: string; name: string; slug: string };
@@ -87,8 +107,6 @@ export interface Order {
    * — that is the only time the diner receives it — and on staff reads.
    */
   trackingToken: string;
-  /** Four-character pickup code the waiter must verify before serving. */
-  verificationCode: string | null;
   status: OrderStatus;
   type: OrderType;
   paymentStatus: PaymentStatus;
@@ -115,9 +133,11 @@ export interface Order {
 /** The trimmed shape returned by the public tracking endpoint. */
 export interface TrackedOrder {
   orderNumber: string;
-  /** Echoed back so the page can subscribe and pay without re-parsing the URL. */
+  /**
+   * Echoed back so the page can subscribe, fetch its invoice and pay without
+   * re-parsing the URL.
+   */
   trackingToken: string;
-  verificationCode: string | null;
   paymentStatus: PaymentStatus;
   status: OrderStatus;
   type: OrderType;
@@ -175,6 +195,94 @@ export interface PublicSettings {
   closingTime: string | null;
   address: string;
   phone: string | null;
+}
+
+/**
+ * Editable welcome-page copy.
+ *
+ * Every field is nullable and the page falls back to its built-in text, so an
+ * untouched CMS renders exactly as the site did before one existed.
+ */
+export interface SiteContent {
+  heroEyebrow: string | null;
+  heroTitle: string | null;
+  heroLede: string | null;
+  bannerText: string | null;
+  featuredEyebrow: string | null;
+  featuredTitle: string | null;
+  featuredLede: string | null;
+  aboutEyebrow: string | null;
+  aboutTitle: string | null;
+  aboutBody: string | null;
+  footerNote: string | null;
+}
+
+/** A curated testimonial. Written and published by the house, not by diners. */
+export interface Review {
+  id: string;
+  customerName: string;
+  imageUrl: string | null;
+  rating: number;
+  comment: string;
+  visitedOn: string | null;
+  isVisible: boolean;
+  sortOrder: number;
+  createdAt: string;
+}
+
+/** A row of the highest-selling items report. */
+export interface TopSellingItem {
+  foodId: string;
+  foodName: string;
+  quantitySold: number;
+  revenue: string;
+}
+
+/**
+ * A generated invoice.
+ *
+ * Every amount is a decimal string restated from what the order was CHARGED —
+ * never recomputed here from the live menu or the current tax rate.
+ */
+export interface Invoice {
+  invoiceNumber: string;
+  orderNumber: string;
+  issuedAt: string;
+  restaurant: {
+    name: string;
+    logoUrl: string | null;
+    address: string;
+    phone: string | null;
+    email: string | null;
+    currency: string;
+  };
+  table: string | null;
+  orderType: OrderType;
+  customer: { name: string | null; phone: string | null } | null;
+  items: {
+    id: string;
+    name: string;
+    unitPrice: string;
+    quantity: number;
+    lineTotal: string;
+    notes: string | null;
+  }[];
+  totals: {
+    subtotal: string;
+    tax: string;
+    discount: string;
+    grandTotal: string;
+    amountPaid: string;
+    balanceDue: string;
+  };
+  payment: {
+    status: PaymentStatus;
+    method: string | null;
+    receiptNumber: string | null;
+    paidAt: string | null;
+  };
+  status: OrderStatus;
+  isCancelled: boolean;
 }
 
 /** Envelope every endpoint responds with. */

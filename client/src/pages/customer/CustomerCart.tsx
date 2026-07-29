@@ -19,7 +19,7 @@ import { fromMinor, quoteTotals, toMinor } from "../../lib/money";
 import type { ApiResponse, Order, PublicSettings } from "../../types/api";
 
 const fieldClass =
-  "w-full rounded-xl border border-smoke bg-charcoal px-4 py-3 text-sm text-ivory placeholder:text-ivory-faint transition-colors focus:border-gold/50 focus:outline-none";
+  "w-full rounded-xl border border-smoke bg-charcoal px-4 py-3 text-base text-ivory placeholder:text-ivory-faint transition-colors focus:border-gold/50 focus:outline-none sm:text-sm";
 
 const CustomerCart = () => {
   const navigate = useNavigate();
@@ -109,12 +109,26 @@ const CustomerCart = () => {
   const currency = settingsQuery.data?.currency;
   const money = (value: string) => formatMoney(value, currency);
 
+  /**
+   * What the offers on this basket took off, in exact paise.
+   *
+   * Derived from the two prices each line already carries, so it cannot
+   * disagree with the subtotal above it.
+   */
+  const savedMinor = items.reduce(
+    (sum, item) =>
+      item.listPrice
+        ? sum + (toMinor(item.listPrice) - toMinor(item.price)) * item.quantity
+        : sum,
+    0
+  );
+
   const hasTax = toMinor(taxPercent) > 0;
   const hasService = toMinor(servicePercent) > 0;
 
   return (
-    <div className="min-h-screen bg-obsidian pb-40 pt-28">
-      <div className="mx-auto max-w-3xl px-6">
+    <div className="min-h-screen bg-obsidian pb-44 pt-24 sm:pt-28">
+      <div className="mx-auto max-w-3xl px-4 sm:px-6">
         <header className="text-center">
           <p className="eyebrow">
             {table ? `Table ${table.tableNumber}` : "Takeaway"}
@@ -131,50 +145,58 @@ const CustomerCart = () => {
             const image = imageUrl(item.imageUrl, config.apiUrl);
 
             return (
-              <div key={item.foodId} className="flex gap-5 py-6">
+              <div key={item.foodId} className="flex gap-3.5 py-5 sm:gap-5 sm:py-6">
                 {image ? (
                   <img
                     src={image}
                     alt=""
-                    className="h-20 w-20 shrink-0 rounded-xl object-cover"
+                    className="h-16 w-16 shrink-0 rounded-xl object-cover sm:h-20 sm:w-20"
                   />
                 ) : (
-                  <div className="flex h-20 w-20 shrink-0 items-center justify-center rounded-xl bg-graphite text-2xl">
+                  <div className="flex h-16 w-16 shrink-0 items-center justify-center rounded-xl bg-graphite text-2xl sm:h-20 sm:w-20">
                     🍽️
                   </div>
                 )}
 
                 <div className="min-w-0 flex-1">
-                  <div className="flex items-start justify-between gap-4">
-                    <h2 className="text-xl leading-tight text-ivory">{item.name}</h2>
-                    <span className="font-display shrink-0 text-xl text-gold">
+                  <div className="flex flex-wrap items-start justify-between gap-x-3 gap-y-1">
+                    <h2 className="text-lg leading-tight text-ivory sm:text-xl">{item.name}</h2>
+                    <span className="font-display shrink-0 text-lg text-gold sm:text-xl">
                       {/* Multiplied in paise: 19.99 x 3 as floats is 59.97000000000001. */}
                       {money(fromMinor(toMinor(item.price) * item.quantity))}
                     </span>
                   </div>
 
-                  <p className="mt-1 text-xs text-ivory-faint">
-                    {money(item.price)} each
+                  <p className="mt-1 flex flex-wrap items-baseline gap-x-2 text-xs text-ivory-faint">
+                    <span>{money(item.price)} each</span>
+                    {/* The list price this line was discounted from. Shown, but
+                        never summed — the totals below use item.price, which is
+                        what the server will actually bill. */}
+                    {item.listPrice && (
+                      <span className="line-through opacity-70">
+                        {money(item.listPrice)}
+                      </span>
+                    )}
                   </p>
 
-                  <div className="mt-4 flex items-center gap-5">
-                    <div className="flex items-center gap-4 rounded-full border border-smoke px-3 py-1.5">
+                  <div className="mt-3.5 flex flex-wrap items-center gap-3 sm:gap-5">
+                    <div className="flex items-center rounded-full border border-smoke">
                       <button
                         type="button"
                         onClick={() => decrease(item.foodId)}
                         aria-label={`One fewer ${item.name}`}
-                        className="text-lg leading-none text-ivory-dim transition-colors hover:text-gold"
+                        className="flex h-11 w-11 items-center justify-center rounded-full text-xl leading-none text-ivory-dim transition-colors hover:text-gold"
                       >
                         −
                       </button>
-                      <span className="w-4 text-center text-sm text-ivory">
+                      <span className="w-5 text-center text-sm text-ivory">
                         {item.quantity}
                       </span>
                       <button
                         type="button"
                         onClick={() => increase(item.foodId)}
                         aria-label={`One more ${item.name}`}
-                        className="text-lg leading-none text-ivory-dim transition-colors hover:text-gold"
+                        className="flex h-11 w-11 items-center justify-center rounded-full text-xl leading-none text-ivory-dim transition-colors hover:text-gold"
                       >
                         +
                       </button>
@@ -183,7 +205,7 @@ const CustomerCart = () => {
                     <button
                       type="button"
                       onClick={() => removeItem(item.foodId)}
-                      className="text-[10px] uppercase tracking-[0.2em] text-ivory-faint transition-colors hover:text-ember"
+                      className="min-h-11 px-1 text-[10px] uppercase tracking-[0.2em] text-ivory-faint transition-colors hover:text-ember"
                     >
                       Remove
                     </button>
@@ -194,7 +216,7 @@ const CustomerCart = () => {
                     value={item.notes ?? ""}
                     onChange={(event) => setNotes(item.foodId, event.target.value)}
                     placeholder="A note for the kitchen"
-                    className="mt-4 w-full rounded-lg border border-smoke bg-charcoal px-3 py-2 text-xs text-ivory placeholder:text-ivory-faint focus:border-gold/40 focus:outline-none"
+                    className="mt-3.5 w-full rounded-lg border border-smoke bg-charcoal px-3 py-2.5 text-base text-ivory placeholder:text-ivory-faint focus:border-gold/40 focus:outline-none sm:text-xs"
                   />
                 </div>
               </div>
@@ -238,7 +260,7 @@ const CustomerCart = () => {
         </section>
 
         {/* ---------------------------------------------------------- totals */}
-        <section className="glass rounded-luxe mt-12 p-7">
+        <section className="glass rounded-luxe mt-10 p-5 sm:mt-12 sm:p-7">
           <dl className="space-y-3 text-sm">
             <div className="flex justify-between text-ivory-dim">
               <dt>Subtotal</dt>
@@ -260,13 +282,23 @@ const CustomerCart = () => {
                 <dd>{money(quote.serviceCharge)}</dd>
               </div>
             )}
+
+            {/* Stated rather than left implicit. The subtotal is already
+                discounted, so without this line the offer the diner chose the
+                dish for is invisible on the bill. */}
+            {savedMinor > 0 && (
+              <div className="flex justify-between text-ember">
+                <dt>Offer savings</dt>
+                <dd>− {money(fromMinor(savedMinor))}</dd>
+              </div>
+            )}
           </dl>
 
           <div className="rule-fade my-5 h-px" />
 
           <div className="flex items-baseline justify-between">
             <span className="eyebrow">Total</span>
-            <span className="font-display text-4xl text-gold">
+            <span className="font-display text-3xl text-gold sm:text-4xl">
               {money(quote.total)}
             </span>
           </div>
@@ -286,7 +318,7 @@ const CustomerCart = () => {
 
       {/* ------------------------------------------------------- action bar */}
       <div className="fixed inset-x-0 bottom-0 z-40 border-t border-smoke bg-obsidian/90 backdrop-blur-xl">
-        <div className="mx-auto flex max-w-3xl items-center gap-4 px-6 py-4">
+        <div className="mx-auto flex max-w-3xl items-center gap-3 px-4 py-3 pb-[max(0.75rem,env(safe-area-inset-bottom))] sm:gap-4 sm:px-6 sm:py-4">
           <Link to="/menu" className="shrink-0">
             <LuxeButton variant="ghost">Add more</LuxeButton>
           </Link>

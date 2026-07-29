@@ -10,6 +10,7 @@ import { validate } from "../middleware/validate.js";
 import {
   availabilitySchema,
   createFoodSchema,
+  featuredSchema,
   foodListQuerySchema,
   updateFoodSchema,
 } from "../validations/food.validation.js";
@@ -84,6 +85,22 @@ router.patch(
   authorize(PERMISSIONS.FOOD_READ),
   validate({ params: idParamSchema, body: availabilitySchema }),
   foodController.toggleAvailability
+);
+
+/**
+ * The chef's recommendation toggle.
+ *
+ * Behind food:update rather than food:read, unlike availability: featuring a
+ * dish changes what the public welcome page advertises, which is an editorial
+ * decision, not a service-floor one. Audited for the same reason.
+ */
+router.patch(
+  "/:id/featured",
+  authenticate,
+  authorize(PERMISSIONS.FOOD_UPDATE),
+  validate({ params: idParamSchema, body: featuredSchema }),
+  audit({ action: "food.setFeatured", entity: "Food" }),
+  foodController.toggleFeatured
 );
 
 router.delete(

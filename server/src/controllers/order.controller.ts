@@ -1,5 +1,6 @@
 import type { RequestHandler } from "express";
 
+import * as invoiceService from "../services/invoice.service.js";
 import * as orderService from "../services/order.service.js";
 import * as paymentService from "../services/payment.service.js";
 import type {
@@ -32,6 +33,28 @@ export const track: RequestHandler<TrackingTokenParams> = async (req, res) => {
   const order = await orderService.trackByToken(req.params.token);
 
   res.json({ success: true, data: order });
+};
+
+/**
+ * GET /api/orders/track/:token/invoice — PUBLIC, authorised by the token.
+ *
+ * The diner's own bill, so they can print it or save it as a PDF without
+ * asking a member of staff.
+ */
+export const trackedInvoice: RequestHandler<TrackingTokenParams> = async (
+  req,
+  res
+) => {
+  const invoice = await invoiceService.getInvoiceByTrackingToken(req.params.token);
+
+  res.json({ success: true, data: invoice });
+};
+
+/** GET /api/orders/:id/invoice — the staff-side bill for any order. */
+export const invoice: RequestHandler<IdParams> = async (req, res) => {
+  const document = await invoiceService.getInvoiceByOrderId(req.params.id);
+
+  res.json({ success: true, data: document });
 };
 
 /** GET /api/orders */
@@ -87,16 +110,9 @@ export const updateStatus: RequestHandler<
   });
 };
 
-/** POST /api/orders/:id/serve — waiter serves after verifying the pickup code. */
-export const serve: RequestHandler<IdParams, unknown, { code: string }> = async (
-  req,
-  res
-) => {
-  const order = await orderService.serveOrder(
-    req.params.id,
-    req.body.code,
-    req.user?.sub
-  );
+/** POST /api/orders/:id/serve — the waiter has taken it to the table. */
+export const serve: RequestHandler<IdParams> = async (req, res) => {
+  const order = await orderService.serveOrder(req.params.id, req.user?.sub);
 
   res.json({ success: true, message: "Order served", data: order });
 };

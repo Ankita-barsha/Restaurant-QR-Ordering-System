@@ -13,7 +13,7 @@ import { useState } from "react";
 import { Card, ErrorBox, Spinner } from "../../components/ui";
 import { api, getErrorMessage, unwrap } from "../../lib/api";
 import { formatMoney } from "../../lib/format";
-import type { ApiResponse } from "../../types/api";
+import type { ApiResponse, TopSellingItem } from "../../types/api";
 
 type Period = "daily" | "weekly" | "monthly" | "yearly";
 
@@ -31,12 +31,6 @@ interface RevenueReport {
   };
 }
 
-interface TopItem {
-  foodId: string;
-  foodName: string;
-  quantitySold: number;
-  revenue: string;
-}
 
 const PERIODS: { value: Period; label: string }[] = [
   { value: "daily", label: "Daily" },
@@ -79,10 +73,22 @@ const AdminReports = () => {
       ),
   });
 
+  /**
+   * `scope=all` is passed explicitly, unlike on the dashboard.
+   *
+   * This screen reconciles takings over weeks and months, and every other
+   * figure on it counts all non-cancelled orders. Letting the endpoint's
+   * default (completed only) apply here would leave one card on the page
+   * measuring a different set of orders from the totals above it.
+   */
   const topItemsQuery = useQuery({
-    queryKey: ["reports", "top-items"],
+    queryKey: ["reports", "top-items", "all"],
     queryFn: async () =>
-      unwrap(await api.get<ApiResponse<TopItem[]>>("/admin/reports/top-items")),
+      unwrap(
+        await api.get<ApiResponse<TopSellingItem[]>>(
+          "/admin/reports/top-items?scope=all&limit=10"
+        )
+      ),
   });
 
   if (revenueQuery.isLoading) return <Spinner label="Loading reports" />;
@@ -132,7 +138,7 @@ const AdminReports = () => {
       </div>
 
       {/* ------------------------------------------------------- headline ---- */}
-      <div className="mt-5 grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
+      <div className="mt-5 grid grid-cols-2 gap-2.5 sm:gap-3 lg:grid-cols-4">
         <Stat label="Revenue" value={formatMoney(report.totals.revenue)} accent="text-emerald-600" />
         <Stat label="Collected" value={formatMoney(report.totals.collected)} />
         <Stat
@@ -227,7 +233,10 @@ const AdminReports = () => {
       {/* ------------------------------------------------------- best sellers */}
       <Card className="mt-6 p-0">
         <h2 className="border-b border-slate-100 px-5 py-4 text-sm font-semibold uppercase tracking-wide text-slate-500">
-          Best sellers
+          Highest selling items
+          <span className="ml-2 text-xs font-normal normal-case tracking-normal text-slate-400">
+            all orders · by quantity
+          </span>
         </h2>
 
         {topItemsQuery.data?.length === 0 ? (

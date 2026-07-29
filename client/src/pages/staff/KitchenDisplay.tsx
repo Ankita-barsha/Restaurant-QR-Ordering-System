@@ -210,7 +210,7 @@ const KitchenDisplay = () => {
           icon={<span className="text-4xl">👨‍🍳</span>}
         />
       ) : (
-        <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-4">
+        <div className="grid gap-3 sm:gap-4 md:grid-cols-2 xl:grid-cols-4">
           {COLUMNS.map((column) => {
             const orders = queue[column.key];
 

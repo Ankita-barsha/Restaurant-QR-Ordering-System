@@ -55,9 +55,9 @@ const Modal = ({ open, title, description, onClose, children, footer }: ModalPro
         aria-modal="true"
         aria-label={title}
         onClick={(event) => event.stopPropagation()}
-        className="flex max-h-[92vh] w-full max-w-lg flex-col rounded-t-2xl bg-white shadow-xl sm:rounded-2xl"
+        className="flex max-h-[92svh] w-full max-w-lg flex-col overscroll-contain rounded-t-2xl bg-white shadow-xl sm:rounded-2xl"
       >
-        <header className="flex items-start justify-between gap-4 border-b border-slate-200 px-5 py-4">
+        <header className="flex items-start justify-between gap-4 border-b border-slate-200 px-4 py-3.5 sm:px-5 sm:py-4">
           <div>
             <h2 className="text-lg font-bold text-slate-900">{title}</h2>
             {description && (
@@ -77,10 +77,10 @@ const Modal = ({ open, title, description, onClose, children, footer }: ModalPro
           </button>
         </header>
 
-        <div className="flex-1 overflow-y-auto px-5 py-4">{children}</div>
+        <div className="flex-1 overflow-y-auto px-4 py-4 sm:px-5">{children}</div>
 
         {footer && (
-          <footer className="flex justify-end gap-2 border-t border-slate-200 px-5 py-4">
+          <footer className="flex justify-end gap-2 border-t border-slate-200 px-4 py-3.5 pb-[max(0.875rem,env(safe-area-inset-bottom))] sm:px-5 sm:py-4">
             {footer}
           </footer>
         )}

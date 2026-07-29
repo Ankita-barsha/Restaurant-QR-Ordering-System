@@ -18,6 +18,7 @@ import type { Prisma, PrismaClient } from "../generated/prisma/client.js";
 import { prisma } from "../config/prisma.js";
 import { AppError } from "../utils/AppError.js";
 import { applyPercent, fromMinorUnits, toMinorUnits } from "../utils/money.js";
+import { effectivePriceMinor } from "../utils/offer.js";
 import {
   buildPaginationMeta,
   getPagination,
@@ -109,6 +110,14 @@ interface PricedItem {
  * Every price and name here is read from the database, then SNAPSHOT onto the
  * order item, so later menu edits cannot rewrite what the customer was
  * charged.
+ *
+ * A dish on offer is charged its OFFER price. That is not a display concern:
+ * the menu advertises ₹400, and this is the code that decides whether the
+ * diner is billed ₹400 or ₹500. It reads the offer columns and re-derives the
+ * effective price with the same function the food service used to compute the
+ * stored one, rather than trusting `offerPrice` alone — so a row whose derived
+ * column somehow disagrees with its own discount still charges the discount
+ * the menu showed.
  */
 const priceItems = async (
   tx: TxClient,
@@ -118,7 +127,15 @@ const priceItems = async (
 
   const foods = await tx.food.findMany({
     where: { id: { in: foodIds }, deletedAt: null },
-    select: { id: true, name: true, price: true, isAvailable: true },
+    select: {
+      id: true,
+      name: true,
+      price: true,
+      isAvailable: true,
+      isOfferActive: true,
+      offerType: true,
+      offerValue: true,
+    },
   });
 
   const foodById = new Map(foods.map((food) => [food.id, food]));
@@ -139,7 +156,8 @@ const priceItems = async (
       throw AppError.conflict(`"${food.name}" is sold out`);
     }
 
-    const unitMinor = toMinorUnits(food.price.toString());
+    // The offer price when one is running, the list price otherwise.
+    const unitMinor = effectivePriceMinor(toMinorUnits(food.price.toString()), food);
     const lineMinor = unitMinor * request.quantity;
 
     subtotalMinor += lineMinor;
@@ -208,26 +226,10 @@ const nextOrderNumber = async (tx: TxClient): Promise<string> => {
 };
 
 /**
- * Four-character pickup code, e.g. "A92K".
- *
- * Drawn from an alphabet with no O/0 or I/1, because the customer reads it
- * aloud to the waiter and misheard characters would block a legitimate serve.
- * crypto.randomInt, not Math.random: predictable codes could be guessed to
- * intercept another table's food.
- */
-const VERIFY_ALPHABET = "ABCDEFGHJKLMNPQRSTUVWXYZ23456789";
-
-const generateVerificationCode = (): string =>
-  Array.from(
-    { length: 4 },
-    () => VERIFY_ALPHABET[crypto.randomInt(VERIFY_ALPHABET.length)]
-  ).join("");
-
-/**
  * Per-order secret handed to the diner exactly once, in the response to
  * placing the order.
  *
- * Everything a diner alone may see — the tracking page, the pickup code, the
+ * Everything a diner alone may see — the tracking page, the invoice, the
  * payment flow — is keyed on this rather than on orderNumber, which is a
  * sequence and can be walked by anyone.
  */
@@ -308,7 +310,6 @@ export const placeOrder = async (input: PlaceOrderInput) => {
       data: {
         orderNumber: await nextOrderNumber(tx),
         trackingToken: generateTrackingToken(),
-        verificationCode: generateVerificationCode(),
         type,
         tableId,
         customerId,
@@ -500,44 +501,18 @@ export const updateStatus = async (
 };
 
 /**
- * Serves an order after verifying the customer's pickup code.
+ * Marks a READY order as delivered to the table.
  *
- * The waiter asks the diner for the four-character code and enters it here.
- * The order only moves to SERVED if it matches, which is what stops food
- * being handed to the wrong table. The comparison is case-insensitive because
- * the code is spoken aloud and re-typed.
+ * There is deliberately no pickup code any more. The waiter reads the table
+ * number off the ticket and takes the food there; asking the diner to read
+ * back a four-character code added a step to every service and told the
+ * waiter nothing the ticket did not already say.
  *
- * A legacy order placed before this feature has no code; those are allowed
- * through so the change is backward compatible.
+ * Delegates to the state machine, which enforces that only a READY order can
+ * be served and handles table release and the socket broadcast.
  */
-export const serveOrder = async (
-  orderId: string,
-  code: string,
-  actorId?: string
-) => {
-  const order = await prisma.order.findUnique({
-    where: { id: orderId },
-    select: { id: true, status: true, verificationCode: true },
-  });
-
-  if (!order) {
-    throw AppError.notFound("Order not found");
-  }
-
-  if (order.verificationCode) {
-    const supplied = code.trim().toUpperCase();
-
-    if (supplied !== order.verificationCode.toUpperCase()) {
-      throw AppError.badRequest(
-        "That code does not match this order. Please check with the customer."
-      );
-    }
-  }
-
-  // Reuse the state machine, which enforces that only a READY order can be
-  // served and handles table release and the socket broadcast.
-  return updateStatus(orderId, "SERVED", actorId);
-};
+export const serveOrder = async (orderId: string, actorId?: string) =>
+  updateStatus(orderId, "SERVED", actorId);
 
 /**
  * Cancels an order with a mandatory reason.
@@ -589,7 +564,7 @@ export const getOrderById = async (id: string) => {
  *
  * The token — NOT the order number — is what authorises this read. An order
  * number is a sequence value that anyone can walk, so keying tracking on it
- * would hand every diner's pickup code to whoever counted upwards.
+ * would hand every diner's order and invoice to whoever counted upwards.
  *
  * Returns only what the diner's screen needs: no staff details and no
  * customer contact information.
@@ -604,9 +579,6 @@ export const trackByToken = async (trackingToken: string) => {
       trackingToken: true,
       // Lets the tracking screen offer online payment while unpaid.
       paymentStatus: true,
-      // The pickup code the diner shows the waiter. Safe to return here
-      // precisely because reaching this row required the unguessable token.
-      verificationCode: true,
       status: true,
       type: true,
       totalAmount: true,

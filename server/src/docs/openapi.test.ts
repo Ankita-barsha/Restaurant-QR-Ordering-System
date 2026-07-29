@@ -19,6 +19,7 @@ import { openApiDocument } from "./openapi.js";
 import adminRoutes from "../routes/admin.routes.js";
 import authRoutes from "../routes/auth.routes.js";
 import categoryRoutes from "../routes/category.routes.js";
+import contentRoutes from "../routes/content.routes.js";
 import foodRoutes from "../routes/food.routes.js";
 import notificationRoutes from "../routes/notification.routes.js";
 import orderRoutes from "../routes/order.routes.js";
@@ -31,6 +32,7 @@ const MOUNTS: [prefix: string, router: Router][] = [
   ["/auth", authRoutes],
   ["/admin", adminRoutes],
   ["/categories", categoryRoutes],
+  ["/content", contentRoutes],
   ["/foods", foodRoutes],
   ["/orders", orderRoutes],
   ["/notifications", notificationRoutes],

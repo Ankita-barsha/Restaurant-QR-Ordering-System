@@ -12,7 +12,18 @@ import type { Food, ScannedTable } from "../types/api";
 export interface CartItem {
   foodId: string;
   name: string;
+  /**
+   * What this line is charged, per unit — the OFFER price when the dish was on
+   * offer, otherwise its list price. Summing anything else would quote the
+   * diner a total the server does not agree with.
+   */
   price: string;
+  /**
+   * The list price, when an offer applied. Present only so the cart can strike
+   * it through; it is never summed. Absent on a dish with no offer, and on
+   * lines added before offers existed.
+   */
+  listPrice?: string | null;
   imageUrl: string | null;
   quantity: number;
   notes?: string;

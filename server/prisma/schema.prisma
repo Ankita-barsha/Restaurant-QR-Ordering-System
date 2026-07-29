@@ -86,6 +86,12 @@ enum NotificationType {
   SYSTEM
 }
 
+/// How a menu offer reduces a dish's price.
+enum OfferType {
+  PERCENTAGE // e.g. 20 -> 20% off
+  FIXED // e.g. 100 -> ₹100 off
+}
+
 // ===========================================================================
 // Identity & access control
 // ===========================================================================
@@ -244,12 +250,54 @@ model Food {
   slug        String  @unique
   description String?
 
-  /// Exact decimal. See the note at the top of this file.
+  /// The LIST price — what the dish costs with no offer running.
+  ///
+  /// Its meaning is unchanged by the offer columns below: this stays the
+  /// original price, and an offer never rewrites it. That is what lets the
+  /// menu show "was ₹500, now ₹400" and what lets an offer be switched off
+  /// without having to remember what the price used to be.
   price    Decimal @db.Decimal(10, 2)
   imageUrl String?
 
+  // -- Promotional offer ----------------------------------------------------
+  //
+  // Four columns rather than one discounted price, because a price alone
+  // cannot answer "20% off, or ₹100 off?" — and the badge on the customer
+  // menu has to say which.
+
+  /// Master switch. False (the default) means the dish sells at `price`, and
+  /// the columns below are ignored entirely rather than deleted — so a
+  /// seasonal offer can be switched back on without re-entering it.
+  isOfferActive Boolean    @default(false)
+  offerType     OfferType?
+  /// A percentage (0-100) when offerType is PERCENTAGE, otherwise an amount
+  /// of money. Kept as Decimal for both: a percentage is exact decimal data
+  /// for the same reason a price is.
+  offerValue    Decimal?   @db.Decimal(10, 2)
+
+  /// The final price after the discount — DERIVED, never client-supplied.
+  ///
+  /// Persisted rather than computed on every read for two reasons: the
+  /// customer menu sorts and filters on what a dish actually costs, and a
+  /// derivation that lives only in application code would be recomputed by
+  /// every consumer and eventually disagree with itself. The service is the
+  /// single writer, so it cannot drift from offerType/offerValue.
+  offerPrice    Decimal?   @db.Decimal(10, 2)
+
+  /// Optional badge wording, e.g. "Limited Time Offer". Blank falls back to a
+  /// label derived from the discount itself ("20% OFF"), so an admin never has
+  /// to type one to get a sensible badge.
+  offerLabel    String?
+
   isAvailable        Boolean @default(true)
   isVegetarian       Boolean @default(false)
+  /// Chef's recommendation. Drives the featured section of the welcome page.
+  ///
+  /// A flag on Food rather than a separate "featured items" table: a dish is
+  /// either recommended tonight or it is not, there is nothing else to record
+  /// about the fact, and a join table would let a featured row outlive the
+  /// dish it points at.
+  isFeatured         Boolean @default(false)
   /// Feeds the kitchen's estimated ready time.
   preparationMinutes Int?
 
@@ -265,6 +313,10 @@ model Food {
 
   @@index([categoryId])
   @@index([isAvailable, deletedAt])
+  // The welcome page asks for "featured, still on the menu" on every visit.
+  @@index([isFeatured, deletedAt])
+  // "What is on offer right now", for the menu's offers filter.
+  @@index([isOfferActive, deletedAt])
   @@map("foods")
 }
 
@@ -339,18 +391,13 @@ model Order {
   orderNumber String @unique
 
   /// Unguessable per-order secret, handed to the diner once when the order is
-  /// placed. The public tracking page, the pickup code and the online payment
-  /// flow are all keyed on this.
+  /// placed. The public tracking page, the invoice and the online payment flow
+  /// are all keyed on this.
   ///
   /// Separate from `id` for the same reason Table.qrToken is: this value
   /// travels in URLs and can be rotated, whereas an id is referenced by other
   /// rows and cannot.
   trackingToken String @unique
-
-  /// Four-character pickup code shown ONLY to the customer who placed the
-  /// order. The waiter must ask for it and enter it before the order can be
-  /// marked served, which prevents food reaching the wrong table.
-  verificationCode String?
 
   status        OrderStatus    @default(PENDING)
   type          OrderType      @default(DINE_IN)
@@ -558,6 +605,94 @@ model RestaurantSettings {
   updatedAt DateTime @updatedAt
 
   @@map("restaurant_settings")
+}
+
+// ===========================================================================
+// Content management
+// ===========================================================================
+
+/// Editable copy for the public welcome page — the CMS.
+///
+/// Single-row, exactly as RestaurantSettings is, and for the same reason: the
+/// fixed id default makes every write target id = "singleton", so a second
+/// row of site copy cannot appear and leave two pages of truth.
+///
+/// Deliberately a fixed set of NAMED columns rather than a generic
+/// key/value blob. Every field here corresponds to one slot the welcome page
+/// actually renders; a free-form store would let an editor add a key nothing
+/// reads and silently lose their work, and would give the admin form nothing
+/// to label its inputs with.
+///
+/// Every column is nullable and the page falls back to its built-in copy when
+/// one is blank, so an empty CMS renders exactly as the site did before it
+/// existed — nobody has to fill in nine boxes before the site works.
+model SiteContent {
+  id String @id @default("singleton")
+
+  /// Hero — the first screen of the welcome page.
+  heroEyebrow String?
+  heroTitle   String?
+  /// Overrides RestaurantSettings.tagline on the hero when set.
+  heroLede    String? @db.Text
+
+  /// A promotional strip beneath the hero. Hidden entirely when blank.
+  bannerText String?
+
+  /// "Featured" / chef's recommendation section headings. The DISHES shown
+  /// there come from Food.isFeatured — this is only the copy around them.
+  featuredEyebrow String?
+  featuredTitle   String?
+  featuredLede    String? @db.Text
+
+  /// The restaurant description block.
+  aboutEyebrow String?
+  aboutTitle   String?
+  aboutBody    String? @db.Text
+
+  /// Closing note in the footer.
+  footerNote String? @db.Text
+
+  updatedAt DateTime @updatedAt
+
+  @@map("site_content")
+}
+
+/// A customer testimonial shown on the welcome page.
+///
+/// Curated, not user-submitted: reviews are written and published by the
+/// house through the admin panel. That is why there is no rate limiter, no
+/// moderation queue and no link to Customer — a testimonial is marketing copy
+/// with an attribution, not a record of a transaction.
+///
+/// `isVisible` is the publish switch. Hiding is preferred to deleting because
+/// a review taken down for a season is usually wanted back.
+model Review {
+  id String @id @default(cuid())
+
+  customerName String
+  /// Optional portrait. Server-relative, e.g. `/uploads/abc.jpg`.
+  imageUrl     String?
+
+  /// 1-5. Constrained in the application layer; stored as a plain Int so the
+  /// range can be widened without a migration.
+  rating  Int    @default(5)
+  comment String @db.Text
+
+  /// When the guest dined. Optional: an undated testimonial is still usable.
+  visitedOn DateTime?
+
+  /// Only visible reviews reach the public endpoint.
+  isVisible Boolean @default(true)
+  /// Manual display order, as on Category. Testimonials are curated, so the
+  /// house decides which one leads.
+  sortOrder Int     @default(0)
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  // The public carousel queries exactly this.
+  @@index([isVisible, sortOrder])
+  @@map("reviews")
 }
 
 // ===========================================================================

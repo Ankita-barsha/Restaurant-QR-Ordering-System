@@ -237,6 +237,86 @@ export const DietMark = ({ vegetarian }: { vegetarian: boolean }) => (
   </span>
 );
 
+/**
+ * Offer badge.
+ *
+ * Ember rather than gold: gold is the accent this interface spends on the
+ * things it wants you to admire, and a discount is a different kind of
+ * signal — it should catch the eye without competing with the food.
+ */
+export const OfferBadge = ({
+  label,
+  className = "",
+}: {
+  label: string;
+  className?: string;
+}) => (
+  <span
+    className={`inline-flex items-center rounded-full bg-ember px-2.5 py-1 text-[10px] font-medium uppercase tracking-[0.14em] text-ivory ${className}`}
+  >
+    {label}
+  </span>
+);
+
+/**
+ * A menu price, with its offer.
+ *
+ * One component wherever a dish price appears, so the strikethrough, the
+ * ordering and the colour cannot drift between the menu card, the dish sheet
+ * and the welcome page.
+ *
+ * The discounted figure comes FIRST and keeps the gold; the struck-through
+ * original follows it, smaller and dimmed. Putting the old price first reads
+ * as the price and makes the diner do the work of noticing it is crossed out.
+ *
+ * `aria-label` states both figures, because a screen reader announcing
+ * "500 400" with no explanation of the strikethrough is worse than useless.
+ */
+export const PriceTag = ({
+  price,
+  listPrice,
+  size = "md",
+  className = "",
+}: {
+  /** What the dish actually costs, already formatted. */
+  price: string;
+  /** The struck-through original, already formatted. Omit when no offer. */
+  listPrice?: string | null;
+  size?: "sm" | "md" | "lg";
+  className?: string;
+}) => {
+  const sizes = {
+    sm: { now: "text-base", was: "text-[11px]" },
+    md: { now: "text-2xl", was: "text-xs" },
+    lg: { now: "text-3xl", was: "text-sm" },
+  }[size];
+
+  if (!listPrice) {
+    return (
+      <span className={`font-display text-gold ${sizes.now} ${className}`}>
+        {price}
+      </span>
+    );
+  }
+
+  return (
+    <span
+      className={`flex flex-wrap items-baseline gap-x-2 gap-y-0.5 ${className}`}
+      aria-label={`${price}, reduced from ${listPrice}`}
+    >
+      <span className={`font-display text-gold ${sizes.now}`} aria-hidden="true">
+        {price}
+      </span>
+      <span
+        className={`text-ivory-faint line-through ${sizes.was}`}
+        aria-hidden="true"
+      >
+        {listPrice}
+      </span>
+    </span>
+  );
+};
+
 /** Gold star rating. */
 export const Stars = ({ rating = 5 }: { rating?: number }) => (
   <div className="flex gap-1" aria-label={`${rating} out of 5`}>

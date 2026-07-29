@@ -27,15 +27,8 @@ const AdminTables = () => {
   const { can } = useAuth();
   const queryClient = useQueryClient();
   const [newNumber, setNewNumber] = useState("");
-  const [confirmRotate, setConfirmRotate] = useState<string | null>(null);
+  const [newCapacity, setNewCapacity] = useState("4");
 
-  /**
-   * QR images are fetched as blobs rather than set as an <img src>.
-   *
-   * The endpoint renders the code on demand from the table's live token, so it
-   * survives an ephemeral filesystem and can never serve a rotated code stale.
-   * It requires an Authorization header, which a plain <img> cannot send.
-   */
   const [qrBlobs, setQrBlobs] = useState<Record<string, string>>({});
 
   const tablesQuery = useQuery({
@@ -49,17 +42,11 @@ const AdminTables = () => {
   };
 
   const createTable = useMutation({
-    mutationFn: async (tableNumber: string) => api.post("/tables", { tableNumber }),
+    mutationFn: async ({ tableNumber, capacity }: { tableNumber: string; capacity: number }) =>
+      api.post("/tables", { tableNumber, capacity }),
     onSuccess: () => {
       setNewNumber("");
-      invalidate();
-    },
-  });
-
-  const rotateQr = useMutation({
-    mutationFn: async (id: string) => api.post(`/tables/${id}/qr/rotate`),
-    onSuccess: () => {
-      setConfirmRotate(null);
+      setNewCapacity("4");
       invalidate();
     },
   });
@@ -124,19 +111,47 @@ const AdminTables = () => {
           <form
             onSubmit={(event) => {
               event.preventDefault();
-              if (newNumber) createTable.mutate(newNumber);
+              if (newNumber) {
+                createTable.mutate({
+                  tableNumber: newNumber,
+                  capacity: Number(newCapacity) || 4,
+                });
+              }
             }}
-            className="flex gap-3"
+            className="flex flex-wrap items-center gap-3 sm:flex-nowrap"
           >
-            <input
-              value={newNumber}
-              onChange={(event) => setNewNumber(event.target.value)}
-              placeholder="Table number, e.g. T-09"
-              className="flex-1 rounded-lg border border-slate-300 px-3 py-2 text-sm"
-            />
-            <Button type="submit" disabled={!newNumber || createTable.isPending}>
-              {createTable.isPending ? "Creating…" : "Add table"}
-            </Button>
+            <div className="min-w-0 flex-1">
+              <label htmlFor="table-number-input" className="mb-1 block text-xs font-semibold text-slate-600">
+                Table Number
+              </label>
+              <input
+                id="table-number-input"
+                value={newNumber}
+                onChange={(event) => setNewNumber(event.target.value)}
+                placeholder="e.g. T-09"
+                className="w-full rounded-lg border border-slate-300 px-3 py-2 text-sm"
+              />
+            </div>
+            <div className="w-32">
+              <label htmlFor="table-capacity-input" className="mb-1 block text-xs font-semibold text-slate-600">
+                Seats (Capacity)
+              </label>
+              <input
+                id="table-capacity-input"
+                type="number"
+                min={1}
+                max={50}
+                value={newCapacity}
+                onChange={(event) => setNewCapacity(event.target.value)}
+                placeholder="4"
+                className="w-full rounded-lg border border-slate-300 px-3 py-2 text-sm"
+              />
+            </div>
+            <div className="mt-5 sm:mt-0">
+              <Button type="submit" disabled={!newNumber || createTable.isPending}>
+                {createTable.isPending ? "Creating…" : "Add table"}
+              </Button>
+            </div>
           </form>
 
           {createTable.isError && (
@@ -145,12 +160,6 @@ const AdminTables = () => {
             </div>
           )}
         </Card>
-      )}
-
-      {rotateQr.isError && (
-        <div className="mt-4">
-          <ErrorBox message={getErrorMessage(rotateQr.error)} />
-        </div>
       )}
 
       <div className="mt-4 grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
@@ -190,46 +199,15 @@ const AdminTables = () => {
                 /t/{table.qrToken}
               </p>
 
-              <div className="mt-3 flex gap-2">
+              <div className="mt-3">
                 {qr && (
-                  <a href={qr} download={`qr-${table.tableNumber}.png`} className="flex-1">
+                  <a href={qr} download={`qr-${table.tableNumber}.png`} className="block w-full">
                     <Button variant="secondary" className="w-full">
-                      Download
+                      Download QR Code
                     </Button>
                   </a>
                 )}
-
-                {can("qr:manage") && (
-                  <Button
-                    variant="danger"
-                    className="flex-1"
-                    onClick={() => setConfirmRotate(table.id)}
-                    disabled={rotateQr.isPending}
-                  >
-                    Rotate
-                  </Button>
-                )}
               </div>
-
-              {confirmRotate === table.id && (
-                <div className="mt-3 rounded-xl bg-red-50 p-3 text-xs text-red-800">
-                  <p className="font-semibold">
-                    This permanently invalidates the printed code.
-                  </p>
-                  <p className="mt-1">
-                    Anyone scanning the old sticker will see “no longer valid”. You will
-                    need to print and replace it.
-                  </p>
-                  <div className="mt-2 flex gap-2">
-                    <Button variant="danger" onClick={() => rotateQr.mutate(table.id)}>
-                      Rotate anyway
-                    </Button>
-                    <Button variant="ghost" onClick={() => setConfirmRotate(null)}>
-                      Cancel
-                    </Button>
-                  </div>
-                </div>
-              )}
             </Card>
           );
         })}

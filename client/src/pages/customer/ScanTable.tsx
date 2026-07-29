@@ -71,7 +71,7 @@ const ScanTable = () => {
   const closed = settingsQuery.data && !settingsQuery.data.isAcceptingOrders;
 
   return (
-    <div className="relative flex min-h-[100svh] items-center justify-center overflow-hidden bg-obsidian px-6">
+    <div className="relative flex min-h-[100svh] items-center justify-center overflow-hidden bg-obsidian px-4 py-10 sm:px-6">
       <div className="absolute inset-0">
         <img src={heroImage} alt="" className="animate-kenburns h-full w-full object-cover" />
         <div className="absolute inset-0 bg-obsidian/88" />
@@ -80,7 +80,7 @@ const ScanTable = () => {
       <div className="relative z-10 w-full max-w-md text-center">
         <p className="animate-rise eyebrow">Welcome to</p>
 
-        <h1 className="animate-rise delay-1 mt-4 text-5xl leading-tight text-ivory">
+        <h1 className="animate-rise delay-1 mt-4 text-[clamp(2rem,9vw,3rem)] leading-tight text-ivory">
           {settingsQuery.data?.name ?? "Bite me Bistro"}
         </h1>
 
@@ -91,10 +91,10 @@ const ScanTable = () => {
         </div>
 
         {/* The table number is why this screen exists. */}
-        <div className="glass rounded-luxe animate-rise delay-2 mt-12 px-8 py-10">
+        <div className="glass rounded-luxe animate-rise delay-2 mt-10 px-5 py-8 sm:mt-12 sm:px-8 sm:py-10">
           <p className="eyebrow">You are seated at</p>
 
-          <p className="font-display mt-3 text-[6rem] leading-none text-gold-gradient">
+          <p className="font-display mt-3 text-[clamp(4rem,22vw,6rem)] leading-none text-gold-gradient">
             {table.tableNumber}
           </p>
 
@@ -117,7 +117,7 @@ const ScanTable = () => {
 
         <Link
           to="/track"
-          className="animate-rise delay-4 mt-6 block text-[10px] uppercase tracking-[0.24em] text-ivory-faint transition-colors hover:text-gold"
+          className="animate-rise delay-4 mt-6 flex min-h-11 items-center justify-center text-[10px] uppercase tracking-[0.24em] text-ivory-faint transition-colors hover:text-gold"
         >
           Track an existing order
         </Link>

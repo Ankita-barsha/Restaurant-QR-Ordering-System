@@ -10,6 +10,7 @@
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useState } from "react";
 
+import InvoiceSheet from "../../components/InvoiceSheet";
 import { Button, EmptyState, ErrorBox, Spinner, StatusBadge } from "../../components/ui";
 import { useAuth } from "../../context/auth";
 import { queryKeys } from "../../hooks/useLiveOrders";
@@ -39,6 +40,8 @@ const StaffOrders = () => {
   const [filter, setFilter] = useState<OrderStatus | "OPEN">("OPEN");
   const [cancelling, setCancelling] = useState<string | null>(null);
   const [reason, setReason] = useState("");
+  /** Order id whose invoice is open, if any. */
+  const [invoiceFor, setInvoiceFor] = useState<string | null>(null);
 
   const ordersQuery = useQuery({
     queryKey: [...queryKeys.orders, filter],
@@ -105,7 +108,7 @@ const StaffOrders = () => {
             key={option.value}
             type="button"
             onClick={() => setFilter(option.value)}
-            className={`shrink-0 rounded-full px-4 py-1.5 text-sm font-medium ${
+            className={`flex min-h-10 shrink-0 items-center rounded-full px-4 text-sm font-medium ${
               filter === option.value
                 ? "bg-slate-900 text-white"
                 : "bg-white text-slate-600 ring-1 ring-slate-200"
@@ -138,7 +141,7 @@ const StaffOrders = () => {
             return (
               <article
                 key={order.id}
-                className="rounded-2xl border border-slate-200 bg-white p-4"
+                className="rounded-2xl border border-slate-200 bg-white p-3.5 sm:p-4"
               >
                 <div className="flex flex-wrap items-center gap-3">
                   <span className="font-black text-slate-900">{order.orderNumber}</span>
@@ -180,7 +183,7 @@ const StaffOrders = () => {
                   </p>
                 )}
 
-                <div className="mt-3 flex flex-wrap gap-2">
+                <div className="mt-3 grid grid-cols-2 gap-2 xs:flex xs:flex-wrap">
                   {action && can("order:updateStatus") && (
                     <Button
                       onClick={() => advance.mutate({ id: order.id, next: action.next })}
@@ -201,6 +204,10 @@ const StaffOrders = () => {
                         Mark paid
                       </Button>
                     )}
+
+                  <Button variant="secondary" onClick={() => setInvoiceFor(order.id)}>
+                    Invoice
+                  </Button>
 
                   {!["SERVED", "CANCELLED"].includes(order.status) &&
                     can("order:cancel") && (
@@ -244,6 +251,13 @@ const StaffOrders = () => {
             );
           })}
         </div>
+      )}
+
+      {invoiceFor && (
+        <InvoiceSheet
+          source={{ orderId: invoiceFor }}
+          onClose={() => setInvoiceFor(null)}
+        />
       )}
     </div>
   );

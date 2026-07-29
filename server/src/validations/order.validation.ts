@@ -67,15 +67,6 @@ export const updateStatusSchema = z.object({
   status: orderStatusSchema,
 });
 
-/** The waiter enters the customer's four-character pickup code to serve. */
-export const serveOrderSchema = z.object({
-  code: z
-    .string()
-    .trim()
-    .min(4, "Enter the 4-character code")
-    .max(8),
-});
-
 export const cancelOrderSchema = z.object({
   reason: z.string().trim().min(1, "A cancellation reason is required").max(300),
 });

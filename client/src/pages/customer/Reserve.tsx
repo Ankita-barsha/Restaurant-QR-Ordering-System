@@ -72,7 +72,7 @@ const Reserve = () => {
     date.setHours(0, 0, 0, 0);
     return date;
   });
-  const [time, setTime] = useState<string | null>(null);
+  const [time, setTime] = useState<string | null>("12:00");
 
   const [name, setName] = useState("");
   const [phone, setPhone] = useState("");
@@ -221,15 +221,17 @@ const Reserve = () => {
 
   // -------------------------------------------------------------- the form
   return (
-    <div className="min-h-screen bg-obsidian px-6 pb-24 pt-28">
+    <div className="min-h-screen bg-obsidian px-4 pb-20 pt-24 sm:px-6 sm:pb-24 sm:pt-28">
       <div className="mx-auto max-w-2xl">
         <Reveal>
+          {/* No seat count and no holding time in the lede. Both were house
+              policy stated as fact on a page that cannot enforce either, and
+              the seat figure in particular changed with the floor plan while
+              the sentence did not. */}
           <SectionHeading
             eyebrow="Reservations"
             title="Book a table"
-            lede={`We seat ${
-              availability?.totalCapacity ?? 40
-            } guests. Tables are held for fifteen minutes.`}
+            lede="Choose a day and a time, and we will hold a table for you."
           />
         </Reveal>
 
@@ -244,7 +246,7 @@ const Reserve = () => {
                 type="button"
                 onClick={() => setPartySize(size)}
                 aria-pressed={partySize === size}
-                className={`h-12 w-12 rounded-full border text-sm transition-all duration-500 ${
+                className={`h-12 w-12 shrink-0 rounded-full border text-sm transition-all duration-500 ${
                   partySize === size
                     ? "border-gold bg-gold text-obsidian"
                     : "border-smoke text-ivory-dim hover:border-gold/40 hover:text-gold"
@@ -312,7 +314,7 @@ const Reserve = () => {
               No sittings left today. Please choose another day.
             </p>
           ) : (
-            <div className="mt-4 grid grid-cols-4 gap-2.5 sm:grid-cols-6">
+            <div className="mt-4 grid grid-cols-3 gap-2 xs:grid-cols-4 sm:grid-cols-6 sm:gap-2.5">
               {availableTimes.map((slot) => (
                 <button
                   key={slot}
@@ -336,27 +338,75 @@ const Reserve = () => {
         {reservedAt && (
           <div className="mt-8">
             {availabilityQuery.isLoading && (
-              <p className="text-[13px] text-ivory-faint">Checking the book…</p>
-            )}
-
-            {availability?.available && (
-              <p className="glass rounded-luxe px-5 py-4 text-[13px] text-ivory-dim">
-                <span className="text-gold">Available</span> —{" "}
-                {availability.seatsRemaining} seat
-                {availability.seatsRemaining === 1 ? "" : "s"} free at that time.
+              <p className="animate-pulse text-[13px] text-ivory-faint">
+                Checking seat availability for {time}…
               </p>
             )}
 
+            {availability?.available && (
+              <div className="glass rounded-luxe border border-gold/30 p-5">
+                <div className="flex items-center justify-between border-b border-smoke/50 pb-3">
+                  <div className="flex items-center gap-2">
+                    <span className="h-2.5 w-2.5 animate-pulse rounded-full bg-emerald-500" />
+                    <span className="text-[11px] font-semibold uppercase tracking-wider text-emerald-400">
+                      Available
+                    </span>
+                  </div>
+                  <span className="text-[12px] text-ivory-dim">
+                    Total Capacity: <strong className="text-gold">{availability.totalCapacity} Seats</strong>
+                  </span>
+                </div>
+
+                <div className="mt-4 grid grid-cols-2 gap-3 text-center sm:grid-cols-3">
+                  <div className="rounded-xl border border-smoke/40 bg-charcoal/60 p-3">
+                    <p className="text-[10px] uppercase tracking-wider text-ivory-faint">
+                      Free Seats ({time})
+                    </p>
+                    <p className="font-display mt-1 text-2xl text-gold">
+                      {availability.seatsRemaining}
+                    </p>
+                  </div>
+                  <div className="rounded-xl border border-smoke/40 bg-charcoal/60 p-3">
+                    <p className="text-[10px] uppercase tracking-wider text-ivory-faint">
+                      Selected Guests
+                    </p>
+                    <p className="font-display mt-1 text-2xl text-ivory">
+                      {partySize}
+                    </p>
+                  </div>
+                  <div className="col-span-2 rounded-xl border border-smoke/40 bg-charcoal/60 p-3 sm:col-span-1">
+                    <p className="text-[10px] uppercase tracking-wider text-ivory-faint">
+                      Remaining After Booking
+                    </p>
+                    <p className="font-display mt-1 text-2xl text-emerald-400">
+                      {Math.max(0, availability.seatsRemaining - partySize)}
+                    </p>
+                  </div>
+                </div>
+
+                <p className="mt-3 text-center text-[12px] text-ivory-dim">
+                  {availability.seatsRemaining - partySize > 0
+                    ? `Booking for ${partySize} guest${partySize > 1 ? "s" : ""}. ${
+                        availability.seatsRemaining - partySize
+                      } seat${
+                        availability.seatsRemaining - partySize === 1 ? "" : "s"
+                      } will stay free at ${time}.`
+                    : `Booking for ${partySize} guest${partySize > 1 ? "s" : ""}. Exactly enough seats available for your party!`}
+                </p>
+              </div>
+            )}
+
             {slotFull && (
-              <div className="glass rounded-luxe px-5 py-5">
-                <p className="text-[13px] text-ember">
-                  That sitting is fully booked.
+              <div className="glass rounded-luxe border border-ember/30 p-5">
+                <p className="text-[13px] font-medium text-ember">
+                  Sorry, only {availability.seatsRemaining} seat
+                  {availability.seatsRemaining === 1 ? "" : "s"} available at {time}, but you selected {partySize} guests.
                 </p>
 
                 {availability.alternatives.length > 0 ? (
                   <>
                     <p className="mt-3 text-[13px] text-ivory-dim">
-                      These times are free:
+                      These alternative times have free seats:
                     </p>
                     <div className="mt-3 flex flex-wrap gap-2">
                       {availability.alternatives.map((iso) => {
@@ -389,7 +439,7 @@ const Reserve = () => {
                   </>
                 ) : (
                   <p className="mt-2 text-[13px] text-ivory-faint">
-                    Please call us — we may still be able to help.
+                    Please call us — we may still be able to help accommodate your party.
                   </p>
                 )}
               </div>

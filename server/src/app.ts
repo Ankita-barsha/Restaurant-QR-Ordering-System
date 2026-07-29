@@ -35,7 +35,13 @@ app.use(compression());
 
 app.use(
   cors({
-    origin: config.security.corsOrigins,
+    origin: (origin, callback) => {
+      if (!origin || config.isDevelopment || config.security.corsOrigins.includes(origin)) {
+        callback(null, true);
+      } else {
+        callback(new Error("Not allowed by CORS"));
+      }
+    },
     credentials: true,
   })
 );

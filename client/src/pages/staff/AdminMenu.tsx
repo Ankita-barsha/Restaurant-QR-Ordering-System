@@ -3,11 +3,14 @@
  *
  * Everything the restaurant serves is editable here: add a new dish with a
  * photo when it arrives, change a price, mark something sold out mid-service,
- * or retire it. Nothing about the menu is hard-coded.
+ * or retire it. Nothing about the menu is hard-coded, categories included.
  *
- * Sold-out is a one-tap control on every row rather than buried in the edit
- * form, because it is the action used most during a busy service — and it
- * broadcasts over the socket, so diners' phones grey the dish out instantly.
+ * Sold-out and featured are one-tap controls on every row rather than buried
+ * in the edit form. Sold-out is the action used most during a busy service,
+ * and it broadcasts over the socket so diners' phones grey the dish out
+ * instantly; featured decides what the public welcome page advertises, and an
+ * admin changing their mind about tonight's recommendation should not have to
+ * re-submit a price and a photo to do it.
  */
 
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
@@ -21,7 +24,15 @@ import { useAuth } from "../../context/auth";
 import { queryKeys } from "../../hooks/useLiveOrders";
 import { api, getErrorMessage, unwrap } from "../../lib/api";
 import { formatMoney, imageUrl } from "../../lib/format";
-import type { ApiResponse, Category, Food } from "../../types/api";
+import { fromMinor, toMinor } from "../../lib/money";
+import {
+  effectivePrice,
+  offerBadge,
+  offerProblem,
+  previewOfferPrice,
+  strikethroughPrice,
+} from "../../lib/offer";
+import type { ApiResponse, Category, Food, OfferType } from "../../types/api";
 
 type Tab = "dishes" | "categories";
 
@@ -57,6 +68,31 @@ const AdminMenu = () => {
   const [imageFile, setImageFile] = useState<File | null>(null);
   const [confirmDelete, setConfirmDelete] = useState<Food | Category | null>(null);
 
+  /**
+   * The category the dish form has selected.
+   *
+   * Controlled rather than left to `defaultValue`, so that a category created
+   * from inside the dish form can be selected the moment it exists. With an
+   * uncontrolled select the admin would create "Desserts", return to a form
+   * that had reset to "Choose…", and have to find it again.
+   */
+  const [selectedCategoryId, setSelectedCategoryId] = useState("");
+
+  /**
+   * The offer fields, held in state rather than left uncontrolled.
+   *
+   * The brief calls for the offer price to appear "in real time without
+   * requiring manual input", and a preview cannot react to inputs the
+   * component does not observe. The price is here for the same reason — a
+   * percentage discount is meaningless without it, so editing the price has to
+   * move the preview too.
+   */
+  const [price, setPrice] = useState("");
+  const [offerEnabled, setOfferEnabled] = useState(false);
+  const [offerType, setOfferType] = useState<OfferType>("PERCENTAGE");
+  const [offerValue, setOfferValue] = useState("");
+  const [offerLabel, setOfferLabel] = useState("");
+
   const categoriesQuery = useQuery({
     queryKey: [...queryKeys.categories, "admin"],
     queryFn: async () =>
@@ -78,9 +114,31 @@ const AdminMenu = () => {
     void queryClient.invalidateQueries({ queryKey: queryKeys.categories });
   };
 
+  const openDishForm = (food: Food | "new") => {
+    const editing = food === "new" ? null : food;
+
+    setDishForm(food);
+    setImageFile(null);
+    setSelectedCategoryId(editing?.categoryId ?? "");
+
+    setPrice(editing?.price ?? "");
+    setOfferEnabled(editing?.isOfferActive ?? false);
+    // A dish that has never had an offer opens on the commoner of the two
+    // types rather than on an empty select.
+    setOfferType(editing?.offerType ?? "PERCENTAGE");
+    setOfferValue(editing?.offerValue ?? "");
+    setOfferLabel(editing?.offerLabel ?? "");
+  };
+
   const closeDishForm = () => {
     setDishForm(null);
     setImageFile(null);
+    setSelectedCategoryId("");
+    setPrice("");
+    setOfferEnabled(false);
+    setOfferType("PERCENTAGE");
+    setOfferValue("");
+    setOfferLabel("");
   };
 
   /**
@@ -105,9 +163,16 @@ const AdminMenu = () => {
 
   const saveCategory = useMutation({
     mutationFn: async ({ id, body }: { id?: string; body: Record<string, string> }) =>
-      id ? api.patch(`/categories/${id}`, body) : api.post("/categories", body),
-    onSuccess: () => {
+      id
+        ? unwrap(await api.patch<ApiResponse<Category>>(`/categories/${id}`, body))
+        : unwrap(await api.post<ApiResponse<Category>>("/categories", body)),
+    onSuccess: (category) => {
       setCategoryForm(null);
+
+      // A category created while adding a dish is selected straight away, so
+      // the admin carries on from where they were rather than hunting for it.
+      if (dishForm !== null) setSelectedCategoryId(category.id);
+
       invalidate();
     },
   });
@@ -115,6 +180,12 @@ const AdminMenu = () => {
   const toggleAvailability = useMutation({
     mutationFn: async ({ id, isAvailable }: { id: string; isAvailable: boolean }) =>
       api.patch(`/foods/${id}/availability`, { isAvailable }),
+    onSuccess: invalidate,
+  });
+
+  const toggleFeatured = useMutation({
+    mutationFn: async ({ id, isFeatured }: { id: string; isFeatured: boolean }) =>
+      api.patch(`/foods/${id}/featured`, { isFeatured }),
     onSuccess: invalidate,
   });
 
@@ -158,14 +229,52 @@ const AdminMenu = () => {
       if (typeof value === "string" && value.trim() === "") form.delete(key);
     }
 
-    // Checkboxes are absent when unchecked, so both booleans are set
+    // Checkboxes are absent when unchecked, so every boolean is set
     // explicitly — otherwise unticking "vegetarian" would never save.
     form.set("isVegetarian", form.get("isVegetarian") === "true" ? "true" : "false");
+    form.set("isFeatured", form.get("isFeatured") === "true" ? "true" : "false");
+
+    /**
+     * The offer fields are set from state, not read out of the form.
+     *
+     * They are controlled inputs driving the live preview, and the blank-field
+     * strip above would have deleted an empty label anyway. Sending the label
+     * explicitly — as "" when cleared — is what lets an admin REMOVE a custom
+     * badge; omitting it would mean "unchanged" and the old wording would
+     * stick forever.
+     *
+     * offerPrice is deliberately absent. The server derives it.
+     */
+    form.set("isOfferActive", offerEnabled ? "true" : "false");
+    form.set("offerLabel", offerEnabled ? offerLabel.trim() : "");
+
+    if (offerEnabled) {
+      form.set("offerType", offerType);
+      form.set("offerValue", offerValue.trim());
+    } else {
+      // Left out entirely when off: the server keeps the stored discount so a
+      // seasonal offer can be switched back on without re-entering it.
+      form.delete("offerType");
+      form.delete("offerValue");
+    }
 
     if (imageFile) form.set("image", imageFile);
 
     saveDish.mutate({ id: editingDish?.id, form });
   };
+
+  /** The live preview, and the reason it cannot be shown. */
+  const offerDraft = {
+    isOfferActive: offerEnabled,
+    offerType,
+    offerValue,
+    offerLabel,
+  };
+
+  const previewPrice = previewOfferPrice(price, offerDraft);
+  const previewProblem = offerProblem(price, offerDraft);
+  const previewSavingMinor =
+    previewPrice !== null ? toMinor(price) - toMinor(previewPrice) : 0;
 
   return (
     <div>
@@ -180,7 +289,7 @@ const AdminMenu = () => {
 
         {tab === "dishes"
           ? can("food:create") && (
-              <Button onClick={() => setDishForm("new")}>+ Add dish</Button>
+              <Button onClick={() => openDishForm("new")}>+ Add dish</Button>
             )
           : can("category:create") && (
               <Button onClick={() => setCategoryForm("new")}>+ Add category</Button>
@@ -204,10 +313,12 @@ const AdminMenu = () => {
         ))}
       </div>
 
-      {(toggleAvailability.isError || removeItem.isError) && (
+      {(toggleAvailability.isError || toggleFeatured.isError || removeItem.isError) && (
         <div className="mt-4">
           <ErrorBox
-            message={getErrorMessage(toggleAvailability.error ?? removeItem.error)}
+            message={getErrorMessage(
+              toggleAvailability.error ?? toggleFeatured.error ?? removeItem.error
+            )}
           />
         </div>
       )}
@@ -229,7 +340,7 @@ const AdminMenu = () => {
             return (
               <Card
                 key={food.id}
-                className={`flex flex-wrap items-center gap-4 p-3 transition sm:flex-nowrap ${
+                className={`flex flex-wrap items-center gap-3 p-3 transition sm:flex-nowrap sm:gap-4 ${
                   food.isAvailable ? "" : "bg-slate-50"
                 }`}
               >
@@ -237,12 +348,12 @@ const AdminMenu = () => {
                   <img
                     src={image}
                     alt={food.name}
-                    className={`h-20 w-20 shrink-0 rounded-xl object-cover ${
+                    className={`h-16 w-16 shrink-0 rounded-xl object-cover sm:h-20 sm:w-20 ${
                       food.isAvailable ? "" : "grayscale"
                     }`}
                   />
                 ) : (
-                  <div className="flex h-20 w-20 shrink-0 items-center justify-center rounded-xl bg-slate-100 text-2xl">
+                  <div className="flex h-16 w-16 shrink-0 items-center justify-center rounded-xl bg-slate-100 text-2xl sm:h-20 sm:w-20">
                     🍽️
                   </div>
                 )}
@@ -267,6 +378,16 @@ const AdminMenu = () => {
                         sold out
                       </span>
                     )}
+                    {food.isFeatured && (
+                      <span className="rounded-full bg-amber-100 px-2 py-0.5 text-[10px] font-bold uppercase text-amber-700">
+                        ★ featured
+                      </span>
+                    )}
+                    {offerBadge(food) && (
+                      <span className="rounded-full bg-emerald-100 px-2 py-0.5 text-[10px] font-bold uppercase text-emerald-700">
+                        {offerBadge(food)}
+                      </span>
+                    )}
                   </div>
 
                   <p className="mt-0.5 truncate text-xs text-slate-500">
@@ -275,11 +396,21 @@ const AdminMenu = () => {
                   </p>
                 </div>
 
-                <span className="text-base font-bold text-slate-900">
-                  {formatMoney(food.price)}
+                {/* The selling price leads, with the list price struck through
+                    beside it — the same order the customer menu uses. */}
+                <span className="flex flex-wrap items-baseline gap-x-2 text-base font-bold text-slate-900">
+                  {formatMoney(effectivePrice(food))}
+                  {strikethroughPrice(food) && (
+                    <span className="text-xs font-medium text-slate-400 line-through">
+                      {formatMoney(strikethroughPrice(food) as string)}
+                    </span>
+                  )}
                 </span>
 
-                <div className="flex w-full gap-2 sm:w-auto">
+                {/* Four actions do not fit one phone-width row. A 2-up grid
+                    below sm keeps every one of them on screen and at a size a
+                    thumb can hit; from sm they sit in a row as before. */}
+                <div className="grid w-full grid-cols-2 gap-2 xs:grid-cols-4 sm:flex sm:w-auto">
                   {can("food:read") && (
                     <Button
                       variant={food.isAvailable ? "secondary" : "primary"}
@@ -295,8 +426,30 @@ const AdminMenu = () => {
                     </Button>
                   )}
 
+                  {/* Featuring is what the welcome page advertises, so it sits
+                      beside sold-out rather than inside the edit form. */}
                   {can("food:update") && (
-                    <Button variant="secondary" onClick={() => setDishForm(food)}>
+                    <Button
+                      variant="secondary"
+                      disabled={toggleFeatured.isPending}
+                      className={
+                        food.isFeatured
+                          ? "!bg-amber-50 !text-amber-700 !ring-amber-300"
+                          : ""
+                      }
+                      onClick={() =>
+                        toggleFeatured.mutate({
+                          id: food.id,
+                          isFeatured: !food.isFeatured,
+                        })
+                      }
+                    >
+                      {food.isFeatured ? "★ Featured" : "☆ Feature"}
+                    </Button>
+                  )}
+
+                  {can("food:update") && (
+                    <Button variant="secondary" onClick={() => openDishForm(food)}>
                       Edit
                     </Button>
                   )}
@@ -324,7 +477,7 @@ const AdminMenu = () => {
           )}
 
           {categories.map((category) => (
-            <Card key={category.id} className="flex flex-wrap items-center gap-4 p-4">
+            <Card key={category.id} className="flex flex-wrap items-center gap-3 p-3.5 sm:gap-4 sm:p-4">
               <div className="min-w-0 flex-1">
                 <p className="font-semibold text-slate-900">{category.name}</p>
                 <p className="mt-0.5 text-xs text-slate-500">
@@ -383,31 +536,58 @@ const AdminMenu = () => {
           </Field>
 
           <div className="grid gap-4 sm:grid-cols-2">
-            <Field label="Price" hint="Up to 2 decimal places">
+            {/* Controlled, so a percentage discount re-prices the moment the
+                price changes rather than on the next save. */}
+            <Field label="Price" hint="The full price, before any offer">
               <input
                 name="price"
                 required
                 inputMode="decimal"
-                defaultValue={editingDish?.price}
+                value={price}
+                onChange={(event) => setPrice(event.target.value)}
                 placeholder="329.00"
                 className={inputClass}
               />
             </Field>
 
-            <Field label="Category">
-              <select
-                name="categoryId"
-                required
-                defaultValue={editingDish?.categoryId ?? ""}
-                className={inputClass}
-              >
-                <option value="">Choose…</option>
-                {categories.map((category) => (
-                  <option key={category.id} value={category.id}>
-                    {category.name}
-                  </option>
-                ))}
-              </select>
+            <Field
+              label="Category"
+              hint={
+                can("category:create")
+                  ? "Need a new one? Create it without leaving this form."
+                  : undefined
+              }
+            >
+              <div className="flex gap-2">
+                {/* Controlled, so a category created from the button beside it
+                    can be selected the instant it exists. */}
+                <select
+                  name="categoryId"
+                  required
+                  value={selectedCategoryId}
+                  onChange={(event) => setSelectedCategoryId(event.target.value)}
+                  className={inputClass}
+                >
+                  <option value="">Choose…</option>
+                  {categories.map((category) => (
+                    <option key={category.id} value={category.id}>
+                      {category.name}
+                    </option>
+                  ))}
+                </select>
+
+                {can("category:create") && (
+                  <button
+                    type="button"
+                    onClick={() => setCategoryForm("new")}
+                    title="Create a category"
+                    aria-label="Create a category"
+                    className="shrink-0 rounded-lg border border-slate-300 px-3 text-lg font-semibold text-slate-600 transition hover:border-orange-500 hover:text-orange-600"
+                  >
+                    +
+                  </button>
+                )}
+              </div>
             </Field>
           </div>
 
@@ -432,17 +612,137 @@ const AdminMenu = () => {
               />
             </Field>
 
-            <label className="flex items-center gap-3 rounded-xl bg-slate-50 px-3 py-2.5">
+            <div className="grid gap-2">
+              <label className="flex items-center gap-3 rounded-xl bg-slate-50 px-3 py-2.5">
+                <input
+                  type="checkbox"
+                  name="isVegetarian"
+                  value="true"
+                  defaultChecked={editingDish?.isVegetarian ?? false}
+                  className="h-4 w-4"
+                />
+                <span className="text-sm font-medium text-slate-700">Vegetarian</span>
+              </label>
+
+              <label className="flex items-center gap-3 rounded-xl bg-slate-50 px-3 py-2.5">
+                <input
+                  type="checkbox"
+                  name="isFeatured"
+                  value="true"
+                  defaultChecked={editingDish?.isFeatured ?? false}
+                  className="h-4 w-4"
+                />
+                <span className="text-sm font-medium text-slate-700">
+                  Chef's recommendation
+                </span>
+              </label>
+            </div>
+          </div>
+
+          {/* ------------------------------------------------------ offer ---- */}
+          <fieldset className="rounded-xl border border-slate-200 p-4">
+            <legend className="px-1 text-sm font-semibold text-slate-900">
+              Offer
+            </legend>
+
+            <label className="flex items-center gap-3">
               <input
                 type="checkbox"
-                name="isVegetarian"
-                value="true"
-                defaultChecked={editingDish?.isVegetarian ?? false}
+                checked={offerEnabled}
+                onChange={(event) => setOfferEnabled(event.target.checked)}
                 className="h-4 w-4"
               />
-              <span className="text-sm font-medium text-slate-700">Vegetarian</span>
+              <span className="text-sm font-medium text-slate-700">
+                Run an offer on this dish
+              </span>
             </label>
-          </div>
+
+            {offerEnabled && (
+              <div className="mt-4 grid gap-4">
+                <div className="grid gap-4 sm:grid-cols-2">
+                  <Field label="Discount type">
+                    <select
+                      value={offerType}
+                      onChange={(event) =>
+                        setOfferType(event.target.value as OfferType)
+                      }
+                      className={inputClass}
+                    >
+                      <option value="PERCENTAGE">Percentage (%)</option>
+                      <option value="FIXED">Fixed amount</option>
+                    </select>
+                  </Field>
+
+                  <Field
+                    label={
+                      offerType === "PERCENTAGE" ? "Discount %" : "Discount amount"
+                    }
+                    hint={
+                      offerType === "PERCENTAGE"
+                        ? "Between 0 and 100"
+                        : "Taken off the price"
+                    }
+                  >
+                    <input
+                      inputMode="decimal"
+                      value={offerValue}
+                      onChange={(event) => setOfferValue(event.target.value)}
+                      placeholder={offerType === "PERCENTAGE" ? "20" : "100"}
+                      className={inputClass}
+                    />
+                  </Field>
+                </div>
+
+                <Field
+                  label="Badge text"
+                  hint="Optional. Blank shows a badge worked out from the discount."
+                >
+                  <input
+                    value={offerLabel}
+                    onChange={(event) => setOfferLabel(event.target.value)}
+                    placeholder={
+                      offerType === "PERCENTAGE" && offerValue.trim()
+                        ? `${offerValue.trim()}% OFF`
+                        : "Limited Time Offer"
+                    }
+                    maxLength={40}
+                    className={inputClass}
+                  />
+                </Field>
+
+                {/* The calculated offer price. Never an input — it is derived
+                    from the price and the discount, and the server derives it
+                    again on save from the same rule. */}
+                {previewProblem ? (
+                  <p className="rounded-xl bg-amber-50 px-4 py-3 text-sm text-amber-800">
+                    {previewProblem}
+                  </p>
+                ) : (
+                  previewPrice !== null && (
+                    <div className="flex flex-wrap items-center justify-between gap-x-4 gap-y-2 rounded-xl bg-emerald-50 px-4 py-3">
+                      <div>
+                        <p className="text-xs font-medium uppercase tracking-wide text-emerald-700">
+                          Offer price
+                        </p>
+                        <p className="mt-0.5 flex flex-wrap items-baseline gap-2">
+                          <span className="text-xl font-bold text-emerald-800">
+                            {formatMoney(previewPrice)}
+                          </span>
+                          <span className="text-sm text-emerald-700/70 line-through">
+                            {formatMoney(price)}
+                          </span>
+                        </p>
+                      </div>
+
+                      <p className="text-xs font-medium text-emerald-700">
+                        Guest saves {formatMoney(fromMinor(previewSavingMinor))}
+                      </p>
+                    </div>
+                  )
+                )}
+              </div>
+            )}
+          </fieldset>
 
           {saveDish.isError && <ErrorBox message={getErrorMessage(saveDish.error)} />}
         </form>
@@ -566,6 +866,18 @@ const AdminMenu = () => {
         <p className="mt-2 text-sm text-slate-500">
           Past orders keep it, so your sales history and receipts stay accurate.
         </p>
+
+        {/* The server refuses this, so the reason is stated before the attempt
+            rather than surfaced as an error afterwards. */}
+        {confirmDelete && !("price" in confirmDelete) && (
+          <p className="mt-2 text-sm text-slate-500">
+            {(confirmDelete._count?.foods ?? 0) > 0
+              ? `This category still holds ${confirmDelete._count?.foods} dish${
+                  confirmDelete._count?.foods === 1 ? "" : "es"
+                }. Move or remove them first — a category cannot be deleted while dishes point at it.`
+              : "No dishes belong to this category, so it can be removed safely."}
+          </p>
+        )}
 
         {removeItem.isError && (
           <div className="mt-3">

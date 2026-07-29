@@ -70,7 +70,13 @@ const joinStaffRooms = (socket: AuthedSocket, user: AccessTokenPayload): void =>
 export const initSocketServer = (httpServer: HttpServer): SocketServer => {
   io = new SocketServer(httpServer, {
     cors: {
-      origin: config.security.corsOrigins,
+      origin: (origin, callback) => {
+        if (!origin || config.isDevelopment || config.security.corsOrigins.includes(origin)) {
+          callback(null, true);
+        } else {
+          callback(new Error("Not allowed by CORS"));
+        }
+      },
       credentials: true,
     },
     // Kitchen tablets drop Wi-Fi constantly. A longer window lets a brief

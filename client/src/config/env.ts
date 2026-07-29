@@ -30,8 +30,27 @@ if (!parsed.success) {
   throw new Error(`Invalid client environment configuration:\n${details}`);
 }
 
+const getDynamicApiUrl = (envUrl: string): string => {
+  if (typeof window === "undefined") return envUrl;
+  try {
+    const url = new URL(envUrl);
+    if (
+      url.hostname === "localhost" &&
+      window.location.hostname !== "localhost" &&
+      window.location.hostname !== "127.0.0.1"
+    ) {
+      url.hostname = window.location.hostname;
+    }
+    return url.origin;
+  } catch {
+    return envUrl;
+  }
+};
+
 export const config = Object.freeze({
-  apiUrl: parsed.data.VITE_API_URL,
+  get apiUrl() {
+    return getDynamicApiUrl(parsed.data.VITE_API_URL);
+  },
   isProduction: import.meta.env.PROD,
   isDevelopment: import.meta.env.DEV,
 });

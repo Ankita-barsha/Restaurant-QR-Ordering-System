@@ -150,6 +150,23 @@ export const reportQuerySchema = z.object({
   to: z.coerce.date().optional(),
 });
 
+/**
+ * Highest-selling items.
+ *
+ * Extends the shared report window with how to rank and what to count. Its own
+ * schema rather than more optional fields on reportQuerySchema, so the sales
+ * and order-status reports do not advertise parameters they ignore.
+ *
+ * `scope` defaults to completed orders: a dish still in the pass may yet be
+ * cancelled, and a best-seller list that moves backwards during service is
+ * measuring the kitchen, not sales.
+ */
+export const topItemsQuerySchema = reportQuerySchema.extend({
+  limit: z.coerce.number().int().positive().max(50).optional(),
+  sort: z.enum(["quantity", "revenue"]).default("quantity"),
+  scope: z.enum(["completed", "all"]).default("completed"),
+});
+
 export const auditListQuerySchema = paginationQuerySchema.extend({
   actorId: z.string().min(1).optional(),
   entity: z.string().min(1).optional(),
@@ -168,5 +185,6 @@ export type UpdateCustomerInput = z.infer<typeof updateCustomerSchema>;
 export type CustomerListQuery = z.infer<typeof customerListQuerySchema>;
 export type UpdateSettingsInput = z.infer<typeof updateSettingsSchema>;
 export type ReportQuery = z.infer<typeof reportQuerySchema>;
+export type TopItemsQuery = z.infer<typeof topItemsQuerySchema>;
 export type RevenuePeriodQuery = z.infer<typeof revenuePeriodSchema>;
 export type AuditListQueryInput = z.infer<typeof auditListQuerySchema>;

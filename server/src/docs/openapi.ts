@@ -32,6 +32,7 @@ import {
   resetPasswordSchema,
   revenuePeriodSchema,
   setRolePermissionsSchema,
+  topItemsQuerySchema,
   updateCustomerSchema,
   updateRoleSchema,
   updateSettingsSchema,
@@ -44,8 +45,16 @@ import {
   updateCategorySchema,
 } from "../validations/category.validation.js";
 import {
+  createReviewSchema,
+  reviewListQuerySchema,
+  reviewVisibilitySchema,
+  updateContentSchema,
+  updateReviewSchema,
+} from "../validations/content.validation.js";
+import {
   availabilitySchema,
   createFoodSchema,
+  featuredSchema,
   foodListQuerySchema,
   updateFoodSchema,
 } from "../validations/food.validation.js";
@@ -54,7 +63,6 @@ import {
   cancelOrderSchema,
   orderListQuerySchema,
   placeOrderSchema,
-  serveOrderSchema,
   updatePaymentSchema,
   updateStatusSchema,
 } from "../validations/order.validation.js";
@@ -97,6 +105,14 @@ const slugParam: JsonSchema = {
   required: true,
   description: "URL-safe identifier, e.g. `margherita-pizza`.",
   schema: { type: "string" },
+};
+
+const trackingTokenParam: JsonSchema = {
+  name: "token",
+  in: "path",
+  required: true,
+  description: "The `trackingToken` returned when the order was placed.",
+  schema: { type: "string", minLength: 32 },
 };
 
 /** References a component schema. */
@@ -301,10 +317,44 @@ const components: Record<string, JsonSchema> = {
       name: { type: "string", examples: ["Chicken Biryani"] },
       slug: { type: "string" },
       description: { type: ["string", "null"] },
-      price: money("Unit price."),
+      price: money(
+        "The LIST price. An offer never rewrites this — which is what lets the menu show \"was ₹500, now ₹400\" and lets an offer be switched off without having to remember the original."
+      ),
+      isOfferActive: {
+        type: "boolean",
+        description:
+          "Master switch. When false the dish sells at `price` and the offer columns are ignored rather than cleared, so a seasonal promotion survives being switched off.",
+      },
+      offerType: {
+        type: ["string", "null"],
+        enum: ["PERCENTAGE", "FIXED", null],
+        description: "How `offerValue` reduces the price.",
+      },
+      offerValue: {
+        type: ["string", "null"],
+        description:
+          "A percentage (0-100) when `offerType` is PERCENTAGE, otherwise an amount of money. An exact decimal string, for the same reason a price is.",
+        examples: ["20"],
+      },
+      offerPrice: {
+        type: ["string", "null"],
+        description:
+          "What the dish actually sells at while the offer runs — **derived by the server**, never accepted from a client, and null when no offer is running. This is the figure `POST /orders` bills.",
+        examples: ["400.00"],
+      },
+      offerLabel: {
+        type: ["string", "null"],
+        description:
+          "Optional badge wording, e.g. `Limited Time Offer`. Blank falls back to a label derived from the discount itself (`20% OFF`), so turning an offer on is enough to get a sensible badge.",
+      },
       imageUrl: { type: ["string", "null"], description: "Server-relative, e.g. `/uploads/abc.jpg`." },
       isAvailable: { type: "boolean" },
       isVegetarian: { type: "boolean" },
+      isFeatured: {
+        type: "boolean",
+        description:
+          "The chef's recommendation. Featured dishes are what the public welcome page advertises; any number may be featured at once.",
+      },
       preparationMinutes: { type: ["integer", "null"] },
       categoryId: { type: "string" },
     },
@@ -333,13 +383,7 @@ const components: Record<string, JsonSchema> = {
       trackingToken: {
         type: "string",
         description:
-          "Unguessable token that authorises tracking and payment for this order. Handed to the diner exactly once, here — there is no endpoint that returns it again. Keep it: it is the only way back to the order.",
-      },
-      verificationCode: {
-        type: ["string", "null"],
-        description:
-          "Four-character pickup code shown ONLY to the customer. The waiter must enter it to serve the order, which stops food reaching the wrong table.",
-        examples: ["K7MA"],
+          "Unguessable token that authorises tracking, the invoice and payment for this order. Handed to the diner exactly once, here — there is no endpoint that returns it again. Keep it: it is the only way back to the order.",
       },
       status: {
         type: "string",
@@ -391,12 +435,7 @@ const components: Record<string, JsonSchema> = {
       trackingToken: {
         type: "string",
         description:
-          "Echoed back so the screen can subscribe to updates and start a payment without re-reading it from the URL.",
-      },
-      verificationCode: {
-        type: ["string", "null"],
-        description:
-          "The pickup code. Safe to return here precisely because reaching this order required the unguessable token.",
+          "Echoed back so the screen can subscribe to updates, fetch its invoice and start a payment without re-reading it from the URL.",
       },
       status: { type: "string" },
       type: { type: "string" },
@@ -591,6 +630,152 @@ const components: Record<string, JsonSchema> = {
       total: { type: "integer" },
     },
   },
+
+  SiteContent: {
+    type: "object",
+    description:
+      "Editable copy for the public welcome page. Every field is nullable, and the page falls back to its built-in text for anything left blank — so an empty CMS renders exactly as the site did before one existed.",
+    properties: {
+      heroEyebrow: { type: ["string", "null"], examples: ["Est. 2019 · Fine Dining"] },
+      heroTitle: {
+        type: ["string", "null"],
+        description: "Overrides the restaurant name on the hero when set.",
+      },
+      heroLede: {
+        type: ["string", "null"],
+        description: "Overrides `tagline` from `GET /api/settings` on the hero.",
+      },
+      bannerText: {
+        type: ["string", "null"],
+        description: "Promotional strip beneath the hero. Hidden entirely when blank.",
+      },
+      featuredEyebrow: { type: ["string", "null"] },
+      featuredTitle: { type: ["string", "null"] },
+      featuredLede: {
+        type: ["string", "null"],
+        description:
+          "Copy around the featured section. The DISHES in it come from `isFeatured` on Food, not from here.",
+      },
+      aboutEyebrow: { type: ["string", "null"] },
+      aboutTitle: { type: ["string", "null"] },
+      aboutBody: { type: ["string", "null"], description: "The restaurant description." },
+      footerNote: { type: ["string", "null"] },
+      updatedAt: { type: "string", format: "date-time" },
+    },
+  },
+
+  Review: {
+    type: "object",
+    description:
+      "A curated customer testimonial. Written and published by the house through the admin panel — this is marketing copy with an attribution, not a record left by a diner, which is why there is no public write endpoint.",
+    properties: {
+      id: { type: "string" },
+      customerName: { type: "string", examples: ["Ananya Sen"] },
+      imageUrl: { type: ["string", "null"], description: "Server-relative, e.g. `/uploads/abc.jpg`." },
+      rating: { type: "integer", minimum: 1, maximum: 5 },
+      comment: { type: "string" },
+      visitedOn: { type: ["string", "null"], format: "date-time" },
+      isVisible: {
+        type: "boolean",
+        description: "The publish switch. Only visible reviews reach an unauthenticated caller.",
+      },
+      sortOrder: { type: "integer", description: "Manual order; the house decides which review leads." },
+      createdAt: { type: "string", format: "date-time" },
+    },
+  },
+
+  Invoice: {
+    type: "object",
+    description:
+      "A statement of what was CHARGED. Every amount is read back from the order and its line items, never recomputed from the live menu or the current tax rate — order lines snapshot their name and price at purchase time precisely so an invoice reprints identically years later. The restaurant's own details are read live, because a business that moves premises wants its new address on a reprint.",
+    properties: {
+      invoiceNumber: {
+        type: "string",
+        description:
+          "Derived from the order number (`ORD-000045` → `INV-000045`) rather than drawn from a second sequence: one order is one bill, and a separate counter would only be a second name for the same thing.",
+        examples: ["INV-000045"],
+      },
+      orderNumber: { type: "string", examples: ["ORD-000045"] },
+      issuedAt: {
+        type: "string",
+        format: "date-time",
+        description: "When the order was placed — the date the goods were supplied.",
+      },
+      restaurant: {
+        type: "object",
+        properties: {
+          name: { type: "string" },
+          logoUrl: { type: ["string", "null"] },
+          address: { type: "string" },
+          phone: { type: ["string", "null"] },
+          email: { type: ["string", "null"] },
+          currency: { type: "string", examples: ["INR"] },
+        },
+      },
+      table: { type: ["string", "null"], examples: ["T-04"] },
+      orderType: { type: "string", enum: ["DINE_IN", "TAKEAWAY"] },
+      customer: {
+        type: ["object", "null"],
+        properties: {
+          name: { type: ["string", "null"] },
+          phone: { type: ["string", "null"] },
+        },
+      },
+      items: {
+        type: "array",
+        items: {
+          type: "object",
+          properties: {
+            id: { type: "string" },
+            name: { type: "string" },
+            unitPrice: money("Price at the moment of purchase."),
+            quantity: { type: "integer" },
+            lineTotal: money("unitPrice × quantity."),
+            notes: { type: ["string", "null"] },
+          },
+        },
+      },
+      totals: {
+        type: "object",
+        properties: {
+          subtotal: money("Sum of the line totals."),
+          tax: money("Tax AND service charge combined, as the order stored them."),
+          discount: money("Discount applied."),
+          grandTotal: money("What the customer pays."),
+          amountPaid: money("Settled so far."),
+          balanceDue: money("Still outstanding."),
+        },
+      },
+      payment: {
+        type: "object",
+        properties: {
+          status: { type: "string", enum: ["UNPAID", "PAID", "REFUNDED"] },
+          method: { type: ["string", "null"], enum: ["CASH", "CARD", "UPI", "ONLINE", null] },
+          receiptNumber: { type: ["string", "null"] },
+          paidAt: { type: ["string", "null"], format: "date-time" },
+        },
+      },
+      status: { type: "string", description: "The order's status at the moment of generation." },
+      isCancelled: {
+        type: "boolean",
+        description: "Stated explicitly so a reader knows a voided bill is not a demand for money.",
+      },
+    },
+  },
+
+  TopSellingItem: {
+    type: "object",
+    properties: {
+      foodId: { type: "string" },
+      foodName: {
+        type: "string",
+        description:
+          "From the order-item snapshot, so a renamed dish still reports under the name it was sold as.",
+      },
+      quantitySold: { type: "integer" },
+      revenue: money("Generated by this item over the window."),
+    },
+  },
 };
 
 // ---------------------------------------------------------------------------
@@ -782,7 +967,7 @@ const paths: Record<string, Record<string, JsonSchema>> = {
       operationId: "createFood",
       summary: "Add a dish",
       description:
-        "`multipart/form-data`, because it carries the photo. Every text field therefore arrives as a string — which is why numbers are coerced and booleans accept `\"true\"`/`\"false\"` rather than using `Boolean()`, since `Boolean(\"false\")` is `true`. The upload's BYTES are checked, not just its filename.",
+        "`multipart/form-data`, because it carries the photo. Every text field therefore arrives as a string — which is why numbers are coerced and booleans accept `\"true\"`/`\"false\"` rather than using `Boolean()`, since `Boolean(\"false\")` is `true`. The upload's BYTES are checked, not just its filename.\n\n**`offerPrice` is deliberately not accepted here.** Send `isOfferActive`, `offerType` and `offerValue`; the server derives the offer price from them and the dish's own price. A client that could post its own offer price could sell itself a dish for a rupee — the same reasoning that keeps prices off the order endpoint.\n\nA discount larger than the dish's price, or a percentage above 100, is rejected with a 400 naming the mistake rather than silently clamped to free.",
       permission: PERMISSIONS.FOOD_CREATE,
       requestBody: multipartBody(createFoodSchema, {
         field: "image",
@@ -818,7 +1003,7 @@ const paths: Record<string, Record<string, JsonSchema>> = {
       operationId: "updateFood",
       summary: "Edit a dish",
       description:
-        "`multipart/form-data`. Omitting `image` leaves the existing photo untouched. Editing a price does NOT change what past orders were charged — order lines hold their own snapshot.",
+        "`multipart/form-data`. Omitting `image` leaves the existing photo untouched. Editing a price does NOT change what past orders were charged — order lines hold their own snapshot.\n\nThe offer price is re-derived from the MERGED row, not from the patch alone: dropping a dish's price while an offer runs recomputes the offer price against the new one, rather than leaving a dish advertised above its own list price.",
       permission: PERMISSIONS.FOOD_UPDATE,
       parameters: [idParam],
       requestBody: multipartBody(updateFoodSchema, {
@@ -852,6 +1037,108 @@ const paths: Record<string, Record<string, JsonSchema>> = {
     }),
   },
 
+  "/foods/{id}/featured": {
+    patch: operation({
+      tag: "Menu",
+      operationId: "setFoodFeatured",
+      summary: "Mark a dish as the chef's recommendation",
+      description:
+        "Featured dishes are what the public welcome page advertises, and the page always reflects the current set — there is nothing to publish.\n\nAny number of dishes may be featured at once: forcing a single choice would mean unfeaturing one dish as a side effect of featuring another. Behind `food:update` rather than `food:read`, unlike the availability toggle, because this is an editorial decision rather than a service-floor one. Audited for the same reason.",
+      permission: PERMISSIONS.FOOD_UPDATE,
+      parameters: [idParam],
+      requestBody: jsonBody(featuredSchema),
+      responses: { 200: ok("Changed.", ref("Food")), ...validationError, ...notFound },
+    }),
+  },
+
+  // ---- Content ----------------------------------------------------------
+  "/content": {
+    get: operation({
+      tag: "Content",
+      operationId: "getSiteContent",
+      summary: "Welcome-page copy",
+      description:
+        "Public — read on every visit to the welcome page. Every field may be null, and the page falls back to its built-in text for anything blank, so a restaurant that never opens the CMS sees exactly the site it had before.",
+      responses: { 200: ok("The content.", ref("SiteContent")) },
+    }),
+    patch: operation({
+      tag: "Content",
+      operationId: "updateSiteContent",
+      summary: "Edit the welcome page",
+      description:
+        "Changes are live immediately — there is no draft and no publish step, because a restaurant editing its own strapline does not need a workflow.\n\nAn empty string CLEARS a field and restores the built-in copy; that is why, uniquely among the update endpoints here, `\"\"` is accepted rather than rejected and an entirely empty body is valid. Audited.",
+      permission: PERMISSIONS.CONTENT_UPDATE,
+      requestBody: jsonBody(updateContentSchema),
+      responses: { 200: ok("Updated.", ref("SiteContent")), ...validationError },
+    }),
+  },
+
+  "/content/reviews": {
+    get: operation({
+      tag: "Content",
+      operationId: "listReviews",
+      summary: "Customer testimonials",
+      description:
+        "Public, and richer for staff. An anonymous caller gets only the visible reviews; a signed-in caller holding `review:read` may additionally pass `includeHidden`.\n\nThat flag is honoured from the ACCESS TOKEN, never from the query string alone — asking for hidden reviews without the permission simply returns the public set rather than an error, because the public read must never fail for a diner.",
+      parameters: toParameters(reviewListQuerySchema, "query"),
+      responses: { 200: okList("Reviews.", ref("Review")), ...validationError },
+    }),
+    post: operation({
+      tag: "Content",
+      operationId: "createReview",
+      summary: "Publish a review",
+      description:
+        "`multipart/form-data`, because it may carry the guest's portrait — so every text field arrives as a string, which is why the rating is coerced and the flag uses `\"true\"`/`\"false\"`. The upload's BYTES are checked, not just its filename.\n\nThere is deliberately no public write path: testimonials are written and published by the house, so there is no moderation queue to build and no spam to filter.",
+      permission: PERMISSIONS.REVIEW_CREATE,
+      requestBody: multipartBody(createReviewSchema, {
+        field: "image",
+        description: "Guest portrait. JPEG, PNG or WebP, within the configured size cap.",
+      }),
+      responses: { 201: ok("Published.", ref("Review")), ...validationError, 413: errorResponse("Image is too large.") },
+    }),
+  },
+
+  "/content/reviews/{id}": {
+    patch: operation({
+      tag: "Content",
+      operationId: "updateReview",
+      summary: "Edit a review",
+      description:
+        "`multipart/form-data`. Omitting `image` leaves the existing portrait untouched; sending one replaces it, and the old file is deleted only after the row is safely updated.",
+      permission: PERMISSIONS.REVIEW_UPDATE,
+      parameters: [idParam],
+      requestBody: multipartBody(updateReviewSchema, {
+        field: "image",
+        description: "Replacement portrait. Omit to keep the current one.",
+      }),
+      responses: { 200: ok("Updated.", ref("Review")), ...validationError, ...notFound },
+    }),
+    delete: operation({
+      tag: "Content",
+      operationId: "deleteReview",
+      summary: "Delete a review",
+      description:
+        "A HARD delete, unlike the menu's soft deletes: nothing references a review, so removing one rewrites no history. Prefer hiding it — a review taken down for a season is usually wanted back, and the visibility toggle is one tap away. Audited.",
+      permission: PERMISSIONS.REVIEW_DELETE,
+      parameters: [idParam],
+      responses: { 200: ok("Deleted."), ...notFound },
+    }),
+  },
+
+  "/content/reviews/{id}/visibility": {
+    patch: operation({
+      tag: "Content",
+      operationId: "setReviewVisibility",
+      summary: "Publish or hide a review",
+      description:
+        "Its own endpoint for the same reason the sold-out switch is: it is the control used most, and routing it through the edit form would mean re-submitting the review text to flip a flag.",
+      permission: PERMISSIONS.REVIEW_UPDATE,
+      parameters: [idParam],
+      requestBody: jsonBody(reviewVisibilitySchema),
+      responses: { 200: ok("Changed.", ref("Review")), ...validationError, ...notFound },
+    }),
+  },
+
   // ---- Orders -----------------------------------------------------------
   "/orders": {
     get: operation({
@@ -868,11 +1155,14 @@ const paths: Record<string, Record<string, JsonSchema>> = {
       operationId: "placeOrder",
       summary: "Place an order",
       description:
-        "Public — the diner who scanned the QR code has no account.\n\n**The request carries no prices.** It sends food ids and quantities; the server resolves every price, re-checks availability and computes tax and service charge inside one transaction. A tampered cart changes nothing about the bill.\n\nThe table is identified by its `qrToken`, never by a client-supplied id, so nobody can order against a table they did not scan.",
+        "Public — the diner who scanned the QR code has no account.\n\n**The request carries no prices.** It sends food ids and quantities; the server resolves every price, re-checks availability and computes tax and service charge inside one transaction. A tampered cart changes nothing about the bill.\n\nA dish with an active offer is billed at its OFFER price, re-derived server-side from the same discount the menu advertised — so what the diner was shown and what they are charged cannot diverge.\n\nThe table is identified by its `qrToken`, never by a client-supplied id, so nobody can order against a table they did not scan.",
       limit: "public-write",
       requestBody: jsonBody(placeOrderSchema),
       responses: {
-        201: ok("Placed. Includes the pickup code to show the waiter.", ref("Order")),
+        201: ok(
+          "Placed. Includes the `trackingToken` — the only time it is ever returned.",
+          ref("Order")
+        ),
         ...validationError,
         409: errorResponse("An item sold out, or the restaurant is not accepting orders."),
         ...rateLimited,
@@ -886,19 +1176,29 @@ const paths: Record<string, Record<string, JsonSchema>> = {
       operationId: "trackOrder",
       summary: "Track an order",
       description:
-        "Public, authorised by possession of the order's `trackingToken` — issued exactly once, in the response to placing the order.\n\nDeliberately NOT keyed on the order number: that is a sequence value, so anyone counting upwards could read every order and its pickup code. Returns a trimmed view — no staff details, no other customer's contact information.",
+        "Public, authorised by possession of the order's `trackingToken` — issued exactly once, in the response to placing the order.\n\nDeliberately NOT keyed on the order number: that is a sequence value, so anyone counting upwards could read every order in the restaurant. Returns a trimmed view — no staff details, no other customer's contact information.",
       limit: "public-lookup",
-      parameters: [
-        {
-          name: "token",
-          in: "path",
-          required: true,
-          description: "The `trackingToken` returned when the order was placed.",
-          schema: { type: "string", minLength: 32 },
-        },
-      ],
+      parameters: [trackingTokenParam],
       responses: {
         200: ok("Live status.", ref("TrackedOrder")),
+        ...validationError,
+        ...notFound,
+        ...rateLimited,
+      },
+    }),
+  },
+
+  "/orders/track/{token}/invoice": {
+    get: operation({
+      tag: "Orders",
+      operationId: "trackedOrderInvoice",
+      summary: "Your own invoice",
+      description:
+        "The diner's bill, so they can print it or save it as a PDF without asking a member of staff. Authorised by the same token as tracking, and for the same reason — keying a bill on the order number would let a stranger count upwards and read other people's.",
+      limit: "public-lookup",
+      parameters: [trackingTokenParam],
+      responses: {
+        200: ok("The invoice.", ref("Invoice")),
         ...validationError,
         ...notFound,
         ...rateLimited,
@@ -972,18 +1272,29 @@ const paths: Record<string, Record<string, JsonSchema>> = {
     post: operation({
       tag: "Orders",
       operationId: "serveOrder",
-      summary: "Serve, after verifying the pickup code",
+      summary: "Mark an order delivered to the table",
       description:
-        "The waiter asks the diner for their four-character code and enters it here. The order only reaches SERVED if it matches — this is what stops food being handed to the wrong table. Compared case-insensitively, because the code is spoken aloud and re-typed. Orders placed before this feature have no code and are allowed through.",
+        "One tap from the waiter's screen once the food is on the table. Takes NO request body: the four-character pickup code this endpoint used to require is gone from the product — it added a step to every service and told the waiter nothing the table number on the ticket did not already say.\n\nEquivalent to a `SERVED` status transition, so the same state machine applies and only a READY order can be served.",
       permission: PERMISSIONS.ORDER_UPDATE_STATUS,
       parameters: [idParam],
-      requestBody: jsonBody(serveOrderSchema),
       responses: {
         200: ok("Served.", ref("Order")),
-        400: errorResponse("The code does not match this order."),
         ...notFound,
         409: errorResponse("The order is not READY."),
       },
+    }),
+  },
+
+  "/orders/{id}/invoice": {
+    get: operation({
+      tag: "Orders",
+      operationId: "getOrderInvoice",
+      summary: "The invoice for an order",
+      description:
+        "Behind `order:read` rather than a permission of its own: it restates figures anyone who can open the order already sees, printed on the restaurant's letterhead.\n\nEvery amount comes from the order's own stored columns and its line-item snapshots, so a reprint years later reproduces the original bill even if the dish has since been renamed, repriced or removed from the menu.",
+      permission: PERMISSIONS.ORDER_READ,
+      parameters: [idParam],
+      responses: { 200: ok("The invoice.", ref("Invoice")), ...notFound },
     }),
   },
 
@@ -1768,11 +2079,22 @@ const paths: Record<string, Record<string, JsonSchema>> = {
     get: operation({
       tag: "Reports",
       operationId: "topItems",
-      summary: "Best sellers",
-      description: "By quantity sold. Names come from the order-item snapshot, so a renamed dish still reports under the name it was sold as.",
+      summary: "Highest-selling items",
+      description:
+        "Ranked by quantity sold, or by `sort=revenue` for the money each dish brought in.\n\nCounts COMPLETED orders by default — those that reached SERVED. An order still in the pass may yet be cancelled or amended, so including it would make the ranking move backwards during service and \"best seller\" would mean \"currently on a hotplate\". Pass `scope=all` for every non-cancelled order when you want the day's demand rather than its deliveries; cancelled orders are excluded either way, because food that was never served was never sold.\n\nNames come from the order-item snapshot, so a renamed dish still reports under the name it was sold as.",
       permission: PERMISSIONS.REPORT_VIEW,
-      parameters: toParameters(reportQuerySchema, "query"),
-      responses: { 200: ok("Best sellers."), ...validationError },
+      parameters: toParameters(topItemsQuerySchema, "query"),
+      responses: {
+        200: json("Highest sellers, best first.", {
+          type: "object",
+          properties: {
+            success: { type: "boolean", const: true },
+            data: { type: "array", items: ref("TopSellingItem") },
+          },
+          required: ["success", "data"],
+        }),
+        ...validationError,
+      },
     }),
   },
 
@@ -1860,6 +2182,7 @@ export const openApiDocument = {
     { name: "Meta", description: "Health and public restaurant settings." },
     { name: "Auth", description: "Staff sign-in, token refresh and session revocation." },
     { name: "Menu", description: "Categories and dishes. Browsing is public; editing is not." },
+    { name: "Content", description: "The welcome page: editable copy and curated customer reviews." },
     { name: "Orders", description: "The ordering lifecycle, from a scanned QR code to a served table." },
     { name: "Payments", description: "The ledger. Payment rows are the record; an order's payment status is only their summary." },
     { name: "Reservations", description: "Table bookings, with seat-based capacity." },

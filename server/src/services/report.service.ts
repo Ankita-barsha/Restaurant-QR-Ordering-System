@@ -162,23 +162,69 @@ export const getSalesReport = async (from?: Date, to?: Date) => {
   };
 };
 
-/** Best-selling menu items by quantity sold. */
-export const getTopSellingItems = async (from?: Date, to?: Date, limit = 10) => {
+/** How "highest selling" is ranked. */
+export type TopItemsSort = "quantity" | "revenue";
+
+/** Which orders count towards the figures. */
+export type TopItemsScope = "completed" | "all";
+
+export interface TopItemsOptions {
+  from?: Date;
+  to?: Date;
+  limit?: number;
+  sort?: TopItemsSort;
+  scope?: TopItemsScope;
+}
+
+/**
+ * Highest-selling menu items, by quantity sold or by revenue generated.
+ *
+ * Defaults to COMPLETED orders — those that reached SERVED. An order still in
+ * the pass may yet be cancelled or amended, so counting it would make the
+ * ranking move backwards during service, and "best seller" would mean
+ * "currently on a hotplate". `scope=all` widens it to every non-cancelled
+ * order for a manager who wants the day's demand rather than its deliveries.
+ *
+ * Cancelled orders are excluded under both scopes: food that was never served
+ * was never sold.
+ */
+export const getTopSellingItems = async ({
+  from,
+  to,
+  limit = 10,
+  sort = "quantity",
+  scope = "completed",
+}: TopItemsOptions = {}) => {
+  const completedOnly = scope === "completed";
+
+  /**
+   * Raw SQL because the aggregate spans two tables and must run in the
+   * database, not in Node — see the note at the top of this file.
+   *
+   * Both the sort column and the status filter are BOOLEAN FLAGS bound as
+   * parameters and resolved inside the query, never string-interpolated. A
+   * caller cannot reach the SQL text: `sort` and `scope` are already narrowed
+   * to their unions by Zod, and even so nothing derived from them is
+   * concatenated in.
+   */
   const rows = await prisma.$queryRaw<
     { foodId: string; foodName: string; quantity: bigint; revenue: string }[]
   >`
     SELECT
-      oi."foodId"        AS "foodId",
-      oi."foodName"      AS "foodName",
-      SUM(oi.quantity)   AS quantity,
+      oi."foodId"         AS "foodId",
+      oi."foodName"       AS "foodName",
+      SUM(oi.quantity)    AS quantity,
       SUM(oi."lineTotal") AS revenue
     FROM order_items oi
     JOIN orders o ON o.id = oi."orderId"
     WHERE o.status <> 'CANCELLED'
+      AND (${!completedOnly}::boolean OR o.status = 'SERVED')
       AND o."placedAt" >= ${from ?? new Date(0)}
       AND o."placedAt" <= ${to ?? new Date(8.64e15)}
     GROUP BY oi."foodId", oi."foodName"
-    ORDER BY quantity DESC
+    ORDER BY
+      CASE WHEN ${sort === "revenue"}::boolean THEN SUM(oi."lineTotal") END DESC,
+      SUM(oi.quantity) DESC
     LIMIT ${limit}
   `;
 

@@ -6,13 +6,19 @@
  */
 
 import { useQuery } from "@tanstack/react-query";
+import { useState } from "react";
 import { Link } from "react-router-dom";
 
 import { Card, ErrorBox, Spinner, StatusBadge } from "../../components/ui";
 import { queryKeys } from "../../hooks/useLiveOrders";
 import { api, getErrorMessage, unwrap } from "../../lib/api";
 import { formatMoney, timeAgo } from "../../lib/format";
-import type { ApiResponse, DashboardSummary, Order } from "../../types/api";
+import type {
+  ApiResponse,
+  DashboardSummary,
+  Order,
+  TopSellingItem,
+} from "../../types/api";
 
 const Stat = ({
   label,
@@ -32,14 +38,49 @@ const Stat = ({
   </Card>
 );
 
-interface TopItem {
-  foodId: string;
-  foodName: string;
-  quantitySold: number;
-  revenue: string;
-}
+/** How the highest-selling list is ranked. */
+type Sort = "quantity" | "revenue";
+
+/** Which orders the figures count. */
+type Scope = "completed" | "all";
+
+/** A sortable column header for the highest-selling table. */
+const SortHeader = ({
+  label,
+  column,
+  sort,
+  onSort,
+  className = "",
+}: {
+  label: string;
+  column: Sort;
+  sort: Sort;
+  onSort: (next: Sort) => void;
+  className?: string;
+}) => (
+  <button
+    type="button"
+    onClick={() => onSort(column)}
+    aria-sort={sort === column ? "descending" : "none"}
+    className={`text-xs font-semibold uppercase tracking-wide transition ${
+      sort === column ? "text-orange-600" : "text-slate-400 hover:text-slate-600"
+    } ${className}`}
+  >
+    {label}
+    {sort === column ? " ↓" : ""}
+  </button>
+);
 
 const AdminDashboard = () => {
+  /**
+   * Ranking and scope are server-side, not a client-side re-sort of one page
+   * of rows: the endpoint returns only the top N, so sorting what arrived
+   * would reorder the top ten by quantity rather than showing the top ten by
+   * revenue — a different and wrong list.
+   */
+  const [sort, setSort] = useState<Sort>("quantity");
+  const [scope, setScope] = useState<Scope>("completed");
+
   const summaryQuery = useQuery({
     queryKey: queryKeys.dashboard,
     queryFn: async () =>
@@ -53,9 +94,16 @@ const AdminDashboard = () => {
   });
 
   const topItemsQuery = useQuery({
-    queryKey: ["reports", "top-items"],
+    queryKey: ["reports", "top-items", sort, scope],
     queryFn: async () =>
-      unwrap(await api.get<ApiResponse<TopItem[]>>("/admin/reports/top-items")),
+      unwrap(
+        await api.get<ApiResponse<TopSellingItem[]>>(
+          `/admin/reports/top-items?sort=${sort}&scope=${scope}&limit=10`
+        )
+      ),
+    // Keeps the previous list on screen while a re-sort loads, so the panel
+    // does not blink to empty on every toggle.
+    placeholderData: (previous) => previous,
   });
 
   if (summaryQuery.isLoading) return <Spinner label="Loading dashboard" />;
@@ -86,7 +134,7 @@ const AdminDashboard = () => {
             {summary.today.date} · {summary.today.timezone}
           </span>
         </h2>
-        <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
+        <div className="grid grid-cols-2 gap-2.5 sm:gap-3 lg:grid-cols-4">
           <Stat
             label="Revenue"
             value={formatMoney(summary.today.revenue)}
@@ -110,7 +158,7 @@ const AdminDashboard = () => {
         <h2 className="mb-2 text-sm font-semibold uppercase tracking-wide text-slate-500">
           Floor &amp; menu
         </h2>
-        <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
+        <div className="grid grid-cols-2 gap-2.5 sm:gap-3 lg:grid-cols-4">
           <Stat
             label="Tables occupied"
             value={`${summary.tables.occupied} / ${summary.tables.total}`}
@@ -143,7 +191,7 @@ const AdminDashboard = () => {
             )}
 
             {recentQuery.data?.map((order) => (
-              <div key={order.id} className="flex items-center gap-3 p-4">
+              <div key={order.id} className="flex flex-wrap items-center gap-x-3 gap-y-1.5 p-3 sm:flex-nowrap sm:p-4">
                 <div className="min-w-0 flex-1">
                   <p className="font-semibold text-slate-900">{order.orderNumber}</p>
                   <p className="text-xs text-slate-500">
@@ -152,7 +200,7 @@ const AdminDashboard = () => {
                   </p>
                 </div>
                 <StatusBadge status={order.status} />
-                <span className="w-20 text-right text-sm font-semibold">
+                <span className="ml-auto text-right text-sm font-semibold sm:ml-0 sm:w-20">
                   {formatMoney(order.totalAmount)}
                 </span>
               </div>
@@ -161,27 +209,103 @@ const AdminDashboard = () => {
         </section>
 
         <section>
-          <h2 className="mb-2 text-sm font-semibold uppercase tracking-wide text-slate-500">
-            Best sellers
-          </h2>
+          <div className="mb-2 flex flex-wrap items-center justify-between gap-2">
+            <h2 className="text-sm font-semibold uppercase tracking-wide text-slate-500">
+              Highest selling items
+            </h2>
 
-          <Card className="divide-y divide-slate-100 p-0">
-            {topItemsQuery.data?.length === 0 && (
-              <p className="p-5 text-sm text-slate-500">No sales recorded yet.</p>
+            {/* Completed by default: an order still in the pass may yet be
+                cancelled, so counting it would let the ranking move backwards
+                during service. */}
+            <div className="flex gap-1 rounded-lg bg-slate-200/60 p-0.5">
+              {(
+                [
+                  { value: "completed", label: "Completed" },
+                  { value: "all", label: "All orders" },
+                ] as { value: Scope; label: string }[]
+              ).map((option) => (
+                <button
+                  key={option.value}
+                  type="button"
+                  onClick={() => setScope(option.value)}
+                  className={`rounded-md px-2.5 py-1 text-xs font-semibold transition ${
+                    scope === option.value
+                      ? "bg-white text-slate-900 shadow-sm"
+                      : "text-slate-600 hover:text-slate-900"
+                  }`}
+                >
+                  {option.label}
+                </button>
+              ))}
+            </div>
+          </div>
+
+          <Card className="p-0">
+            <div className="flex items-center gap-3 border-b border-slate-200 px-4 py-2.5">
+              <span className="w-5" />
+              <span className="min-w-0 flex-1 text-xs font-semibold uppercase tracking-wide text-slate-400">
+                Item
+              </span>
+              <SortHeader
+                label="Qty"
+                column="quantity"
+                sort={sort}
+                onSort={setSort}
+                className="w-12 text-right sm:w-20"
+              />
+              <SortHeader
+                label="Revenue"
+                column="revenue"
+                sort={sort}
+                onSort={setSort}
+                className="w-20 text-right sm:w-24"
+              />
+            </div>
+
+            {topItemsQuery.isError && (
+              <div className="p-4">
+                <ErrorBox message={getErrorMessage(topItemsQuery.error)} />
+              </div>
             )}
 
-            {topItemsQuery.data?.slice(0, 8).map((item, index) => (
-              <div key={item.foodId} className="flex items-center gap-3 p-4">
-                <span className="w-5 text-sm font-bold text-slate-400">{index + 1}</span>
-                <span className="min-w-0 flex-1 truncate text-sm font-medium text-slate-800">
-                  {item.foodName}
-                </span>
-                <span className="text-xs text-slate-500">{item.quantitySold} sold</span>
-                <span className="w-24 text-right text-sm font-semibold">
-                  {formatMoney(item.revenue)}
-                </span>
-              </div>
-            ))}
+            {topItemsQuery.data?.length === 0 && (
+              <p className="p-5 text-sm text-slate-500">
+                {scope === "completed"
+                  ? "No completed orders yet. Switch to “All orders” to include those still in service."
+                  : "No sales recorded yet."}
+              </p>
+            )}
+
+            <div className="divide-y divide-slate-100">
+              {topItemsQuery.data?.map((item, index) => (
+                <div key={item.foodId} className="flex items-center gap-3 px-4 py-3">
+                  <span className="w-5 text-sm font-bold text-slate-400">
+                    {index + 1}
+                  </span>
+                  <span className="min-w-0 flex-1 truncate text-sm font-medium text-slate-800">
+                    {item.foodName}
+                  </span>
+                  <span
+                    className={`w-12 text-right text-sm tabular-nums sm:w-20 ${
+                      sort === "quantity"
+                        ? "font-semibold text-slate-900"
+                        : "text-slate-500"
+                    }`}
+                  >
+                    {item.quantitySold}
+                  </span>
+                  <span
+                    className={`w-20 text-right text-sm tabular-nums sm:w-24 ${
+                      sort === "revenue"
+                        ? "font-semibold text-slate-900"
+                        : "text-slate-500"
+                    }`}
+                  >
+                    {formatMoney(item.revenue)}
+                  </span>
+                </div>
+              ))}
+            </div>
           </Card>
         </section>
       </div>

@@ -40,6 +40,7 @@ const Login = lazy(() => import("./pages/staff/Login"));
 const AdminDashboard = lazy(() => import("./pages/staff/AdminDashboard"));
 const AdminMenu = lazy(() => import("./pages/staff/AdminMenu"));
 const AdminAuditLogs = lazy(() => import("./pages/staff/AdminAuditLogs"));
+const AdminContent = lazy(() => import("./pages/staff/AdminContent"));
 const AdminPayments = lazy(() => import("./pages/staff/AdminPayments"));
 const AdminReports = lazy(() => import("./pages/staff/AdminReports"));
 const AdminReservations = lazy(() => import("./pages/staff/AdminReservations"));
@@ -134,6 +135,14 @@ const App = () => (
             element={
               <ProtectedRoute permission="food:read">
                 <AdminMenu />
+              </ProtectedRoute>
+            }
+          />
+          <Route
+            path="/admin/content"
+            element={
+              <ProtectedRoute permission="content:update">
+                <AdminContent />
               </ProtectedRoute>
             }
           />

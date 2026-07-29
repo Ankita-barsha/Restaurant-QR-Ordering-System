@@ -37,6 +37,17 @@
   --font-display: "Cormorant Garamond Variable", Georgia, serif;
   --font-body: "Jost Variable", ui-sans-serif, system-ui, sans-serif;
 
+  /**
+   * An extra breakpoint below Tailwind's `sm`.
+   *
+   * `sm` is 640px, so out of the box there is NO lever anywhere between a
+   * 320px phone and a small tablet — which is the entire range this app is
+   * actually used in, one-handed, at a table. 26rem (416px) splits it about
+   * where it matters: below sits the 320/375 class of phone, above sits the
+   * 425px-and-up class that can afford a second column.
+   */
+  --breakpoint-xs: 26rem;
+
   --radius-luxe: 1.25rem;
 
   --shadow-lift: 0 24px 60px -20px rgb(0 0 0 / 0.75);
@@ -52,6 +63,7 @@
 @layer base {
   html {
     scroll-behavior: smooth;
+    /* Stops iOS enlarging text in landscape, which reflows a laid-out page. */
     -webkit-text-size-adjust: 100%;
   }
 
@@ -63,6 +75,43 @@
     letter-spacing: 0.01em;
     -webkit-font-smoothing: antialiased;
     text-rendering: optimizeLegibility;
+
+    /**
+     * The horizontal-overflow backstop.
+     *
+     * One over-wide element anywhere on a page makes the WHOLE document
+     * scroll sideways on a phone, and the symptom — a header that slides away
+     * from its content, a fixed bar that stops covering the screen — never
+     * points at the element that caused it. Clipping here contains the damage
+     * to the offending component instead of spreading it across the page.
+     *
+     * `overflow-x: clip` rather than `hidden`: hidden on <body> makes the
+     * element a scroll container, which silently breaks `position: sticky` on
+     * descendants — and the menu's filter bar depends on it.
+     */
+    overflow-x: clip;
+  }
+
+  /**
+   * Media never exceeds its column.
+   *
+   * A single unconstrained image is the most common cause of the sideways
+   * scroll clipped above, and catching it here means no component has to
+   * remember `max-w-full` on every <img>.
+   */
+  img,
+  svg,
+  video,
+  canvas {
+    max-width: 100%;
+  }
+
+  /**
+   * Long unbroken strings — an email, a tracking token, a URL a guest pasted
+   * into a note — cannot force a card wider than the screen.
+   */
+  h1, h2, h3, p, li, dd, dt, td, th {
+    overflow-wrap: break-word;
   }
 
   /* Display type is set tight and light: at large sizes a serif needs less

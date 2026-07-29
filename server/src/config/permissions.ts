@@ -67,6 +67,15 @@ export const PERMISSIONS = {
   AUDIT_LOG_READ: "auditLog:read",
   SETTINGS_READ: "settings:read",
   SETTINGS_UPDATE: "settings:update",
+
+  // Content management — the copy on the public welcome page
+  CONTENT_UPDATE: "content:update",
+
+  // Curated customer testimonials
+  REVIEW_READ: "review:read",
+  REVIEW_CREATE: "review:create",
+  REVIEW_UPDATE: "review:update",
+  REVIEW_DELETE: "review:delete",
 } as const;
 
 export type PermissionKey = (typeof PERMISSIONS)[keyof typeof PERMISSIONS];
@@ -124,6 +133,13 @@ export const PERMISSION_METADATA: Record<
   [PERMISSIONS.AUDIT_LOG_READ]: { group: "Audit", description: "View audit logs" },
   [PERMISSIONS.SETTINGS_READ]: { group: "Settings", description: "View restaurant settings" },
   [PERMISSIONS.SETTINGS_UPDATE]: { group: "Settings", description: "Edit restaurant settings" },
+
+  [PERMISSIONS.CONTENT_UPDATE]: { group: "Content", description: "Edit the welcome page content" },
+
+  [PERMISSIONS.REVIEW_READ]: { group: "Content", description: "View every review, including hidden ones" },
+  [PERMISSIONS.REVIEW_CREATE]: { group: "Content", description: "Publish customer reviews" },
+  [PERMISSIONS.REVIEW_UPDATE]: { group: "Content", description: "Edit and hide customer reviews" },
+  [PERMISSIONS.REVIEW_DELETE]: { group: "Content", description: "Delete customer reviews" },
 };
 
 /** Built-in role names. Seeded with isSystem = true so they cannot be deleted. */
@@ -173,6 +189,13 @@ export const DEFAULT_ROLE_PERMISSIONS: Record<string, readonly string[]> = {
     PERMISSIONS.RESERVATION_UPDATE,
     PERMISSIONS.SETTINGS_READ,
     PERMISSIONS.SETTINGS_UPDATE,
+    // The welcome page is marketing, which is the manager's job, not the
+    // super admin's.
+    PERMISSIONS.CONTENT_UPDATE,
+    PERMISSIONS.REVIEW_READ,
+    PERMISSIONS.REVIEW_CREATE,
+    PERMISSIONS.REVIEW_UPDATE,
+    PERMISSIONS.REVIEW_DELETE,
   ],
 
   // Kitchen display only: sees orders and advances their status.

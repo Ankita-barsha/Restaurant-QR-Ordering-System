@@ -23,6 +23,7 @@ import {
   revenuePeriodSchema,
   resetPasswordSchema,
   setRolePermissionsSchema,
+  topItemsQuerySchema,
   updateCustomerSchema,
   updateRoleSchema,
   updateSettingsSchema,
@@ -201,7 +202,7 @@ router.get(
 router.get(
   "/reports/top-items",
   authorize(PERMISSIONS.REPORT_VIEW),
-  validate({ query: reportQuerySchema }),
+  validate({ query: topItemsQuerySchema }),
   admin.topItems
 );
 

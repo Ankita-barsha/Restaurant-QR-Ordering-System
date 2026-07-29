@@ -16,6 +16,7 @@ import type {
   CreateUserInput,
   CustomerListQuery,
   ReportQuery,
+  TopItemsQuery,
   UpdateCustomerInput,
   UpdateRoleInput,
   UpdateSettingsInput,
@@ -205,9 +206,9 @@ export const revenueBreakdown: RequestHandler = async (req, res) => {
 };
 
 export const topItems: RequestHandler = async (req, res) => {
-  const { from, to } = req.validatedQuery as ReportQuery;
+  const query = req.validatedQuery as TopItemsQuery;
 
-  res.json({ success: true, data: await reportService.getTopSellingItems(from, to) });
+  res.json({ success: true, data: await reportService.getTopSellingItems(query) });
 };
 
 export const statusBreakdown: RequestHandler = async (req, res) => {

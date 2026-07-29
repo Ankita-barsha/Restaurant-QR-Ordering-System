@@ -13,6 +13,7 @@
 import { useCallback, useEffect, useMemo, useState, type ReactNode } from "react";
 
 import { fromMinor, sumLinesMinor } from "../lib/money";
+import { effectivePrice, strikethroughPrice } from "../lib/offer";
 import type { Food, ScannedTable } from "../types/api";
 import { CartContext, type CartItem } from "./cart";
 
@@ -81,7 +82,12 @@ export const CartProvider = ({ children }: { children: ReactNode }) => {
         {
           foodId: food.id,
           name: food.name,
-          price: food.price,
+          // The price the diner is actually charged. Storing the LIST price
+          // here would quote a basket above what the server bills for it, and
+          // the difference would be exactly the discount the menu advertised.
+          price: effectivePrice(food),
+          // Kept alongside so the cart can show what was struck through.
+          listPrice: strikethroughPrice(food),
           imageUrl: food.imageUrl,
           quantity: 1,
         },

@@ -62,8 +62,8 @@ The super admin is whatever you set as `SEED_ADMIN_EMAIL` / `SEED_ADMIN_PASSWORD
 |---|---|---|
 | Customer | `/t/:token` | Scan, see the table number, browse, order, track live |
 | Chef | `/kitchen` | Four-column display, one tap per status, tickets age visibly |
-| Staff | `/staff` | Advance orders, mark paid, assist at the table |
-| Admin | `/admin` | Revenue, live counts, best sellers, menu, tables, QR |
+| Staff | `/staff` | Advance orders, mark paid, print invoices, assist at the table |
+| Admin | `/admin` | Revenue, live counts, highest sellers, menu, tables, QR, welcome-page content |
 | Super admin | `/admin/users` … | Staff accounts, roles, permissions, audit trail |
 
 Open four browser tabs and place an order in the first — the other three update
@@ -81,7 +81,7 @@ Controllers stay thin: read the request, call a service, shape the response.
 Services hold the rules and never touch `req` or `res`, which is what makes
 them reusable from a socket handler or a script.
 
-**Backend** — 63 endpoints, 13 tables, 35 permissions
+**Backend** — 92 endpoints, 19 tables, 42 permissions
 
 ```
 server/src
@@ -116,6 +116,14 @@ client/src
 **Prices come from the database, always.** The client sends food ids and
 quantities — never a price or a total. A tampered cart changes nothing.
 
+**An offer price is derived, never posted.** A dish carries its list price and
+a discount (a percentage or an amount); the server computes what it sells for
+and stores that. The admin form previews the same figure while it is typed,
+using the same rounding, so what the manager sees, what the menu advertises
+and what `POST /orders` bills are one number arrived at three times. Accepting
+an `offerPrice` from a client would be the "change the price in DevTools"
+vulnerability wearing a discount.
+
 **Order items snapshot their price and name.** Changing the menu tomorrow must
 not rewrite what a customer was charged last week.
 
@@ -125,10 +133,22 @@ not rewrite what a customer was charged last week.
 **An order number is an identifier, never a credential.** Because it comes
 from a sequence, anyone can walk it. So every order also carries a
 `trackingToken` — 32 random bytes, handed to the diner exactly once in the
-response to placing the order. The public tracking page, the pickup code and
-the online payment flow are all keyed on the token; the order number is only
-for reading aloud. Keying any of them on the number would have let a stranger
-count upwards and collect other people's pickup codes.
+response to placing the order. The public tracking page, the invoice and the
+online payment flow are all keyed on the token; the order number is only for
+reading aloud. Keying any of them on the number would have let a stranger
+count upwards and read other people's bills.
+
+**The welcome page is data, not markup.** Its copy lives in a single-row
+`site_content` table, its recommendations are whichever dishes are flagged
+`isFeatured`, and its testimonials are rows an admin publishes. Every content
+field is nullable and the page falls back to built-in wording, so a restaurant
+that never opens the content screen still gets a finished page — and clearing
+a field restores that wording rather than leaving a hole.
+
+**An invoice restates what was charged.** Every figure on it comes from the
+order's own stored columns and its line-item snapshots, never from the live
+menu or the current tax rate — which is what lets a reprint years later
+reproduce the original bill after the dish has been renamed and repriced.
 
 **Routes name capabilities, not roles.** `authorize("order:update")`, never
 `authorize("ADMIN")`. A new role is a data change in the admin UI — no code,
@@ -176,7 +196,7 @@ With the server running:
 | **http://localhost:5000/api/docs/openapi.json** | the raw OpenAPI 3.1 document |
 | [`server/openapi.json`](server/openapi.json) | the same document, committed — import it into Postman or generate a client |
 
-82 operations across 10 tags. Every one states the permission it needs, so the
+92 operations across 11 tags. Every one states the permission it needs, so the
 docs answer "who can call this?" without opening the route files.
 
 Request shapes are **generated from the Zod schemas the server validates with**,
@@ -196,8 +216,8 @@ protected route is behind a token and a permission either way.
 ## Tests
 
 ```bash
-cd server && npm test     # money, trading-day calendar, error mapping, state machine
-cd client && npm test     # the cart quote, staff landing routes
+cd server && npm test     # money, offers, trading-day calendar, error mapping, state machine
+cd client && npm test     # the cart quote, offer pricing, staff landing routes
 ```
 
 Both suites are pure logic and need no database, so they run in about a second

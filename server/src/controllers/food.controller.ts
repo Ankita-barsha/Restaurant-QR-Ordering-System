@@ -96,3 +96,20 @@ export const toggleAvailability: RequestHandler<
     data: food,
   });
 };
+
+/** PATCH /api/foods/:id/featured */
+export const toggleFeatured: RequestHandler<
+  IdParams,
+  unknown,
+  { isFeatured: boolean }
+> = async (req, res) => {
+  const food = await foodService.setFeatured(req.params.id, req.body.isFeatured);
+
+  res.json({
+    success: true,
+    message: req.body.isFeatured
+      ? "Added to the chef's recommendations"
+      : "Removed from the chef's recommendations",
+    data: food,
+  });
+};

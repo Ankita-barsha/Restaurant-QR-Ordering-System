@@ -31,6 +31,7 @@ const NAV_ITEMS: NavItem[] = [
   { to: "/staff", label: "Orders", permission: "order:read" },
   { to: "/admin/reservations", label: "Bookings", permission: "reservation:read" },
   { to: "/admin/menu", label: "Menu", permission: "food:read" },
+  { to: "/admin/content", label: "Content", permission: "content:update" },
   { to: "/admin/tables", label: "Tables", permission: "table:read" },
   { to: "/admin/users", label: "Staff", permission: "user:read" },
   { to: "/admin/roles", label: "Roles", permission: "role:read" },
@@ -106,66 +107,88 @@ const StaffLayout = () => {
 
   return (
     <div className="min-h-screen bg-obsidian">
+      {/**
+       * Two rows on a phone, one on a laptop.
+       *
+       * Seven things shared a single flex row — wordmark, nav, bell, live
+       * badge, name, role, sign-out — and below about 700px they simply ran
+       * out of width: the nav lost its scroll room, the wordmark truncated to
+       * nothing and "Sign out" was pushed off the right edge. Splitting the
+       * identity strip from the navigation gives the nav the FULL width to
+       * scroll in, which is what it needs on the device it is most used on.
+       */}
       <header className="sticky top-0 z-40 border-b border-smoke bg-obsidian/90 backdrop-blur-xl">
-        <div className="mx-auto flex max-w-[1600px] items-center gap-5 px-5 py-3">
-          <span className="font-display shrink-0 text-xl tracking-wide text-ivory">
+        <div className="mx-auto flex max-w-[1600px] flex-wrap items-center gap-x-4 gap-y-2 px-3 py-2.5 sm:px-5 sm:py-3 lg:flex-nowrap lg:gap-5">
+          <span className="font-display shrink-0 text-lg tracking-wide text-ivory sm:text-xl">
             Bite me Bistro
           </span>
 
-          <nav className="flex flex-1 gap-1 overflow-x-auto [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
-            {visibleNav.map(
-              (item) => (
-                <NavLink
-                  key={item.to}
-                  to={item.to}
-                  end={item.to === "/admin"}
-                  className={({ isActive }) =>
-                    `shrink-0 rounded-lg px-3 py-1.5 text-[11px] uppercase tracking-[0.16em] transition-colors duration-300 ${
-                      isActive
-                        ? "bg-gold/10 text-gold"
-                        : "text-ivory-faint hover:text-ivory"
-                    }`
-                  }
-                >
-                  {item.label}
-                </NavLink>
-              )
-            )}
-          </nav>
+          {/* Pushed to the far right of row one on small screens; inline from
+              lg. `order` keeps the DOM order sensible for screen readers. */}
+          <div className="ml-auto flex shrink-0 items-center gap-3 lg:order-last lg:ml-0">
+            <NotificationBell />
 
-          <NotificationBell />
-
-          <span
-            className={`flex shrink-0 items-center gap-1.5 text-[10px] uppercase tracking-[0.18em] ${
-              connected ? "text-gold" : "text-ember"
-            }`}
-          >
             <span
-              className={`h-1.5 w-1.5 rounded-full ${
-                connected ? "animate-pulse bg-gold" : "bg-ember"
+              className={`flex shrink-0 items-center gap-1.5 text-[10px] uppercase tracking-[0.18em] ${
+                connected ? "text-gold" : "text-ember"
               }`}
-            />
-            {connected ? "Live" : "Offline"}
-          </span>
+            >
+              <span
+                className={`h-1.5 w-1.5 rounded-full ${
+                  connected ? "animate-pulse bg-gold" : "bg-ember"
+                }`}
+              />
+              {/* The word is redundant next to the dot on a narrow screen. */}
+              <span className="hidden xs:inline">
+                {connected ? "Live" : "Offline"}
+              </span>
+            </span>
 
-          <div className="hidden shrink-0 text-right sm:block">
-            <p className="text-[13px] text-ivory">{user?.fullName}</p>
-            <p className="text-[10px] uppercase tracking-[0.16em] text-ivory-faint">
-              {user?.role.name}
-            </p>
+            <div className="hidden shrink-0 text-right sm:block">
+              <p className="text-[13px] leading-tight text-ivory">
+                {user?.fullName}
+              </p>
+              <p className="text-[10px] uppercase tracking-[0.16em] text-ivory-faint">
+                {user?.role.name}
+              </p>
+            </div>
+
+            <button
+              type="button"
+              onClick={() => void handleLogout()}
+              className="flex min-h-11 shrink-0 items-center text-[10px] uppercase tracking-[0.18em] text-ivory-faint transition-colors hover:text-gold"
+            >
+              Sign out
+            </button>
           </div>
 
-          <button
-            type="button"
-            onClick={() => void handleLogout()}
-            className="shrink-0 text-[10px] uppercase tracking-[0.18em] text-ivory-faint transition-colors hover:text-gold"
-          >
-            Sign out
-          </button>
+          {/* Full width on its own row below lg, so a long nav has somewhere
+              to scroll. The negative margin lets the first and last items sit
+              flush with the page gutter while still scrolling edge to edge. */}
+          <nav className="-mx-3 flex w-[calc(100%+1.5rem)] gap-1 overflow-x-auto px-3 pb-0.5 [scrollbar-width:none] sm:-mx-5 sm:w-[calc(100%+2.5rem)] sm:px-5 lg:mx-0 lg:w-auto lg:flex-1 lg:px-0 lg:pb-0 [&::-webkit-scrollbar]:hidden">
+            {visibleNav.map((item) => (
+              <NavLink
+                key={item.to}
+                to={item.to}
+                end={item.to === "/admin"}
+                className={({ isActive }) =>
+                  `flex min-h-9 shrink-0 items-center rounded-lg px-3 text-[11px] uppercase tracking-[0.16em] transition-colors duration-300 ${
+                    isActive
+                      ? "bg-gold/10 text-gold"
+                      : "text-ivory-faint hover:text-ivory"
+                  }`
+                }
+              >
+                {item.label}
+              </NavLink>
+            ))}
+          </nav>
         </div>
       </header>
 
-      <main className={`mx-auto max-w-[1600px] px-5 py-6 ${DARK_OVERRIDES}`}>
+      <main
+        className={`mx-auto max-w-[1600px] px-3 py-5 sm:px-5 sm:py-6 ${DARK_OVERRIDES}`}
+      >
         <Outlet />
       </main>
     </div>
