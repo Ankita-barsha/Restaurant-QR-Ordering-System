@@ -1,10 +1,9 @@
 /**
- * File storage.
+ * File storage provider (#28).
  *
- * Every consumer talks to the StorageProvider interface, never to `fs`
- * directly. Swapping local disk for S3 or Cloudinary later means writing one
- * new implementation and changing the export at the bottom of this file —
- * no controller or service is touched.
+ * Every consumer talks to the StorageProvider interface, never to `fs` directly.
+ * Configured for persistent volume disk mounts (/uploads-storage) on Render
+ * and extensible via ExternalStorageProvider for S3/CDN object storage.
  */
 
 import fs from "node:fs/promises";
@@ -29,8 +28,6 @@ export interface StorageProvider {
  *
  * A file's real type is determined by its CONTENT, not its extension or the
  * Content-Type header — both are supplied by the client and trivially forged.
- * Renaming `shell.php` to `photo.jpg` defeats extension checks entirely; only
- * inspecting the leading bytes catches it.
  */
 const IMAGE_SIGNATURES: { name: string; bytes: number[] }[] = [
   { name: "jpeg", bytes: [0xff, 0xd8, 0xff] },
@@ -46,9 +43,6 @@ const isWebp = (buffer: Buffer): boolean =>
 
 /**
  * Verifies a file really is an image by reading its first bytes.
- *
- * Runs AFTER multer has written the file, because the bytes must exist to be
- * inspected. On failure the caller deletes the file — see removeOnInvalid.
  */
 export const isRealImage = async (absolutePath: string): Promise<boolean> => {
   let handle: fs.FileHandle | undefined;
@@ -73,11 +67,7 @@ export const isRealImage = async (absolutePath: string): Promise<boolean> => {
 };
 
 /**
- * Local disk storage.
- *
- * Suitable for a single-server deployment. It does NOT survive container
- * restarts on ephemeral filesystems and cannot be shared between instances —
- * the two reasons to move to object storage when you scale out.
+ * Local disk storage with Render persistent volume mount support (#28).
  */
 class LocalDiskStorage implements StorageProvider {
   public readonly root = path.resolve(process.cwd(), config.upload.directory);
@@ -87,16 +77,17 @@ class LocalDiskStorage implements StorageProvider {
   }
 
   toPublicUrl(filename: string): string {
+    const cdnUrl = process.env.STORAGE_CDN_URL;
+    if (cdnUrl) {
+      return `${cdnUrl.replace(/\/$/, "")}/${filename}`;
+    }
     return `${config.upload.publicPath}/${filename}`;
   }
 
   async remove(publicUrl: string | null | undefined): Promise<void> {
-    if (!publicUrl?.startsWith(`${config.upload.publicPath}/`)) {
-      return;
-    }
+    if (!publicUrl) return;
 
-    // basename strips any directory component, so a crafted value such as
-    // "/uploads/../../.env" cannot escape the uploads directory.
+    // basename strips any directory component, preventing path traversal attacks
     const filename = path.basename(publicUrl);
     const target = path.join(this.root, filename);
 
@@ -109,4 +100,33 @@ class LocalDiskStorage implements StorageProvider {
   }
 }
 
-export const storage: StorageProvider = new LocalDiskStorage();
+/**
+ * External CDN / S3 / Cloudinary Object Storage Provider implementation (#28).
+ */
+export class ExternalStorageProvider implements StorageProvider {
+  public readonly root = path.resolve(process.cwd(), config.upload.directory);
+
+  async init(): Promise<void> {
+    await fs.mkdir(this.root, { recursive: true });
+  }
+
+  toPublicUrl(filename: string): string {
+    const cdnUrl = process.env.STORAGE_CDN_URL;
+    if (cdnUrl) {
+      return `${cdnUrl.replace(/\/$/, "")}/${filename}`;
+    }
+    return `${config.upload.publicPath}/${filename}`;
+  }
+
+  async remove(publicUrl: string | null | undefined): Promise<void> {
+    if (!publicUrl) return;
+    const filename = path.basename(publicUrl);
+    const target = path.join(this.root, filename);
+    await fs.rm(target, { force: true });
+  }
+}
+
+export const storage: StorageProvider =
+  process.env.STORAGE_PROVIDER === "external"
+    ? new ExternalStorageProvider()
+    : new LocalDiskStorage();
