@@ -102,8 +102,11 @@ const CustomerCart = () => {
    * Still an estimate: prices, availability and the charges themselves are
    * re-read server-side when the order is placed. It is an honest one now.
    */
+  const [includeServiceCharge, setIncludeServiceCharge] = useState(true);
+
   const taxPercent = settingsQuery.data?.taxPercent ?? "0";
-  const servicePercent = settingsQuery.data?.serviceChargePercent ?? "0";
+  const rawServicePercent = settingsQuery.data?.serviceChargePercent ?? "0";
+  const servicePercent = includeServiceCharge ? rawServicePercent : "0";
   const quote = quoteTotals(subtotalMinor, taxPercent, servicePercent);
 
   const currency = settingsQuery.data?.currency;
@@ -124,7 +127,6 @@ const CustomerCart = () => {
   );
 
   const hasTax = toMinor(taxPercent) > 0;
-  const hasService = toMinor(servicePercent) > 0;
 
   return (
     <div className="min-h-screen bg-obsidian pb-44 pt-24 sm:pt-28">
@@ -276,16 +278,22 @@ const CustomerCart = () => {
               </div>
             )}
 
-            {hasService && (
-              <div className="flex justify-between text-ivory-dim">
-                <dt>Service charge ({servicePercent}%)</dt>
-                <dd>{money(quote.serviceCharge)}</dd>
+            {toMinor(rawServicePercent) > 0 && (
+              <div className="flex items-center justify-between text-ivory-dim">
+                <div className="flex items-center gap-2">
+                  <dt>Service charge ({rawServicePercent}%)</dt>
+                  <button
+                    type="button"
+                    onClick={() => setIncludeServiceCharge(!includeServiceCharge)}
+                    className="text-[10px] uppercase tracking-wider text-gold hover:underline"
+                  >
+                    {includeServiceCharge ? "[Remove]" : "[Add back]"}
+                  </button>
+                </div>
+                <dd>{includeServiceCharge ? money(quote.serviceCharge) : "Opted out"}</dd>
               </div>
             )}
 
-            {/* Stated rather than left implicit. The subtotal is already
-                discounted, so without this line the offer the diner chose the
-                dish for is invisible on the bill. */}
             {savedMinor > 0 && (
               <div className="flex justify-between text-ember">
                 <dt>Offer savings</dt>
@@ -304,8 +312,11 @@ const CustomerCart = () => {
           </div>
 
           <p className="mt-3 text-[11px] leading-relaxed text-ivory-faint">
-            Confirmed by the restaurant when your order is placed. Payment is
-            settled at the table.
+            Service charge is voluntary (CCPA guidelines). Payment is settled at the table.
+          </p>
+
+          <p className="mt-2 text-[10px] text-ivory-faint">
+            🔒 <strong>Data Privacy Notice (#35):</strong> Your contact details are stored securely solely to fulfill your order and handle table service. We do not sell your personal data.
           </p>
         </section>
 

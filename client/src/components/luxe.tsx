@@ -22,21 +22,31 @@ const useReveal = <T extends HTMLElement>() => {
     const node = ref.current;
     if (!node) return;
 
+    if (typeof IntersectionObserver === "undefined") {
+      setShown(true);
+      return;
+    }
+
+    // Safety fallback: if IntersectionObserver takes too long or fails to trigger, show content automatically after 400ms
+    const fallbackTimer = setTimeout(() => setShown(true), 400);
+
     const observer = new IntersectionObserver(
       ([entry]) => {
         if (entry.isIntersecting) {
           setShown(true);
+          clearTimeout(fallbackTimer);
           observer.disconnect();
         }
       },
-      // Fires slightly before the element reaches the viewport, so the motion
-      // has finished by the time it is properly in view.
-      { threshold: 0.12, rootMargin: "0px 0px -60px 0px" }
+      { threshold: 0.05, rootMargin: "0px 0px -20px 0px" }
     );
 
     observer.observe(node);
 
-    return () => observer.disconnect();
+    return () => {
+      clearTimeout(fallbackTimer);
+      observer.disconnect();
+    };
   }, []);
 
   return { ref, shown };
@@ -319,7 +329,7 @@ export const PriceTag = ({
 
 /** Gold star rating. */
 export const Stars = ({ rating = 5 }: { rating?: number }) => (
-  <div className="flex gap-1" aria-label={`${rating} out of 5`}>
+  <div className="flex gap-1" aria-label={`${rating} out of 5 stars`} role="img">
     {Array.from({ length: 5 }, (_, index) => (
       <svg
         key={index}
@@ -330,6 +340,7 @@ export const Stars = ({ rating = 5 }: { rating?: number }) => (
         stroke="currentColor"
         strokeWidth="1.2"
         className="text-gold"
+        aria-hidden="true"
       >
         <path d="m12 2 3.09 6.26L22 9.27l-5 4.87 1.18 6.88L12 17.77l-6.18 3.25L7 14.14 2 9.27l6.91-1.01L12 2z" />
       </svg>

@@ -67,10 +67,21 @@ export const errorHandler: ErrorRequestHandler = (err, req, res, _next) => {
 
   const isServerError = statusCode >= 500;
 
-  // Log server errors in full; they are bugs and need the stack. Client errors
-  // are normal traffic and would otherwise flood the logs.
+  // Log server errors in full with structured metadata; client errors log lightweight warnings.
+  const logPayload = {
+    timestamp: new Date().toISOString(),
+    method: req.method,
+    url: req.originalUrl,
+    ip: req.ip,
+    statusCode,
+    message,
+    ...(isServerError && err instanceof Error ? { stack: err.stack } : {}),
+  };
+
   if (isServerError) {
-    console.error(`[${req.method} ${req.originalUrl}]`, err);
+    console.error(`[ERROR_TRACKER] Server Failure:`, JSON.stringify(logPayload));
+  } else if (statusCode === 401 || statusCode === 403) {
+    console.warn(`[SECURITY_EVENT] Authorization Warning:`, JSON.stringify(logPayload));
   }
 
   const body: ErrorResponse = { success: false, message };

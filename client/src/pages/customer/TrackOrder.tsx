@@ -9,7 +9,7 @@
 
 import { useQuery } from "@tanstack/react-query";
 import { useState } from "react";
-import { useNavigate, useParams } from "react-router-dom";
+import { Link, useNavigate, useParams } from "react-router-dom";
 
 import DemoCheckout from "../../components/DemoCheckout";
 import InvoiceSheet from "../../components/InvoiceSheet";
@@ -268,6 +268,29 @@ const TrackOrder = () => {
             </div>
           )}
 
+          {/* Post-service completion card (#22) */}
+          {(order.status === "SERVED" || (order.status as string) === "COMPLETED") && (
+            <div className="mt-6 rounded-luxe border border-gold/30 bg-gold/10 p-5 text-center">
+              <span className="text-3xl">🎉</span>
+              <h3 className="font-display mt-2 text-2xl text-gold">Thank you for dining with us!</h3>
+              <p className="mt-1 text-[13px] text-ivory-dim">
+                Your order is complete. We hope you enjoyed your meal!
+              </p>
+              <div className="mt-4 flex flex-col gap-2">
+                <Link to="/reserve">
+                  <LuxeButton variant="outline" className="w-full text-xs">
+                    Book a Table for Next Time
+                  </LuxeButton>
+                </Link>
+                <Link to="/menu">
+                  <LuxeButton variant="ghost" className="w-full text-xs">
+                    Back to Menu
+                  </LuxeButton>
+                </Link>
+              </div>
+            </div>
+          )}
+
           {/* The diner's own bill — printable, or saveable as a PDF — so they
               never have to ask a member of staff for a copy. */}
           <div className="mt-4">
@@ -276,7 +299,7 @@ const TrackOrder = () => {
               className="w-full"
               onClick={() => setInvoiceOpen(true)}
             >
-              View invoice
+              View tax invoice
             </LuxeButton>
           </div>
         </section>

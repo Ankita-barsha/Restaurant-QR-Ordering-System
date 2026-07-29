@@ -21,6 +21,11 @@ services:
     rootDir: server
     region: singapore
 
+    disk:
+      name: uploads-storage
+      mountPath: /opt/render/project/src/server/uploads
+      sizeGB: 1
+
     # prisma generate must run before tsc: the build imports the generated
     # client, which is gitignored and therefore absent from a fresh checkout.
     buildCommand: npm ci && npx prisma generate && npm run build

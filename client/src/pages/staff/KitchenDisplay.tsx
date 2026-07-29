@@ -11,6 +11,7 @@
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useEffect, useState } from "react";
 
+import { KitchenTicketPrint } from "../../components/KitchenTicketPrint";
 import { Button, EmptyState, ErrorBox, Spinner } from "../../components/ui";
 import { queryKeys } from "../../hooks/useLiveOrders";
 import { api, getErrorMessage, unwrap } from "../../lib/api";
@@ -97,10 +98,12 @@ const CookTimer = ({ order }: { order: Order }) => {
 const Ticket = ({
   order,
   onAdvance,
+  onPrintKOT,
   isUpdating,
 }: {
   order: Order;
   onAdvance: (id: string, next: OrderStatus) => void;
+  onPrintKOT: (order: Order) => void;
   isUpdating: boolean;
 }) => {
   const action = NEXT_ACTION[order.status];
@@ -143,21 +146,31 @@ const Ticket = ({
         </p>
       )}
 
-      {action && (
+      <div className="mt-3 flex gap-2">
+        {action && (
+          <Button
+            onClick={() => onAdvance(order.id, action.next)}
+            disabled={isUpdating}
+            className="flex-1"
+          >
+            {action.label}
+          </Button>
+        )}
         <Button
-          onClick={() => onAdvance(order.id, action.next)}
-          disabled={isUpdating}
-          className="mt-3 w-full"
+          variant="secondary"
+          onClick={() => onPrintKOT(order)}
+          className="shrink-0 text-xs px-2.5"
         >
-          {action.label}
+          🖨️ KOT
         </Button>
-      )}
+      </div>
     </article>
   );
 };
 
 const KitchenDisplay = () => {
   const queryClient = useQueryClient();
+  const [kotOrder, setKotOrder] = useState<Order | null>(null);
 
   const queueQuery = useQuery({
     queryKey: queryKeys.kitchen,
@@ -237,6 +250,7 @@ const KitchenDisplay = () => {
                         key={order.id}
                         order={order}
                         onAdvance={(id, next) => advance.mutate({ id, next })}
+                        onPrintKOT={(ord) => setKotOrder(ord)}
                         isUpdating={advance.isPending}
                       />
                     ))
@@ -246,6 +260,10 @@ const KitchenDisplay = () => {
             );
           })}
         </div>
+      )}
+
+      {kotOrder && (
+        <KitchenTicketPrint order={kotOrder} onClose={() => setKotOrder(null)} />
       )}
     </div>
   );
