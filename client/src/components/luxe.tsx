@@ -234,12 +234,14 @@ export const LuxeError = ({
 /** Veg / non-veg marker, as used on Indian menus. */
 export const DietMark = ({ vegetarian }: { vegetarian: boolean }) => (
   <span
+    role="img"
     aria-label={vegetarian ? "Vegetarian" : "Non-vegetarian"}
     className={`inline-flex h-3.5 w-3.5 shrink-0 items-center justify-center border ${
       vegetarian ? "border-emerald-500/70" : "border-ember/80"
     }`}
   >
     <span
+      aria-hidden="true"
       className={`h-1.5 w-1.5 rounded-full ${
         vegetarian ? "bg-emerald-500" : "bg-ember"
       }`}
