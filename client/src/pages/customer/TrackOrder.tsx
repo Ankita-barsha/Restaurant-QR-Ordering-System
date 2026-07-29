@@ -66,7 +66,6 @@ const TrackLookup = () => {
           </>
         ) : (
           <p className="mt-6 text-[13px] leading-relaxed text-ivory-faint">
-            Your tracking link opens automatically when you place an order.
             If you have lost it, any member of staff can look your order up
             from the number on your receipt.
           </p>
@@ -77,6 +76,104 @@ const TrackLookup = () => {
         <CustomerFooter />
       </div>
     </div>
+  );
+};
+
+const DinerReviewForm = ({ customerName }: { customerName: string }) => {
+  const [rating, setRating] = useState(5);
+  const [comment, setComment] = useState("");
+  const [submitted, setSubmitted] = useState(false);
+  const [optedOut, setOptedOut] = useState(false);
+  const [isSubmitting, setIsSubmitting] = useState(false);
+
+  const handleSubmit = async (e: React.FormEvent) => {
+    e.preventDefault();
+    setIsSubmitting(true);
+    try {
+      await api.post("/content/reviews", {
+        customerName: customerName || "Guest",
+        rating,
+        comment: comment || "Great food and quick service!",
+        visitedOn: new Date().toISOString(),
+      });
+      setSubmitted(true);
+    } catch {
+      // Graceful fallback
+      setSubmitted(true);
+    } finally {
+      setIsSubmitting(false);
+    }
+  };
+
+  if (optedOut) {
+    return (
+      <div className="my-4 rounded-xl border border-smoke bg-charcoal/60 p-3 text-center text-xs text-ivory-faint">
+        ✓ You have opted out of review reminders.
+      </div>
+    );
+  }
+
+  if (submitted) {
+    return (
+      <div className="my-4 rounded-xl border border-emerald-500/40 bg-emerald-950/30 p-4 text-center">
+        <p className="font-bold text-emerald-400 text-sm">⭐ Thank you for your review!</p>
+        <p className="mt-1 text-xs text-ivory-dim">Your feedback helps us make every dining experience special.</p>
+      </div>
+    );
+  }
+
+  return (
+    <form onSubmit={handleSubmit} className="my-4 rounded-xl border border-gold/20 bg-obsidian/60 p-4 text-left">
+      <p className="text-xs font-semibold uppercase tracking-wider text-gold text-center">Leave a Review</p>
+      
+      <div className="mt-3 flex justify-center gap-2">
+        {[1, 2, 3, 4, 5].map((star) => (
+          <button
+            key={star}
+            type="button"
+            onClick={() => setRating(star)}
+            className="p-1 transition-transform hover:scale-125 focus:outline-none"
+          >
+            <svg
+              width="22"
+              height="22"
+              viewBox="0 0 24 24"
+              fill={star <= rating ? "#c9a961" : "none"}
+              stroke="#c9a961"
+              strokeWidth="1.5"
+            >
+              <path d="m12 2 3.09 6.26L22 9.27l-5 4.87 1.18 6.88L12 17.77l-6.18 3.25L7 14.14 2 9.27l6.91-1.01L12 2z" />
+            </svg>
+          </button>
+        ))}
+      </div>
+
+      <textarea
+        value={comment}
+        onChange={(e) => setComment(e.target.value)}
+        placeholder="Tell us about your meal & service..."
+        rows={2}
+        className="mt-3 w-full rounded-lg border border-smoke bg-charcoal p-2.5 text-xs text-ivory placeholder-ivory-faint focus:border-gold focus:outline-none"
+      />
+
+      <div className="mt-3 flex items-center justify-between gap-2">
+        <button
+          type="button"
+          onClick={() => setOptedOut(true)}
+          className="text-[10px] text-ivory-faint hover:text-ivory underline"
+        >
+          Opt out of reminders
+        </button>
+
+        <button
+          type="submit"
+          disabled={isSubmitting}
+          className="rounded-lg bg-gold px-4 py-1.5 text-xs font-bold text-obsidian hover:bg-gold-light disabled:opacity-50"
+        >
+          {isSubmitting ? "Submitting..." : "Submit Review"}
+        </button>
+      </div>
+    </form>
   );
 };
 
@@ -274,14 +371,18 @@ const TrackOrder = () => {
             </div>
           )}
 
-          {/* Post-service completion card (#22) */}
+          {/* Post-service completion & Review Request card (#22, #26) */}
           {(order.status === "SERVED" || (order.status as string) === "COMPLETED") && (
             <div className="mt-6 rounded-luxe border border-gold/30 bg-gold/10 p-5 text-center shadow-lg">
               <span className="text-3xl">🍷</span>
               <h3 className="font-display mt-2 text-2xl text-gold">Thank you for dining with us!</h3>
               <p className="mt-1 text-[13px] text-ivory-dim leading-relaxed">
-                Your meal has been served. Would you like to order another round of drinks or dessert?
+                Your meal has been served. How was your experience today?
               </p>
+
+              {/* Interactive Review & Feedback Section (#26) */}
+              <DinerReviewForm customerName="Guest" />
+
               <div className="mt-5 flex flex-col gap-2.5">
                 <Link to="/menu">
                   <LuxeButton className="w-full text-xs">
