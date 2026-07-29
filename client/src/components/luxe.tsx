@@ -142,7 +142,7 @@ export const LuxeButton = ({
   form?: string;
 }) => {
   const base =
-    "group relative inline-flex items-center justify-center gap-2.5 overflow-hidden px-8 py-3.5 text-[11px] font-normal uppercase tracking-[0.2em] transition-all duration-500 ease-[cubic-bezier(0.22,1,0.36,1)] disabled:cursor-not-allowed disabled:opacity-45";
+    "group relative inline-flex items-center justify-center gap-2.5 overflow-hidden px-8 py-3.5 text-[12px] font-medium uppercase tracking-[0.18em] transition-all duration-500 ease-[cubic-bezier(0.22,1,0.36,1)] disabled:cursor-not-allowed disabled:opacity-45";
 
   const variants = {
     gold: "bg-gold text-obsidian hover:bg-gold-light hover:shadow-[0_18px_40px_-18px_rgba(201,169,97,0.55)]",

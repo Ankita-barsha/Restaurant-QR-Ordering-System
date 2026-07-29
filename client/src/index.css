@@ -30,7 +30,7 @@
   /* Warm off-whites — pure #fff on near-black vibrates */
   --color-ivory: #f6f3ed;
   --color-ivory-dim: #b8b3a8;
-  --color-ivory-faint: #7d7a73;
+  --color-ivory-faint: #9e9a90;
 
   --color-ember: #c2683c;
 
@@ -71,7 +71,7 @@
     background: var(--color-obsidian);
     color: var(--color-ivory);
     font-family: var(--font-body);
-    font-weight: 300;
+    font-weight: 400;
     letter-spacing: 0.01em;
     -webkit-font-smoothing: antialiased;
     text-rendering: optimizeLegibility;
