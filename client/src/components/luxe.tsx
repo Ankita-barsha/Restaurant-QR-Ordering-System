@@ -8,11 +8,10 @@
 import { useEffect, useRef, useState, type ReactNode } from "react";
 
 /**
- * Reveals a section as it scrolls into view.
+ * Scroll-triggered entrance animation.
  *
- * IntersectionObserver rather than a scroll listener: the browser does the
- * work off the main thread, so a long page stays smooth on a phone.
- * `once` is the default because re-animating on every pass is distracting.
+ * Reveals children with a slow upward rise as they scroll into view.
+ * Immediately reveals elements already in initial viewport, on print, or when reduced motion is requested. (#23)
  */
 const useReveal = <T extends HTMLElement>() => {
   const ref = useRef<T>(null);
@@ -22,13 +21,24 @@ const useReveal = <T extends HTMLElement>() => {
     const node = ref.current;
     if (!node) return;
 
-    if (typeof IntersectionObserver === "undefined") {
+    if (
+      typeof IntersectionObserver === "undefined" ||
+      (typeof window !== "undefined" &&
+        window.matchMedia("(prefers-reduced-motion: reduce)").matches)
+    ) {
       const timer = setTimeout(() => setShown(true), 0);
       return () => clearTimeout(timer);
     }
 
-    // Safety fallback: if IntersectionObserver takes too long or fails to trigger, show content automatically after 400ms
-    const fallbackTimer = setTimeout(() => setShown(true), 400);
+    // Immediately reveal if element is inside initial viewport to prevent flash/flicker on load
+    const rect = node.getBoundingClientRect();
+    if (rect.top < window.innerHeight && rect.bottom > 0) {
+      const timer = setTimeout(() => setShown(true), 0);
+      return () => clearTimeout(timer);
+    }
+
+    // Safety fallback: if IntersectionObserver fails to trigger, reveal content after 300ms
+    const fallbackTimer = setTimeout(() => setShown(true), 300);
 
     const observer = new IntersectionObserver(
       ([entry]) => {
@@ -67,7 +77,7 @@ export const Reveal = ({
     <div
       ref={ref}
       style={{ transitionDelay: `${delay}ms` }}
-      className={`transition-all duration-[900ms] ease-[cubic-bezier(0.22,1,0.36,1)] ${
+      className={`transition-all duration-[900ms] ease-[cubic-bezier(0.22,1,0.36,1)] print:!opacity-100 print:!translate-y-0 ${
         shown ? "translate-y-0 opacity-100" : "translate-y-8 opacity-0"
       } ${className}`}
     >
