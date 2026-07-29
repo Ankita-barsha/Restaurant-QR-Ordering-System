@@ -71,6 +71,7 @@ const CustomerCart = () => {
       // navigating so a reload or a closed tab can still find the order —
       // there is no way to look it up again from the order number.
       sessionStorage.setItem(LAST_ORDER_KEY, order.trackingToken);
+      localStorage.setItem(LAST_ORDER_KEY, order.trackingToken);
 
       navigate(`/track/${order.trackingToken}`);
     },

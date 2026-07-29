@@ -661,15 +661,8 @@ const Landing = () => {
               <Link to="/reserve" className="block hover:text-gold">
                 Reserve a table
               </Link>
-              <Link to="/login" className="block hover:text-gold">
-                Staff sign in
-              </Link>
             </div>
           </div>
-        </div>
-
-        <div className="px-6 pb-6">
-          <MonkDeveloperBrand variant="banner" />
         </div>
 
         <div className="border-t border-smoke px-6 py-7 flex flex-col items-center gap-3">

@@ -1,18 +1,17 @@
 /**
- * Shared UI primitives.
+ * Shared UI Primitives — Unified Dark Design System for Staff Screens (#18)
  *
- * Small, unstyled-by-default building blocks so every screen looks like one
- * system without a component library.
+ * Provides theme-consistent building blocks for all staff screens, aligning
+ * with the dark obsidian/charcoal shell and gold/amber accents.
  */
 
 import type { ReactNode } from "react";
-
 import type { OrderStatus } from "../types/api";
 
 export const Spinner = ({ label = "Loading" }: { label?: string }) => (
-  <div className="flex items-center justify-center gap-3 py-12 text-slate-500">
-    <span className="h-5 w-5 animate-spin rounded-full border-2 border-slate-300 border-t-orange-500" />
-    <span className="text-sm">{label}…</span>
+  <div className="flex items-center justify-center gap-3 py-12 text-ivory-dim">
+    <span className="h-5 w-5 animate-spin rounded-full border-2 border-smoke border-t-amber-500" />
+    <span className="text-sm font-medium">{label}…</span>
   </div>
 );
 
@@ -23,13 +22,13 @@ export const ErrorBox = ({
   message: string;
   onRetry?: () => void;
 }) => (
-  <div className="rounded-xl border border-red-200 bg-red-50 p-4 text-sm text-red-700">
+  <div className="rounded-xl border border-red-500/40 bg-red-950/40 p-4 text-sm text-red-300 shadow-lg">
     <p className="font-medium">{message}</p>
     {onRetry && (
       <button
         type="button"
         onClick={onRetry}
-        className="mt-2 rounded-lg bg-red-600 px-3 py-1.5 text-xs font-semibold text-white hover:bg-red-700"
+        className="mt-2 rounded-lg bg-red-600 px-3 py-1.5 text-xs font-semibold text-white transition hover:bg-red-700"
       >
         Try again
       </button>
@@ -46,21 +45,21 @@ export const EmptyState = ({
   hint?: string;
   icon?: ReactNode;
 }) => (
-  <div className="flex flex-col items-center justify-center gap-2 rounded-xl border border-dashed border-slate-300 py-14 text-center">
+  <div className="flex flex-col items-center justify-center gap-2 rounded-xl border border-dashed border-smoke bg-charcoal/40 py-14 text-center">
     {icon}
-    <p className="font-medium text-slate-700">{title}</p>
-    {hint && <p className="max-w-sm text-sm text-slate-500">{hint}</p>}
+    <p className="font-semibold text-ivory">{title}</p>
+    {hint && <p className="max-w-sm text-sm text-ivory-dim">{hint}</p>}
   </div>
 );
 
-/** Colour-codes an order status consistently everywhere it appears. */
+/** Colour-codes an order status consistently everywhere it appears in dark mode. */
 const STATUS_STYLES: Record<OrderStatus, string> = {
-  PENDING: "bg-amber-100 text-amber-800 ring-amber-200",
-  CONFIRMED: "bg-blue-100 text-blue-800 ring-blue-200",
-  PREPARING: "bg-orange-100 text-orange-800 ring-orange-200",
-  READY: "bg-emerald-100 text-emerald-800 ring-emerald-200",
-  SERVED: "bg-slate-100 text-slate-600 ring-slate-200",
-  CANCELLED: "bg-red-100 text-red-700 ring-red-200",
+  PENDING: "bg-amber-500/15 text-amber-300 ring-amber-500/30",
+  CONFIRMED: "bg-blue-500/15 text-blue-300 ring-blue-500/30",
+  PREPARING: "bg-orange-500/15 text-orange-300 ring-orange-500/30",
+  READY: "bg-emerald-500/15 text-emerald-300 ring-emerald-500/30",
+  SERVED: "bg-slate-500/15 text-slate-300 ring-slate-500/30",
+  CANCELLED: "bg-red-500/15 text-red-300 ring-red-500/30",
 };
 
 export const StatusBadge = ({ status }: { status: OrderStatus }) => (
@@ -75,7 +74,7 @@ export const StatusBadge = ({ status }: { status: OrderStatus }) => (
 export const ConnectionDot = ({ connected }: { connected: boolean }) => (
   <span
     className={`inline-flex items-center gap-1.5 rounded-full px-2.5 py-1 text-xs font-medium ${
-      connected ? "bg-emerald-50 text-emerald-700" : "bg-red-50 text-red-700"
+      connected ? "bg-emerald-500/10 text-emerald-400" : "bg-red-500/10 text-red-400"
     }`}
   >
     <span
@@ -103,11 +102,12 @@ export const Button = ({
   className?: string;
 }) => {
   const variants = {
-    primary: "bg-orange-500 text-white hover:bg-orange-600 disabled:bg-orange-300",
+    primary:
+      "bg-gradient-to-r from-amber-500 to-orange-500 text-obsidian font-bold hover:brightness-110 disabled:opacity-50 shadow-md",
     secondary:
-      "bg-white text-slate-700 ring-1 ring-slate-300 hover:bg-slate-50 disabled:text-slate-400",
-    danger: "bg-red-600 text-white hover:bg-red-700 disabled:bg-red-300",
-    ghost: "text-slate-600 hover:bg-slate-100",
+      "border border-smoke bg-graphite text-ivory hover:bg-charcoal disabled:text-ivory-faint",
+    danger: "bg-red-600 text-white hover:bg-red-700 disabled:opacity-50",
+    ghost: "text-ivory-dim hover:bg-graphite hover:text-ivory",
   };
 
   return (
@@ -129,7 +129,7 @@ export const Card = ({
   children: ReactNode;
   className?: string;
 }) => (
-  <div className={`rounded-2xl border border-slate-200 bg-white p-4 sm:p-5 ${className}`}>
+  <div className={`rounded-2xl border border-smoke/70 bg-charcoal p-4 sm:p-5 text-ivory shadow-lg ${className}`}>
     {children}
   </div>
 );

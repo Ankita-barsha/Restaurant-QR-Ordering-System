@@ -53,37 +53,6 @@ const ROLE_NAV_LOCK: Record<string, string[]> = {
   STAFF: ["/serve"],
 };
 
-/**
- * Scoped light-to-dark remapping.
- *
- * The staff screens were written against a light palette. Rather than
- * rewriting ten files of Tailwind classes — and risking a missed one showing
- * as a white block on black — the handful of light tokens they use are
- * remapped here. Colour stays in one place and each screen's markup stays
- * readable.
- */
-const DARK_OVERRIDES = [
-  "[&_.bg-white]:!bg-charcoal",
-  "[&_.bg-slate-50]:!bg-graphite",
-  "[&_.bg-slate-100]:!bg-graphite",
-  "[&_.border-slate-100]:!border-smoke",
-  "[&_.border-slate-200]:!border-smoke",
-  "[&_.border-slate-300]:!border-smoke",
-  "[&_.divide-slate-100]:!divide-smoke",
-  "[&_.text-slate-900]:!text-ivory",
-  "[&_.text-slate-800]:!text-ivory",
-  "[&_.text-slate-700]:!text-ivory-dim",
-  "[&_.text-slate-600]:!text-ivory-dim",
-  "[&_.text-slate-500]:!text-ivory-faint",
-  "[&_.text-slate-400]:!text-ivory-faint",
-  "[&_input]:!bg-graphite",
-  "[&_input]:!text-ivory",
-  "[&_select]:!bg-graphite",
-  "[&_select]:!text-ivory",
-  "[&_textarea]:!bg-graphite",
-  "[&_textarea]:!text-ivory",
-].join(" ");
-
 const StaffLayout = () => {
   const { user, logout, can } = useAuth();
   const navigate = useNavigate();
@@ -188,7 +157,7 @@ const StaffLayout = () => {
       </header>
 
       <main
-        className={`mx-auto max-w-[1600px] px-3 py-5 sm:px-5 sm:py-6 ${DARK_OVERRIDES}`}
+        className="mx-auto max-w-[1600px] px-3 py-5 sm:px-5 sm:py-6 text-ivory"
       >
         <Outlet />
       </main>

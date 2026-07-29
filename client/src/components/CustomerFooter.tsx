@@ -1,7 +1,7 @@
 /**
  * Global Customer Footer Component
  * Included across all diner-facing screens (/menu, /reserve, /cart, /track, /scan)
- * Features restaurant information and MONK DEVELOPER orange branding.
+ * Features restaurant information and subtle MONK DEVELOPER orange branding.
  */
 
 import React from "react";
@@ -52,13 +52,8 @@ export const CustomerFooter: React.FC = () => {
             <Link to="/menu" className="hover:text-gold transition-colors">Menu</Link>
             <Link to="/reserve" className="hover:text-gold transition-colors">Reserve Table</Link>
             <Link to="/welcome" className="hover:text-gold transition-colors">About Us</Link>
-            <Link to="/login" className="hover:text-gold transition-colors">Staff Login</Link>
           </div>
         </div>
-      </div>
-
-      <div className="px-4 pb-6">
-        <MonkDeveloperBrand variant="banner" />
       </div>
 
       <div className="border-t border-smoke/70 px-4 py-6 text-center flex flex-col sm:flex-row items-center justify-between max-w-7xl mx-auto gap-4">

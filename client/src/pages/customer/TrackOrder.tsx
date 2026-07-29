@@ -8,7 +8,7 @@
  */
 
 import { useQuery } from "@tanstack/react-query";
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { Link, useNavigate, useParams } from "react-router-dom";
 
 import CustomerFooter from "../../components/CustomerFooter";
@@ -33,26 +33,20 @@ const STEPS: { status: OrderStatus; label: string; hint: string }[] = [
   { status: "SERVED", label: "Served", hint: "Enjoy your meal" },
 ];
 
-/**
- * Landing for /track with no token in the URL.
- *
- * There is deliberately no "type your order number" form here any more. An
- * order number identifies an order but does not prove you placed it, and this
- * page shows the bill — so tracking is authorised by the tracking token
- * instead, which the diner receives once when they order.
- *
- * The token is remembered in sessionStorage so that closing the tab, hitting
- * back, or reloading still recovers the order. sessionStorage rather than
- * localStorage for the same reason the table session uses it: the next diner
- * on a shared device must not inherit it.
- */
 const TrackLookup = () => {
   const navigate = useNavigate();
-  const lastToken = sessionStorage.getItem(LAST_ORDER_KEY);
+  const lastToken =
+    sessionStorage.getItem(LAST_ORDER_KEY) || localStorage.getItem(LAST_ORDER_KEY);
+
+  useEffect(() => {
+    if (lastToken) {
+      navigate(`/track/${lastToken}`, { replace: true });
+    }
+  }, [lastToken, navigate]);
 
   return (
-    <div className="flex min-h-screen items-center justify-center bg-obsidian px-6 pt-20">
-      <div className="w-full max-w-sm text-center">
+    <div className="flex min-h-screen flex-col items-center justify-between bg-obsidian px-6 pt-20">
+      <div className="my-auto w-full max-w-sm text-center">
         <p className="eyebrow">Order status</p>
         <h1 className="mt-3 text-4xl leading-tight text-ivory">Track your order</h1>
         <div className="rule-fade mx-auto mt-5 h-px w-24" />
@@ -60,7 +54,7 @@ const TrackLookup = () => {
         {lastToken ? (
           <>
             <p className="mt-6 text-[13px] leading-relaxed text-ivory-faint">
-              Pick up where you left off with your most recent order.
+              Connecting to your active order...
             </p>
 
             <LuxeButton
@@ -78,6 +72,10 @@ const TrackLookup = () => {
           </p>
         )}
       </div>
+
+      <div className="w-full mt-10">
+        <CustomerFooter />
+      </div>
     </div>
   );
 };
@@ -89,6 +87,13 @@ const TrackOrder = () => {
   const [checkoutOpen, setCheckoutOpen] = useState(false);
   const [invoiceOpen, setInvoiceOpen] = useState(false);
   const [paidReceipt, setPaidReceipt] = useState<string | null>(null);
+
+  useEffect(() => {
+    if (token) {
+      sessionStorage.setItem(LAST_ORDER_KEY, token);
+      localStorage.setItem(LAST_ORDER_KEY, token);
+    }
+  }, [token]);
 
   useLiveOrderTracking(token);
 
