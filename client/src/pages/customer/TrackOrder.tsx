@@ -276,21 +276,21 @@ const TrackOrder = () => {
 
           {/* Post-service completion card (#22) */}
           {(order.status === "SERVED" || (order.status as string) === "COMPLETED") && (
-            <div className="mt-6 rounded-luxe border border-gold/30 bg-gold/10 p-5 text-center">
-              <span className="text-3xl">🎉</span>
+            <div className="mt-6 rounded-luxe border border-gold/30 bg-gold/10 p-5 text-center shadow-lg">
+              <span className="text-3xl">🍷</span>
               <h3 className="font-display mt-2 text-2xl text-gold">Thank you for dining with us!</h3>
-              <p className="mt-1 text-[13px] text-ivory-dim">
-                Your order is complete. We hope you enjoyed your meal!
+              <p className="mt-1 text-[13px] text-ivory-dim leading-relaxed">
+                Your meal has been served. Would you like to order another round of drinks or dessert?
               </p>
-              <div className="mt-4 flex flex-col gap-2">
+              <div className="mt-5 flex flex-col gap-2.5">
+                <Link to="/menu">
+                  <LuxeButton className="w-full text-xs">
+                    Order Drinks & Desserts
+                  </LuxeButton>
+                </Link>
                 <Link to="/reserve">
                   <LuxeButton variant="outline" className="w-full text-xs">
                     Book a Table for Next Time
-                  </LuxeButton>
-                </Link>
-                <Link to="/menu">
-                  <LuxeButton variant="ghost" className="w-full text-xs">
-                    Back to Menu
                   </LuxeButton>
                 </Link>
               </div>
