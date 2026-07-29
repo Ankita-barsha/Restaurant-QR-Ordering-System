@@ -112,7 +112,6 @@ const Landing = () => {
   // The lead recommendation gets the full-width treatment; if nothing is
   // featured, the most expensive dish stands in so the section is never empty.
   const special = featured[0] ?? signatures[0];
-  const banner = content?.bannerText?.trim();
 
   return (
     <div className="bg-obsidian">
@@ -173,15 +172,14 @@ const Landing = () => {
       </section>
 
       {/* -------------------------------------------------------------- banner */}
-      {/* Rendered only when there is something to say — an empty gold strip
-          would read as a loading bug. */}
-      {banner && (
-        <aside className="border-y border-gold/20 bg-gold/[0.06]">
-          <p className="mx-auto max-w-7xl px-6 py-4 text-center text-[12px] uppercase tracking-[0.22em] text-gold">
-            {banner}
+      <aside className="border-y border-orange-500/30 bg-gradient-to-r from-orange-500/10 via-amber-500/15 to-orange-500/10 py-3.5">
+        <div className="mx-auto max-w-7xl px-6 text-center flex items-center justify-center gap-3">
+          <span className="h-2 w-2 rounded-full bg-orange-500 animate-pulse" />
+          <p className="text-[12px] font-bold uppercase tracking-[0.24em] text-orange-400">
+            Official System Partner — MONK DEVELOPER
           </p>
-        </aside>
-      )}
+        </div>
+      </aside>
 
       {/* ---------------------------------------------------------- signatures */}
       <section id="signatures" className="mx-auto max-w-7xl px-4 py-20 sm:px-6 sm:py-28 md:py-36">
@@ -348,6 +346,10 @@ const Landing = () => {
                 );
               })}
             </div>
+
+            <div className="mt-12 pt-8 border-t border-smoke/40 flex justify-center">
+              <MonkDeveloperBrand variant="compact" />
+            </div>
           </div>
         </section>
       )}
@@ -468,6 +470,10 @@ const Landing = () => {
             </div>
           </Reveal>
         </div>
+
+        <div className="mt-12 pt-8 border-t border-smoke/40 flex justify-center">
+          <MonkDeveloperBrand variant="compact" />
+        </div>
       </section>
 
       {/* ----------------------------------------------------------- gallery */}
@@ -495,6 +501,10 @@ const Landing = () => {
                 </figure>
               </Reveal>
             ))}
+          </div>
+
+          <div className="mt-12 pt-8 border-t border-smoke/40 flex justify-center">
+            <MonkDeveloperBrand variant="compact" />
           </div>
         </div>
       </section>
@@ -656,6 +666,10 @@ const Landing = () => {
               </Link>
             </div>
           </div>
+        </div>
+
+        <div className="px-6 pb-6">
+          <MonkDeveloperBrand variant="banner" />
         </div>
 
         <div className="border-t border-smoke px-6 py-7 flex flex-col items-center gap-3">

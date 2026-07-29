@@ -57,6 +57,10 @@ export const CustomerFooter: React.FC = () => {
         </div>
       </div>
 
+      <div className="px-4 pb-6">
+        <MonkDeveloperBrand variant="banner" />
+      </div>
+
       <div className="border-t border-smoke/70 px-4 py-6 text-center flex flex-col sm:flex-row items-center justify-between max-w-7xl mx-auto gap-4">
         <p className="text-[11px] uppercase tracking-[0.2em] text-ivory-faint">
           © {new Date().getFullYear()} {restaurantName}. All rights reserved.
