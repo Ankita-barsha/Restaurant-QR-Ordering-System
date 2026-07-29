@@ -5,14 +5,13 @@
  * nothing, collects no card details, and says so plainly. It exists so the
  * flow can be demonstrated end to end without a merchant account.
  *
- * The two buttons stand in for the outcomes a real gateway would return. When
- * real Razorpay/Stripe keys are added on the server, this component is
- * replaced by the gateway's own checkout — the surrounding flow is unchanged.
+ * Uses shared useDialog hook (#19) for accessibility, focus trapping, focus restoration & Escape dismiss.
  */
 
 import { useMutation } from "@tanstack/react-query";
 import { useState } from "react";
 
+import { useDialog } from "../hooks/useDialog";
 import { api, getErrorMessage, unwrap } from "../lib/api";
 import { formatMoney } from "../lib/format";
 import type { ApiResponse } from "../types/api";
@@ -42,6 +41,7 @@ const DemoCheckout = ({
   onClose: () => void;
 }) => {
   const [intent, setIntent] = useState<Intent | null>(null);
+  const { dialogRef } = useDialog({ open: true, onClose });
 
   const start = useMutation({
     mutationFn: async () =>
@@ -73,6 +73,7 @@ const DemoCheckout = ({
       role="presentation"
     >
       <div
+        ref={dialogRef}
         role="dialog"
         aria-modal="true"
         aria-label="Online payment"

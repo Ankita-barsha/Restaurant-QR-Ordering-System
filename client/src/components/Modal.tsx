@@ -4,9 +4,12 @@
  * Used for create and edit forms instead of expanding them inline, so the
  * list underneath keeps its position and long forms do not push content
  * around as they open.
+ *
+ * Uses shared useDialog hook (#19) for focus trapping, restoration and escape key handling.
  */
 
-import { useEffect, useRef, type ReactNode } from "react";
+import { type ReactNode } from "react";
+import { useDialog } from "../hooks/useDialog";
 
 interface ModalProps {
   open: boolean;
@@ -19,65 +22,7 @@ interface ModalProps {
 }
 
 const Modal = ({ open, title, description, onClose, children, footer }: ModalProps) => {
-  const dialogRef = useRef<HTMLDivElement>(null);
-  const previousActiveElement = useRef<Element | null>(null);
-
-  // Focus Trap & Restoration (#19)
-  useEffect(() => {
-    if (!open) return;
-
-    previousActiveElement.current = document.activeElement;
-
-    const onKeyDown = (event: KeyboardEvent) => {
-      if (event.key === "Escape") {
-        onClose();
-        return;
-      }
-
-      if (event.key === "Tab" && dialogRef.current) {
-        const focusableElements = dialogRef.current.querySelectorAll<HTMLElement>(
-          'button, [href], input, select, textarea, [tabindex]:not([tabindex="-1"])'
-        );
-
-        if (focusableElements.length === 0) return;
-
-        const firstElement = focusableElements[0];
-        const lastElement = focusableElements[focusableElements.length - 1];
-
-        if (event.shiftKey) {
-          if (document.activeElement === firstElement) {
-            lastElement.focus();
-            event.preventDefault();
-          }
-        } else {
-          if (document.activeElement === lastElement) {
-            firstElement.focus();
-            event.preventDefault();
-          }
-        }
-      }
-    };
-
-    document.addEventListener("keydown", onKeyDown);
-    const previousOverflow = document.body.style.overflow;
-    document.body.style.overflow = "hidden";
-
-    // Auto-focus first input/button in dialog
-    setTimeout(() => {
-      if (dialogRef.current) {
-        const firstInput = dialogRef.current.querySelector<HTMLElement>("input, button");
-        firstInput?.focus();
-      }
-    }, 50);
-
-    return () => {
-      document.removeEventListener("keydown", onKeyDown);
-      document.body.style.overflow = previousOverflow;
-      if (previousActiveElement.current instanceof HTMLElement) {
-        previousActiveElement.current.focus();
-      }
-    };
-  }, [open, onClose]);
+  const { dialogRef } = useDialog({ open, onClose });
 
   if (!open) return null;
 
