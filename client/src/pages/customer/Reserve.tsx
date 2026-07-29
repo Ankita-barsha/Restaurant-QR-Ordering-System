@@ -13,6 +13,7 @@
 import { useMutation, useQuery } from "@tanstack/react-query";
 import { useMemo, useState } from "react";
 import { Link } from "react-router-dom";
+import CustomerFooter from "../../components/CustomerFooter";
 
 import {
   LuxeButton,
@@ -539,6 +540,10 @@ const Reserve = () => {
             </a>
           </p>
         )}
+      </div>
+
+      <div className="mt-20">
+        <CustomerFooter />
       </div>
     </div>
   );

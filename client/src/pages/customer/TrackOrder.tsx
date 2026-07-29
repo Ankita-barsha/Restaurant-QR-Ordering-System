@@ -11,6 +11,7 @@ import { useQuery } from "@tanstack/react-query";
 import { useState } from "react";
 import { Link, useNavigate, useParams } from "react-router-dom";
 
+import CustomerFooter from "../../components/CustomerFooter";
 import DemoCheckout from "../../components/DemoCheckout";
 import InvoiceSheet from "../../components/InvoiceSheet";
 import { LuxeButton, LuxeError, LuxeLoader } from "../../components/luxe";
@@ -347,6 +348,10 @@ const TrackOrder = () => {
           </div>
         </div>
       )}
+
+      <div className="mt-20">
+        <CustomerFooter />
+      </div>
     </div>
   );
 };

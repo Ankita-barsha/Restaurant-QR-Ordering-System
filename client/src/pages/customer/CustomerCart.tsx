@@ -10,6 +10,7 @@ import { useMutation, useQuery } from "@tanstack/react-query";
 import { useState } from "react";
 import { Link, useNavigate } from "react-router-dom";
 
+import CustomerFooter from "../../components/CustomerFooter";
 import { LuxeButton, LuxeEmpty, LuxeError } from "../../components/luxe";
 import { config } from "../../config/env";
 import { LAST_ORDER_KEY, useCart } from "../../context/cart";
@@ -325,6 +326,10 @@ const CustomerCart = () => {
             <LuxeError message={getErrorMessage(placeOrder.error)} />
           </div>
         )}
+      </div>
+
+      <div className="mt-20">
+        <CustomerFooter />
       </div>
 
       {/* ------------------------------------------------------- action bar */}

@@ -14,6 +14,7 @@ import { useQuery } from "@tanstack/react-query";
 import { useMemo, useState } from "react";
 import { Link } from "react-router-dom";
 
+import CustomerFooter from "../../components/CustomerFooter";
 import {
   DietMark,
   LuxeButton,
@@ -334,6 +335,8 @@ const CustomerMenu = () => {
           </Link>
         </div>
       )}
+
+      <CustomerFooter />
 
       <DishSheet
         food={openDish}
