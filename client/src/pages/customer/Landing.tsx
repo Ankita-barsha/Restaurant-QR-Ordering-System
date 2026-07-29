@@ -18,6 +18,7 @@
 import { useQuery } from "@tanstack/react-query";
 import { Link } from "react-router-dom";
 
+import { MonkDeveloperBrand } from "../../components/MonkDeveloperBrand";
 import {
   DietMark,
   LuxeButton,
@@ -657,10 +658,11 @@ const Landing = () => {
           </div>
         </div>
 
-        <div className="border-t border-smoke px-6 py-7">
+        <div className="border-t border-smoke px-6 py-7 flex flex-col items-center gap-3">
           <p className="mx-auto max-w-7xl text-center text-[11px] uppercase tracking-[0.2em] text-ivory-faint">
             {restaurantName} — {text(content?.footerNote, "scan, order, dine")}
           </p>
+          <MonkDeveloperBrand variant="compact" />
         </div>
       </footer>
     </div>

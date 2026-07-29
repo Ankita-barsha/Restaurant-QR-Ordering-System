@@ -14,6 +14,7 @@ import { NavLink, Outlet, useNavigate } from "react-router-dom";
 import { useAuth } from "../context/auth";
 import { useLiveOrders, useSocketStatus } from "../hooks/useLiveOrders";
 import NotificationBell from "./NotificationBell";
+import { MonkDeveloperBrand } from "./MonkDeveloperBrand";
 
 interface NavItem {
   to: string;
@@ -191,6 +192,10 @@ const StaffLayout = () => {
       >
         <Outlet />
       </main>
+
+      <footer className="border-t border-smoke/60 bg-graphite/40 py-4">
+        <MonkDeveloperBrand variant="compact" className="justify-center w-full" />
+      </footer>
     </div>
   );
 };

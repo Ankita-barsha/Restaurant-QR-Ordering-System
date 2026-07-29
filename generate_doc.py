@@ -26,6 +26,7 @@ def create_documentation():
     # Colors
     NAVY = RGBColor(0x1E, 0x29, 0x3B)
     GOLD = RGBColor(0xD9, 0x77, 0x06)
+    ORANGE = RGBColor(0xF9, 0x73, 0x16)
     DARK_GRAY = RGBColor(0x33, 0x41, 0x55)
 
     def add_title(text):
@@ -46,6 +47,16 @@ def create_documentation():
         run.font.size = Pt(14)
         run.font.italic = True
         run.font.color.rgb = GOLD
+        p.paragraph_format.space_after = Pt(4)
+
+    def add_brand_subtitle(text):
+        p = doc.add_paragraph()
+        p.alignment = WD_ALIGN_PARAGRAPH.CENTER
+        run = p.add_run(text)
+        run.font.name = 'Arial'
+        run.font.size = Pt(13)
+        run.font.bold = True
+        run.font.color.rgb = ORANGE
         p.paragraph_format.space_after = Pt(24)
 
     def add_heading1(text):
@@ -103,6 +114,7 @@ def create_documentation():
     # Title & Subtitle
     add_title("Restaurant QR Code Ordering & Management System")
     add_subtitle("Complete Technical Architecture, Credentials & User Manual")
+    add_brand_subtitle("Designed & Developed by MONK DEVELOPER")
 
     # Metadata Box
     p_meta = doc.add_paragraph()
@@ -323,8 +335,13 @@ def create_documentation():
 
     # Save document
     doc_path = "C:\\Users\\Ankita\\OneDrive\\Desktop\\Restaurant-QR-Ordering-System\\Restaurant-QR-Ordering-System-Documentation.docx"
-    doc.save(doc_path)
-    print(f"Documentation saved successfully to {doc_path}")
+    try:
+        doc.save(doc_path)
+        print(f"Documentation saved successfully to {doc_path}")
+    except PermissionError:
+        doc_path_alt = "C:\\Users\\Ankita\\OneDrive\\Desktop\\Restaurant-QR-Ordering-System\\Restaurant-QR-Ordering-System-Documentation-Updated.docx"
+        doc.save(doc_path_alt)
+        print(f"File locked by Word. Documentation saved successfully to {doc_path_alt}")
 
 if __name__ == "__main__":
     create_documentation()

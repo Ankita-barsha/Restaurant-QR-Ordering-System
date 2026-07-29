@@ -76,7 +76,8 @@ app.use(
 app.get("/", (_req, res) => {
   res.json({
     success: true,
-    message: "Restaurant QR Ordering API is running 🚀",
+    message: "Restaurant QR Ordering API by MONK DEVELOPER is running 🚀",
+    developedBy: "MONK DEVELOPER",
   });
 });
 

@@ -279,6 +279,9 @@ const InvoiceSheet = ({
             <p className="mt-8 border-t border-slate-200 pt-5 text-center text-xs text-slate-400">
               Thank you for dining with {invoice.restaurant.name}.
             </p>
+            <p className="mt-1 text-center text-[10px] text-slate-500">
+              Software System Powered by <span className="font-bold text-orange-600">MONK DEVELOPER</span>
+            </p>
 
             {/* ---------------------------------------------------- actions */}
             <div className="no-print mt-6 grid gap-2 border-t border-slate-200 pt-5 xs:flex xs:flex-wrap xs:justify-end">

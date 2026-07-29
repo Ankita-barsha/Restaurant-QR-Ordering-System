@@ -85,6 +85,9 @@ export const KitchenTicketPrint: React.FC<KitchenTicketPrintProps> = ({ order, o
           <div className="mt-3 text-center text-[10px] font-bold uppercase">
             *** END OF TICKET ***
           </div>
+          <div className="mt-2 text-center text-[9px] text-orange-600 font-bold uppercase tracking-wider">
+            Powered by MONK DEVELOPER
+          </div>
         </div>
       </div>
     </div>
