@@ -248,6 +248,11 @@ export interface Invoice {
   invoiceNumber: string;
   orderNumber: string;
   issuedAt: string;
+  financialYear?: string;
+  placeOfSupply?: string;
+  gstin?: string | null;
+  fssaiLicence?: string | null;
+  legalName?: string | null;
   restaurant: {
     name: string;
     logoUrl: string | null;
@@ -255,6 +260,10 @@ export interface Invoice {
     phone: string | null;
     email: string | null;
     currency: string;
+    gstin?: string | null;
+    fssaiLicence?: string | null;
+    legalName?: string | null;
+    stateCode?: string | null;
   };
   table: string | null;
   orderType: OrderType;
@@ -266,6 +275,10 @@ export interface Invoice {
     quantity: number;
     lineTotal: string;
     notes: string | null;
+    hsnSac?: string;
+    gstRatePercent?: string;
+    cgstAmount?: string;
+    sgstAmount?: string;
   }[];
   totals: {
     subtotal: string;
@@ -274,6 +287,11 @@ export interface Invoice {
     grandTotal: string;
     amountPaid: string;
     balanceDue: string;
+    cgstTotal?: string;
+    sgstTotal?: string;
+    cgstRate?: string;
+    sgstRate?: string;
+    roundOff?: string;
   };
   payment: {
     status: PaymentStatus;
