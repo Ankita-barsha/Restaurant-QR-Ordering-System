@@ -43,7 +43,7 @@ const CustomerMenu = () => {
   const [offersOnly, setOffersOnly] = useState(false);
   const [openDish, setOpenDish] = useState<Food | null>(null);
 
-  const { table, items, itemCount, addItem, subtotal } = useCart();
+  const { table, items, itemCount, addItem, increase, decrease, subtotal } = useCart();
   const { isFavourite, toggle: toggleFavourite, count: favouriteCount } = useFavourites();
 
   useLiveOrders();
@@ -296,14 +296,38 @@ const CustomerMenu = () => {
                         listPrice={listPrice && formatMoney(listPrice)}
                       />
 
-                      <button
-                        type="button"
-                        onClick={() => addItem(food)}
-                        aria-label={`Add ${food.name} to your order`}
-                        className="min-h-11 rounded-full border border-gold/40 px-6 py-2.5 text-[10px] uppercase tracking-[0.2em] text-gold transition-all duration-500 hover:bg-gold hover:text-obsidian"
-                      >
-                        Add
-                      </button>
+                      {quantity === 0 ? (
+                        <button
+                          type="button"
+                          onClick={() => addItem(food)}
+                          aria-label={`Add ${food.name} to your order`}
+                          className="min-h-11 rounded-full border border-gold/40 px-6 py-2.5 text-[10px] uppercase tracking-[0.2em] text-gold transition-all duration-500 hover:bg-gold hover:text-obsidian font-bold"
+                        >
+                          Add
+                        </button>
+                      ) : (
+                        <div className="flex min-h-11 items-center gap-1.5 rounded-full border border-gold bg-gold/15 px-2 py-1">
+                          <button
+                            type="button"
+                            onClick={() => decrease(food.id)}
+                            aria-label={`Decrease ${food.name} quantity`}
+                            className="flex h-8 w-8 items-center justify-center rounded-full bg-gold/20 text-gold transition hover:bg-gold hover:text-obsidian font-bold text-base"
+                          >
+                            −
+                          </button>
+                          <span className="min-w-6 text-center font-bold text-sm text-gold tabular-nums">
+                            {quantity}
+                          </span>
+                          <button
+                            type="button"
+                            onClick={() => increase(food.id)}
+                            aria-label={`Increase ${food.name} quantity`}
+                            className="flex h-8 w-8 items-center justify-center rounded-full bg-gold text-obsidian transition hover:bg-gold-light font-bold text-base"
+                          >
+                            +
+                          </button>
+                        </div>
+                      )}
                     </div>
                   </div>
                 </article>
