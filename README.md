@@ -109,6 +109,8 @@ client/src
 
 ## Decisions worth knowing
 
+**Single-tenant dedicated instance model (#36).** `RestaurantSettings` is an intentional singleton (`SETTINGS_ID = "singleton"`). The system is architected as a dedicated single-tenant instance per venue. This guarantees 100% data isolation, zero noisy-neighbor performance impact during peak dining hours, consecutive GST tax invoice numbering per venue, and simplified compliance without cross-tenant query leaks. New venues are provisioned in minutes via automated Render blueprint deployment ([`render.yaml`](render.yaml)).
+
 **Money never touches a float.** `parseFloat("19.99") * 100` is
 `1998.9999999999998`. Totals are computed in integer paise and stored as
 `Decimal(10,2)`.
