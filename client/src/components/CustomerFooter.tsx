@@ -51,6 +51,7 @@ export const CustomerFooter: React.FC = () => {
           <div className="mt-4 flex flex-wrap gap-x-6 gap-y-2 text-xs text-ivory-dim">
             <Link to="/menu" className="hover:text-gold transition-colors">Menu</Link>
             <Link to="/reserve" className="hover:text-gold transition-colors">Reserve Table</Link>
+            <Link to="/track" className="hover:text-gold transition-colors">My Orders</Link>
             <Link to="/welcome" className="hover:text-gold transition-colors">About Us</Link>
             <Link to="/privacy" className="hover:text-gold transition-colors">Privacy Policy</Link>
           </div>

@@ -23,6 +23,7 @@ import { useCart } from "../context/cart";
 const LINKS = [
   { to: "/menu", label: "Menu" },
   { to: "/reserve", label: "Reserve" },
+  { to: "/track", label: "My Orders" },
   { to: "/welcome#featured", label: "Featured" },
   { to: "/welcome#gallery", label: "Gallery" },
   { to: "/welcome#about", label: "About" },
