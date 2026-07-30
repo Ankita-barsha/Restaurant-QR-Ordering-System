@@ -11,6 +11,7 @@ import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useState } from "react";
 
 import InvoiceSheet from "../../components/InvoiceSheet";
+import { KitchenTicketPrint } from "../../components/KitchenTicketPrint";
 import { Button, EmptyState, ErrorBox, Spinner, StatusBadge } from "../../components/ui";
 import { useAuth } from "../../context/auth";
 import { queryKeys } from "../../hooks/useLiveOrders";
@@ -42,6 +43,7 @@ const StaffOrders = () => {
   const [reason, setReason] = useState("");
   /** Order id whose invoice is open, if any. */
   const [invoiceFor, setInvoiceFor] = useState<string | null>(null);
+  const [kotOrder, setKotOrder] = useState<Order | null>(null);
 
   const ordersQuery = useQuery({
     queryKey: [...queryKeys.orders, filter],
@@ -205,6 +207,10 @@ const StaffOrders = () => {
                       </Button>
                     )}
 
+                  <Button variant="secondary" onClick={() => setKotOrder(order)}>
+                    🖨️ KOT
+                  </Button>
+
                   <Button variant="secondary" onClick={() => setInvoiceFor(order.id)}>
                     Invoice
                   </Button>
@@ -257,6 +263,13 @@ const StaffOrders = () => {
         <InvoiceSheet
           source={{ orderId: invoiceFor }}
           onClose={() => setInvoiceFor(null)}
+        />
+      )}
+
+      {kotOrder && (
+        <KitchenTicketPrint
+          order={kotOrder}
+          onClose={() => setKotOrder(null)}
         />
       )}
     </div>
