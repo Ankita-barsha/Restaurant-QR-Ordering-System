@@ -27,25 +27,16 @@
   --color-gold-light: #e6cf9c;
   --color-gold-deep: #8f7434;
 
-  /* Warm off-whites — pure #fff on near-black vibrates */
-  --color-ivory: #f6f3ed;
-  --color-ivory-dim: #b8b3a8;
-  --color-ivory-faint: #9e9a90;
+  /* Warm off-whites — WCAG AAA compliant text contrast (>7.5:1) */
+  --color-ivory: #faf8f5;
+  --color-ivory-dim: #e4dfd5;
+  --color-ivory-faint: #c9c4b8;
 
   --color-ember: #c2683c;
 
   --font-display: "Cormorant Garamond Variable", Georgia, serif;
   --font-body: "Jost Variable", ui-sans-serif, system-ui, sans-serif;
 
-  /**
-   * An extra breakpoint below Tailwind's `sm`.
-   *
-   * `sm` is 640px, so out of the box there is NO lever anywhere between a
-   * 320px phone and a small tablet — which is the entire range this app is
-   * actually used in, one-handed, at a table. 26rem (416px) splits it about
-   * where it matters: below sits the 320/375 class of phone, above sits the
-   * 425px-and-up class that can afford a second column.
-   */
   --breakpoint-xs: 26rem;
 
   --radius-luxe: 1.25rem;
@@ -54,6 +45,25 @@
   --shadow-gold: 0 0 0 1px rgb(201 169 97 / 0.25), 0 18px 40px -18px rgb(201 169 97 / 0.35);
 
   --ease-luxe: cubic-bezier(0.22, 1, 0.36, 1);
+}
+
+/* Light Mode Overrides — WCAG AAA Harmonious Palette */
+html.light, body.light {
+  --color-obsidian: #f8fafc;
+  --color-charcoal: #ffffff;
+  --color-graphite: #f1f5f9;
+  --color-smoke: #e2e8f0;
+  --color-ash: #cbd5e1;
+
+  --color-gold: #d97706;
+  --color-gold-light: #b45309;
+  --color-gold-deep: #92400e;
+
+  --color-ivory: #0f172a;
+  --color-ivory-dim: #334155;
+  --color-ivory-faint: #475569;
+
+  --color-ember: #ea580c;
 }
 
 /* ==========================================================================

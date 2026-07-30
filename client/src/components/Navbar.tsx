@@ -10,16 +10,8 @@ import { useEffect, useState } from "react";
 import { Link, NavLink, useLocation } from "react-router-dom";
 
 import { useCart } from "../context/cart";
+import { useTheme } from "../context/theme";
 
-/**
- * There is deliberately no "Track" link.
- *
- * Tracking is authorised by a per-order token the diner receives when they
- * order, so a nav item pointing at /track could only ever offer to recover a
- * previous order — a dead end for the many visitors who have not ordered yet.
- * The link a diner actually needs opens by itself the moment they place an
- * order, and the scan screen offers it to anyone returning mid-meal.
- */
 const LINKS = [
   { to: "/menu", label: "Menu" },
   { to: "/reserve", label: "Reserve" },
@@ -31,6 +23,7 @@ const LINKS = [
 
 const Navbar = () => {
   const { itemCount, table } = useCart();
+  const { theme, toggleTheme } = useTheme();
   const { pathname } = useLocation();
   const [scrolled, setScrolled] = useState(false);
   const [menuOpen, setMenuOpen] = useState(false);
@@ -113,6 +106,16 @@ const Navbar = () => {
               </span>
             )}
           </Link>
+
+          <button
+            type="button"
+            onClick={toggleTheme}
+            title={`Switch to ${theme === "dark" ? "light" : "dark"} mode`}
+            aria-label={`Switch to ${theme === "dark" ? "light" : "dark"} mode`}
+            className="flex h-11 w-11 items-center justify-center text-lg text-ivory transition-colors duration-300 hover:text-gold"
+          >
+            {theme === "dark" ? "☀️" : "🌙"}
+          </button>
 
           <button
             type="button"
