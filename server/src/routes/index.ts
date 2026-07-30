@@ -17,6 +17,7 @@ import notificationRoutes from "./notification.routes.js";
 import orderRoutes from "./order.routes.js";
 import paymentRoutes from "./payment.routes.js";
 import reservationRoutes from "./reservation.routes.js";
+import tableRoutes from "./table.routes.js";
 import { prisma } from "../config/prisma.js";
 
 const router = Router();
