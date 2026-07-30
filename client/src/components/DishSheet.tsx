@@ -103,7 +103,14 @@ const DishSheet = ({
   const listPrice = strikethroughPrice(food);
   const saving = savingMinor(food);
 
-  const preferences = getCategoryPreferences(food.category?.name, food.name);
+  const preferences =
+    typeof food.customPreferences === "string" &&
+    food.customPreferences.trim().length > 0
+      ? food.customPreferences
+          .split(",")
+          .map((s) => s.trim())
+          .filter(Boolean)
+      : getCategoryPreferences(food.category?.name, food.name);
 
   const handleAdd = () => {
     const parts = [selectedPreference, customInstructions.trim()].filter(Boolean);

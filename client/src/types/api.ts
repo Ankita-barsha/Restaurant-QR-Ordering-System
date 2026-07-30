@@ -65,6 +65,7 @@ export interface Food {
   /** The chef's recommendation. Featured dishes lead the welcome page. */
   isFeatured: boolean;
   preparationMinutes: number | null;
+  customPreferences?: string | null;
   categoryId: string;
   category: { id: string; name: string; slug: string };
 }

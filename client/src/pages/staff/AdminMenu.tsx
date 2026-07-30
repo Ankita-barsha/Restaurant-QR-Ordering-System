@@ -601,6 +601,18 @@ const AdminMenu = () => {
             />
           </Field>
 
+          <Field
+            label="Preparation & Preferences (Custom Modifiers)"
+            hint="Optional. Comma-separated options (e.g. Less Sugar, Extra Chocolate, Almond Milk, Served Warm)"
+          >
+            <input
+              name="customPreferences"
+              defaultValue={((editingDish as Record<string, unknown> | null)?.customPreferences as string) ?? ""}
+              placeholder="Less Sugar, Extra Chocolate, Almond Milk"
+              className={inputClass}
+            />
+          </Field>
+
           <div className="grid items-end gap-4 sm:grid-cols-2">
             <Field label="Preparation time" hint="Minutes — helps the kitchen">
               <input
