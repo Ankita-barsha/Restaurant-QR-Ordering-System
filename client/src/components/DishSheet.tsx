@@ -1,8 +1,9 @@
 /**
  * Dish detail & modifier sheet (#29).
  *
- * Allows diners to inspect dish details, select preparation modifiers/options
- * (doneness, spice level, extras), add special instructions, and add to cart.
+ * Allows diners to inspect dish details, select category-smart preparation options
+ * (doneness for meats, sugar/milk for beverages, spice for curries, toppings for desserts),
+ * add special instructions, and add to cart.
  */
 
 import { useEffect, useState } from "react";
@@ -19,15 +20,51 @@ import {
 import type { Food } from "../types/api";
 import { DietMark, LuxeButton, OfferBadge, PriceTag } from "./luxe";
 
-const COMMON_PREFERENCES = [
-  "Medium Rare",
-  "Medium Well",
-  "Less Spicy",
-  "Extra Spicy",
-  "No Onions",
-  "Extra Cheese",
-  "Gluten Free",
-];
+/**
+ * Returns context-aware, category-smart preparation preferences.
+ * Ensures Desserts show dessert options, Beverages show drink options,
+ * Meats show doneness options, and Curries show spice levels.
+ */
+const getCategoryPreferences = (categoryName?: string, foodName?: string): string[] => {
+  const cat = (categoryName ?? "").toLowerCase();
+  const name = (foodName ?? "").toLowerCase();
+
+  if (cat.includes("dessert") || name.includes("cake") || name.includes("ice cream") || name.includes("sweet")) {
+    return ["Less Sugar", "Extra Chocolate", "No Nuts", "Served Warm", "With Ice Cream", "Eggless"];
+  }
+
+  if (
+    cat.includes("beverage") ||
+    cat.includes("drink") ||
+    cat.includes("coffee") ||
+    name.includes("soda") ||
+    name.includes("latte") ||
+    name.includes("tea")
+  ) {
+    return ["Less Ice", "No Sugar", "Extra Ice", "Oat Milk", "Almond Milk", "Less Sweet"];
+  }
+
+  if (cat.includes("burger") || name.includes("steak") || name.includes("burger")) {
+    return ["Medium Rare", "Medium Well", "Well Done", "Extra Cheese", "No Onions", "Gluten Free"];
+  }
+
+  if (cat.includes("pizza") || cat.includes("pasta") || cat.includes("italian")) {
+    return ["Extra Cheese", "Crispy Crust", "Less Cheese", "Gluten Free", "No Garlic"];
+  }
+
+  if (
+    cat.includes("indian") ||
+    name.includes("curry") ||
+    name.includes("tikka") ||
+    name.includes("masala") ||
+    name.includes("biryani") ||
+    name.includes("naan")
+  ) {
+    return ["Less Spicy", "Medium Spicy", "Extra Spicy", "Less Oil", "No Onion & Garlic", "Extra Butter"];
+  }
+
+  return ["Less Spicy", "Extra Spicy", "No Onions", "Extra Cheese", "Gluten Free"];
+};
 
 const DishSheet = ({
   food,
@@ -65,6 +102,8 @@ const DishSheet = ({
   const badge = offerBadge(food);
   const listPrice = strikethroughPrice(food);
   const saving = savingMinor(food);
+
+  const preferences = getCategoryPreferences(food.category?.name, food.name);
 
   const handleAdd = () => {
     const parts = [selectedPreference, customInstructions.trim()].filter(Boolean);
@@ -161,7 +200,7 @@ const DishSheet = ({
           <div className="mt-6">
             <p className="eyebrow text-gold">Preparation & Preferences</p>
             <div className="mt-3 flex flex-wrap gap-2">
-              {COMMON_PREFERENCES.map((pref) => {
+              {preferences.map((pref) => {
                 const active = selectedPreference === pref;
                 return (
                   <button
