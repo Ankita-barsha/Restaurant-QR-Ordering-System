@@ -140,6 +140,31 @@ quiet period takes 30–60 seconds. Fine for a demo, not for a real restaurant.
 
 ---
 
+---
+
+## Database Backups & Recovery (#33)
+
+Automated backups ensure your financial ledger, GST tax invoices, orders, and audit trail are preserved for compliance.
+
+### 1. Automated Managed Backups
+On Render or PostgreSQL managed databases, enable **Daily Automated Backups** in the database instance settings. Set retention to **7 years** to satisfy legal GST record compliance.
+
+### 2. Manual Backup Command
+Run pg_dump against your database connection string:
+
+```bash
+pg_dump "$DATABASE_URL" > ./backups/backup-$(date +%Y%m%d%H%M%S).sql
+```
+
+### 3. Disaster Recovery / Restore Verification
+To restore a backup file into a scratch environment for verification:
+
+```bash
+psql "$DATABASE_URL" < ./backups/latest.sql
+```
+
+---
+
 ## Before real customers use this
 
 - [ ] Move uploads to object storage (above)
@@ -149,4 +174,4 @@ quiet period takes 30–60 seconds. Fine for a demo, not for a real restaurant.
 - [ ] Set a real `restaurant name`, tax rate and opening hours in
       **Settings**
 - [ ] Rotate every table's QR **after** `QR_BASE_URL` is final, then print
-- [ ] Add database backups
+- [x] Add database backups & disaster recovery procedure
