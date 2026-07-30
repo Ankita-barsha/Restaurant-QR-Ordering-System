@@ -35,18 +35,22 @@ const queryClient = new QueryClient({
   },
 });
 
+import ErrorBoundary from "./components/ErrorBoundary.tsx";
+
 createRoot(document.getElementById("root")!).render(
   <StrictMode>
-    <QueryClientProvider client={queryClient}>
-      {/* AuthProvider wraps CartProvider: the cart never needs auth, but the
-          staff shell needs the session available above every route. */}
-      <AuthProvider>
-        <CartProvider>
-          <FavouritesProvider>
-            <App />
-          </FavouritesProvider>
-        </CartProvider>
-      </AuthProvider>
-    </QueryClientProvider>
+    <ErrorBoundary>
+      <QueryClientProvider client={queryClient}>
+        {/* AuthProvider wraps CartProvider: the cart never needs auth, but the
+            staff shell needs the session available above every route. */}
+        <AuthProvider>
+          <CartProvider>
+            <FavouritesProvider>
+              <App />
+            </FavouritesProvider>
+          </CartProvider>
+        </AuthProvider>
+      </QueryClientProvider>
+    </ErrorBoundary>
   </StrictMode>
 );

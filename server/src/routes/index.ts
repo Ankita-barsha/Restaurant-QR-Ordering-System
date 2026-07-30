@@ -17,12 +17,28 @@ import notificationRoutes from "./notification.routes.js";
 import orderRoutes from "./order.routes.js";
 import paymentRoutes from "./payment.routes.js";
 import reservationRoutes from "./reservation.routes.js";
-import tableRoutes from "./table.routes.js";
+import { prisma } from "../config/prisma.js";
 
 const router = Router();
 
-router.get("/health", (_req, res) => {
-  res.json({ success: true, message: "API is healthy" });
+router.get("/health", async (_req, res) => {
+  try {
+    await prisma.$queryRaw`SELECT 1`;
+    res.json({
+      success: true,
+      status: "healthy",
+      database: "connected",
+      timestamp: new Date().toISOString(),
+    });
+  } catch (error) {
+    res.status(503).json({
+      success: false,
+      status: "unhealthy",
+      database: "disconnected",
+      error: error instanceof Error ? error.message : "Database connection failure",
+      timestamp: new Date().toISOString(),
+    });
+  }
 });
 
 /** PUBLIC — restaurant name, currency and hours for the customer app. */
