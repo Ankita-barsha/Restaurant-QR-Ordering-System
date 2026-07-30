@@ -52,24 +52,46 @@ export interface CartContextValue {
   clearCart: () => void;
 }
 
-/**
- * Tracking token of the most recent order placed on this device.
- *
- * The token is issued once, in the response to placing the order, and is the
- * only way back to the tracking page — so it is kept in sessionStorage to
- * survive a reload or a closed tab. It lives here rather than in
- * CartContext.tsx because that file exports only components.
- */
-export const LAST_ORDER_KEY = "qr.lastOrder";
+/** Tracking token storage keys for active and historical orders. */
+export const LAST_ORDER_KEY = "restaurant_last_order_token";
+export const MY_ORDERS_LIST_KEY = "restaurant_my_order_tokens";
+
+/** Saves tracking token securely to device order history. */
+export const saveOrderToken = (token: string) => {
+  sessionStorage.setItem(LAST_ORDER_KEY, token);
+  localStorage.setItem(LAST_ORDER_KEY, token);
+
+  try {
+    const raw = localStorage.getItem(MY_ORDERS_LIST_KEY);
+    const existing: string[] = raw ? JSON.parse(raw) : [];
+    const updated = [token, ...existing.filter((t) => t !== token)];
+    localStorage.setItem(MY_ORDERS_LIST_KEY, JSON.stringify(updated));
+  } catch {
+    // Ignore storage parse errors
+  }
+};
+
+/** Returns array of tracking tokens for orders placed on this device. */
+export const getMyOrderTokens = (): string[] => {
+  try {
+    const raw = localStorage.getItem(MY_ORDERS_LIST_KEY);
+    if (raw) {
+      const parsed = JSON.parse(raw);
+      if (Array.isArray(parsed) && parsed.length > 0) return parsed;
+    }
+  } catch {
+    // Fallback
+  }
+  const last = sessionStorage.getItem(LAST_ORDER_KEY) || localStorage.getItem(LAST_ORDER_KEY);
+  return last ? [last] : [];
+};
 
 export const CartContext = createContext<CartContextValue | null>(null);
 
-export const useCart = (): CartContextValue => {
+export const useCart = () => {
   const context = useContext(CartContext);
-
   if (!context) {
     throw new Error("useCart must be used inside <CartProvider>");
   }
-
   return context;
 };

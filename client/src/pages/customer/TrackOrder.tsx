@@ -15,7 +15,7 @@ import CustomerFooter from "../../components/CustomerFooter";
 import DemoCheckout from "../../components/DemoCheckout";
 import InvoiceSheet from "../../components/InvoiceSheet";
 import { LuxeButton, LuxeError, LuxeLoader } from "../../components/luxe";
-import { LAST_ORDER_KEY } from "../../context/cart";
+import { getMyOrderTokens, LAST_ORDER_KEY } from "../../context/cart";
 import {
   queryKeys,
   useLiveOrderTracking,
@@ -32,6 +32,41 @@ const STEPS: { status: OrderStatus; label: string; hint: string }[] = [
   { status: "READY", label: "Ready", hint: "Coming to your table" },
   { status: "SERVED", label: "Served", hint: "Enjoy your meal" },
 ];
+
+const MyOrdersList = ({ currentToken }: { currentToken?: string }) => {
+  const tokens = getMyOrderTokens().filter((t) => t !== currentToken);
+  const navigate = useNavigate();
+
+  if (tokens.length === 0) return null;
+
+  return (
+    <div className="mt-8 rounded-luxe border border-smoke bg-charcoal p-5 text-left">
+      <p className="eyebrow text-gold">My Recent Orders</p>
+      <p className="mt-1 text-xs text-ivory-dim">
+        Orders placed on this device:
+      </p>
+      <div className="mt-3 space-y-2">
+        {tokens.map((token) => (
+          <div
+            key={token}
+            onClick={() => navigate(`/track/${token}`)}
+            className="flex items-center justify-between rounded-xl border border-smoke bg-graphite p-3 transition hover:border-gold/50 cursor-pointer"
+          >
+            <div>
+              <p className="font-display text-sm text-ivory font-bold">
+                Order #{token.slice(0, 8).toUpperCase()}
+              </p>
+              <p className="text-[11px] text-ivory-faint">
+                Tap to view status & invoice
+              </p>
+            </div>
+            <span className="text-xs font-bold text-gold">View →</span>
+          </div>
+        ))}
+      </div>
+    </div>
+  );
+};
 
 const TrackLookup = () => {
   const navigate = useNavigate();
@@ -63,12 +98,18 @@ const TrackLookup = () => {
             >
               View my order
             </LuxeButton>
+
+            <MyOrdersList currentToken={lastToken} />
           </>
         ) : (
-          <p className="mt-6 text-[13px] leading-relaxed text-ivory-faint">
-            If you have lost it, any member of staff can look your order up
-            from the number on your receipt.
-          </p>
+          <>
+            <p className="mt-6 text-[13px] leading-relaxed text-ivory-faint">
+              If you have lost it, any member of staff can look your order up
+              from the number on your receipt.
+            </p>
+
+            <MyOrdersList />
+          </>
         )}
       </div>
 
@@ -454,6 +495,10 @@ const TrackOrder = () => {
           </div>
         </div>
       )}
+
+      <div className="mx-auto max-w-2xl px-4 sm:px-6">
+        <MyOrdersList currentToken={order.trackingToken} />
+      </div>
 
       <div className="mt-20">
         <CustomerFooter />

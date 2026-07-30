@@ -13,7 +13,7 @@ import { Link, useNavigate } from "react-router-dom";
 import CustomerFooter from "../../components/CustomerFooter";
 import { LuxeButton, LuxeEmpty, LuxeError } from "../../components/luxe";
 import { config } from "../../config/env";
-import { LAST_ORDER_KEY, useCart } from "../../context/cart";
+import { saveOrderToken, useCart } from "../../context/cart";
 import { api, getErrorMessage, unwrap } from "../../lib/api";
 import { formatMoney, imageUrl } from "../../lib/format";
 import { fromMinor, quoteTotals, toMinor } from "../../lib/money";
@@ -67,13 +67,7 @@ const CustomerCart = () => {
     },
     onSuccess: (order) => {
       clearCart();
-
-      // The tracking token is issued exactly once, here. Persist it before
-      // navigating so a reload or a closed tab can still find the order —
-      // there is no way to look it up again from the order number.
-      sessionStorage.setItem(LAST_ORDER_KEY, order.trackingToken);
-      localStorage.setItem(LAST_ORDER_KEY, order.trackingToken);
-
+      saveOrderToken(order.trackingToken);
       navigate(`/track/${order.trackingToken}`);
     },
   });
@@ -317,7 +311,7 @@ const CustomerCart = () => {
           </p>
 
           <p className="mt-2 text-[10px] text-ivory-faint">
-            🔒 <strong>Data Privacy Notice (#35):</strong> Your contact details are stored securely solely to fulfill your order and handle table service. We do not sell your personal data.
+            🔒 <strong>Data Privacy Notice:</strong> Your contact details are stored securely solely to fulfill your order and handle table service. We do not sell your personal data.
           </p>
         </section>
 
