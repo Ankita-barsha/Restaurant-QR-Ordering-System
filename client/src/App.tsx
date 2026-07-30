@@ -27,6 +27,7 @@ import Landing from "./pages/customer/Landing";
 import { useAuth } from "./context/auth";
 import CustomerCart from "./pages/customer/CustomerCart";
 import CustomerMenu from "./pages/customer/CustomerMenu";
+import PrivacyPolicy from "./pages/customer/PrivacyPolicy";
 import Reserve from "./pages/customer/Reserve";
 import ScanTable from "./pages/customer/ScanTable";
 import TrackOrder from "./pages/customer/TrackOrder";
@@ -86,6 +87,8 @@ const App = () => (
         {/* Standalone: the scan landing is a full-screen welcome with no chrome. */}
         <Route path="/t/:token" element={<ScanTable />} />
 
+import PrivacyPolicy from "./pages/customer/PrivacyPolicy";
+
         {/* The rest share the branded navbar, which also shows the table number. */}
         <Route element={<MainLayout />}>
           <Route path="/welcome" element={<Landing />} />
@@ -94,6 +97,7 @@ const App = () => (
           <Route path="/cart" element={<CustomerCart />} />
           <Route path="/track" element={<TrackOrder />} />
           <Route path="/track/:token" element={<TrackOrder />} />
+          <Route path="/privacy" element={<PrivacyPolicy />} />
         </Route>
 
         {/* ---- Staff ---- */}
