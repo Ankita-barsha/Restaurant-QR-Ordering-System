@@ -67,13 +67,17 @@ export const CartProvider = ({ children }: { children: ReactNode }) => {
     sessionStorage.removeItem(TOKEN_KEY);
   }, []);
 
-  const addItem = useCallback((food: Food) => {
+  const addItem = useCallback((food: Food, notes?: string) => {
     setItems((previous) => {
-      const existing = previous.find((item) => item.foodId === food.id);
+      const existing = previous.find(
+        (item) => item.foodId === food.id && (item.notes ?? "") === (notes ?? "")
+      );
 
       if (existing) {
         return previous.map((item) =>
-          item.foodId === food.id ? { ...item, quantity: item.quantity + 1 } : item
+          item.foodId === food.id && (item.notes ?? "") === (notes ?? "")
+            ? { ...item, quantity: item.quantity + 1 }
+            : item
         );
       }
 
@@ -82,14 +86,11 @@ export const CartProvider = ({ children }: { children: ReactNode }) => {
         {
           foodId: food.id,
           name: food.name,
-          // The price the diner is actually charged. Storing the LIST price
-          // here would quote a basket above what the server bills for it, and
-          // the difference would be exactly the discount the menu advertised.
           price: effectivePrice(food),
-          // Kept alongside so the cart can show what was struck through.
           listPrice: strikethroughPrice(food),
           imageUrl: food.imageUrl,
           quantity: 1,
+          notes,
         },
       ];
     });

@@ -1,12 +1,11 @@
 /**
- * Dish detail sheet.
+ * Dish detail & modifier sheet (#29).
  *
- * Slides up from the bottom on a phone and centres on a desktop. A sheet
- * rather than a route because the diner is browsing: pushing a full page and
- * making them navigate back loses their place in a long menu.
+ * Allows diners to inspect dish details, select preparation modifiers/options
+ * (doneness, spice level, extras), add special instructions, and add to cart.
  */
 
-import { useEffect } from "react";
+import { useEffect, useState } from "react";
 
 import { config } from "../config/env";
 import { formatMoney, imageUrl } from "../lib/format";
@@ -20,6 +19,16 @@ import {
 import type { Food } from "../types/api";
 import { DietMark, LuxeButton, OfferBadge, PriceTag } from "./luxe";
 
+const COMMON_PREFERENCES = [
+  "Medium Rare",
+  "Medium Well",
+  "Less Spicy",
+  "Extra Spicy",
+  "No Onions",
+  "Extra Cheese",
+  "Gluten Free",
+];
+
 const DishSheet = ({
   food,
   onClose,
@@ -27,8 +36,11 @@ const DishSheet = ({
 }: {
   food: Food | null;
   onClose: () => void;
-  onAdd: (food: Food) => void;
+  onAdd: (food: Food, notes?: string) => void;
 }) => {
+  const [selectedPreference, setSelectedPreference] = useState<string | null>(null);
+  const [customInstructions, setCustomInstructions] = useState<string>("");
+
   useEffect(() => {
     if (!food) return;
 
@@ -53,6 +65,12 @@ const DishSheet = ({
   const badge = offerBadge(food);
   const listPrice = strikethroughPrice(food);
   const saving = savingMinor(food);
+
+  const handleAdd = () => {
+    const parts = [selectedPreference, customInstructions.trim()].filter(Boolean);
+    const notes = parts.length > 0 ? parts.join(" • ") : undefined;
+    onAdd(food, notes);
+  };
 
   return (
     <div
@@ -93,7 +111,6 @@ const DishSheet = ({
             <OfferBadge label={badge} className="absolute bottom-4 left-4 sm:left-5" />
           )}
 
-          {/* Grab handle — signals "drag to dismiss" on touch, harmless on desktop */}
           <span className="absolute inset-x-0 top-2 mx-auto h-1 w-10 rounded-full bg-ivory/25 sm:hidden" />
         </div>
 
@@ -123,8 +140,6 @@ const DishSheet = ({
                   listPrice={listPrice && formatMoney(listPrice)}
                 />
               </dd>
-              {/* Stated in money rather than left as a percentage to work out:
-                  "you save ₹100" is the fact the diner actually wants. */}
               {saving > 0 && (
                 <dd className="mt-1 text-[11px] uppercase tracking-[0.16em] text-ember">
                   You save {formatMoney(fromMinor(saving))}
@@ -142,8 +157,40 @@ const DishSheet = ({
             )}
           </dl>
 
+          {/* -------------------------------- Modifiers & Preferences (#29) */}
+          <div className="mt-6">
+            <p className="eyebrow text-gold">Preparation & Preferences</p>
+            <div className="mt-3 flex flex-wrap gap-2">
+              {COMMON_PREFERENCES.map((pref) => {
+                const active = selectedPreference === pref;
+                return (
+                  <button
+                    key={pref}
+                    type="button"
+                    onClick={() => setSelectedPreference(active ? null : pref)}
+                    className={`rounded-full border px-3.5 py-1.5 text-xs transition-colors ${
+                      active
+                        ? "border-gold bg-gold text-obsidian font-bold"
+                        : "border-smoke bg-graphite text-ivory-dim hover:border-gold/40 hover:text-ivory"
+                    }`}
+                  >
+                    {pref}
+                  </button>
+                );
+              })}
+            </div>
+
+            <textarea
+              value={customInstructions}
+              onChange={(e) => setCustomInstructions(e.target.value)}
+              placeholder="Special instructions for the chef (optional)..."
+              rows={2}
+              className="mt-4 w-full rounded-xl border border-smoke bg-graphite p-3 text-xs text-ivory placeholder-ivory-faint focus:border-gold focus:outline-none"
+            />
+          </div>
+
           {food.isAvailable ? (
-            <LuxeButton className="mt-7 w-full" onClick={() => onAdd(food)}>
+            <LuxeButton className="mt-7 w-full" onClick={handleAdd}>
               Add to order
             </LuxeButton>
           ) : (

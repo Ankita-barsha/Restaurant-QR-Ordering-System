@@ -44,7 +44,7 @@ export interface CartContextValue {
    * tax and service charge without ever converting back through a float.
    */
   subtotalMinor: number;
-  addItem: (food: Food) => void;
+  addItem: (food: Food, notes?: string) => void;
   removeItem: (foodId: string) => void;
   increase: (foodId: string) => void;
   decrease: (foodId: string) => void;
