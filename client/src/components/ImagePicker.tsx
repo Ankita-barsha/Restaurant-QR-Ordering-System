@@ -8,6 +8,7 @@
  * The client-side checks here mirror the server's, so an obviously wrong file
  * is rejected instantly instead of after a slow upload. They are convenience
  * only: the server re-verifies the file's magic bytes regardless.
+ * Theme-aware styling ensures clear contrast in both Dark and Light modes.
  */
 
 import { useEffect, useRef, useState, type DragEvent } from "react";
@@ -29,7 +30,6 @@ const ImagePicker = ({ currentUrl, onChange, label = "Photo" }: ImagePickerProps
   const [isDragging, setIsDragging] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
-  // Object URLs hold the file in memory until revoked.
   useEffect(() => {
     return () => {
       if (preview) URL.revokeObjectURL(preview);
@@ -65,7 +65,6 @@ const ImagePicker = ({ currentUrl, onChange, label = "Photo" }: ImagePickerProps
     setError(null);
     onChange(null);
 
-    // Reset the input, or picking the SAME file again fires no change event.
     if (inputRef.current) inputRef.current.value = "";
   };
 
@@ -79,7 +78,7 @@ const ImagePicker = ({ currentUrl, onChange, label = "Photo" }: ImagePickerProps
 
   return (
     <div className="flex flex-col gap-1.5">
-      <span className="text-sm font-medium text-slate-700">{label}</span>
+      <span className="text-sm font-medium text-ivory-dim">{label}</span>
 
       <div
         onDragOver={(event) => {
@@ -88,10 +87,10 @@ const ImagePicker = ({ currentUrl, onChange, label = "Photo" }: ImagePickerProps
         }}
         onDragLeave={() => setIsDragging(false)}
         onDrop={onDrop}
-        className={`relative overflow-hidden rounded-xl border-2 border-dashed transition ${
+        className={`relative overflow-hidden rounded-xl border-2 border-dashed transition-all ${
           isDragging
-            ? "border-orange-400 bg-orange-50"
-            : "border-slate-300 bg-slate-50 hover:border-slate-400"
+            ? "border-gold bg-gold/15"
+            : "border-smoke bg-graphite/60 hover:border-gold/50 hover:bg-graphite"
         }`}
       >
         {shown ? (
@@ -102,18 +101,18 @@ const ImagePicker = ({ currentUrl, onChange, label = "Photo" }: ImagePickerProps
               className="h-44 w-full object-cover"
             />
 
-            <div className="absolute inset-x-0 bottom-0 flex justify-end gap-2 bg-gradient-to-t from-black/60 to-transparent p-2">
+            <div className="absolute inset-x-0 bottom-0 flex justify-end gap-2 bg-gradient-to-t from-obsidian/80 to-transparent p-2.5">
               <button
                 type="button"
                 onClick={() => inputRef.current?.click()}
-                className="rounded-lg bg-white/90 px-3 py-1.5 text-xs font-semibold text-slate-800 hover:bg-white"
+                className="rounded-lg bg-gold px-3.5 py-1.5 text-xs font-bold text-obsidian shadow-md transition hover:bg-gold-light"
               >
                 Replace
               </button>
               <button
                 type="button"
                 onClick={clear}
-                className="rounded-lg bg-white/90 px-3 py-1.5 text-xs font-semibold text-red-600 hover:bg-white"
+                className="rounded-lg bg-ember/90 px-3.5 py-1.5 text-xs font-bold text-ivory shadow-md transition hover:bg-ember"
               >
                 Remove
               </button>
@@ -123,15 +122,15 @@ const ImagePicker = ({ currentUrl, onChange, label = "Photo" }: ImagePickerProps
           <button
             type="button"
             onClick={() => inputRef.current?.click()}
-            className="flex h-36 w-full flex-col items-center justify-center gap-1.5 text-slate-500"
+            className="flex h-36 w-full flex-col items-center justify-center gap-2 p-4 text-ivory transition hover:text-gold"
           >
-            <svg width="26" height="26" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.7" strokeLinecap="round" strokeLinejoin="round">
+            <svg width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" className="text-gold">
               <rect x="3" y="3" width="18" height="18" rx="2" />
               <circle cx="9" cy="9" r="2" />
               <path d="m21 15-4.35-4.35a2 2 0 0 0-2.83 0L3 21" />
             </svg>
-            <span className="text-sm font-medium">Drop a photo here, or click to choose</span>
-            <span className="text-xs text-slate-400">JPG, PNG, WebP or GIF · up to 2MB</span>
+            <span className="text-sm font-semibold text-ivory">Drop a photo here, or click to choose</span>
+            <span className="text-xs font-medium text-ivory-dim">JPG, PNG, WebP or GIF · up to 2MB</span>
           </button>
         )}
       </div>
@@ -144,7 +143,7 @@ const ImagePicker = ({ currentUrl, onChange, label = "Photo" }: ImagePickerProps
         className="hidden"
       />
 
-      {error && <p className="text-xs font-medium text-red-600">{error}</p>}
+      {error && <p className="text-xs font-semibold text-ember">{error}</p>}
     </div>
   );
 };
