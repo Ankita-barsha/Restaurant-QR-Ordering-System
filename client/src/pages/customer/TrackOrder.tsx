@@ -394,13 +394,13 @@ const TrackOrder = () => {
             <div className="mt-6">
               {order.paymentStatus === "PAID" ? (
                 <div className="rounded-2xl border border-emerald-500/40 bg-emerald-500/10 p-4 text-center">
-                  <p className="flex items-center justify-center gap-2 text-xs font-bold uppercase tracking-[0.2em] text-emerald-400">
+                  <p className="flex items-center justify-center gap-2 text-xs font-bold uppercase tracking-[0.2em] text-emerald-700 dark:text-emerald-400">
                     <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
                       <path d="M20 6 9 17l-5-5" />
                     </svg>
                     Payment Completed (Paid)
                   </p>
-                  <p className="mt-1 text-[11px] text-emerald-200/80">
+                  <p className="mt-1 text-[11px] text-emerald-950 font-medium dark:text-emerald-200">
                     Thank you! Your payment has been received and tax invoice is generated.
                   </p>
                 </div>
