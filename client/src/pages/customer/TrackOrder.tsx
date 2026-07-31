@@ -425,14 +425,18 @@ const TrackOrder = () => {
               <DinerReviewForm customerName="Guest" />
 
               <div className="mt-5 grid grid-cols-2 gap-2.5">
-                <Link to="/menu?category=desserts">
-                  <LuxeButton className="w-full text-xs">
-                    🍧 Order Desserts
+                <Link to="/menu?category=desserts" className="w-full">
+                  <LuxeButton className="w-full flex-col py-3 text-xs leading-tight h-full justify-center">
+                    <span className="text-base mb-1">🍧</span>
+                    <span>ORDER</span>
+                    <span>DESSERTS</span>
                   </LuxeButton>
                 </Link>
-                <Link to="/menu?category=drinks">
-                  <LuxeButton className="w-full text-xs">
-                    🥤 Order Drinks
+                <Link to="/menu?category=drinks" className="w-full">
+                  <LuxeButton className="w-full flex-col py-3 text-xs leading-tight h-full justify-center">
+                    <span className="text-base mb-1">🥤</span>
+                    <span>ORDER</span>
+                    <span>DRINKS</span>
                   </LuxeButton>
                 </Link>
               </div>
