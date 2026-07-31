@@ -6,6 +6,7 @@
  * has one free hand and no time to navigate.
  *
  * Tickets age visibly: the longer an order sits, the louder it looks.
+ * Theme-aware styling ensures clear contrast in both Dark and Light modes.
  */
 
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
@@ -29,7 +30,7 @@ const NEXT_ACTION: Partial<Record<OrderStatus, { next: OrderStatus; label: strin
 const COLUMNS: { key: keyof Omit<KitchenQueue, "total">; title: string; accent: string }[] = [
   { key: "pending", title: "New", accent: "border-t-amber-400" },
   { key: "confirmed", title: "Accepted", accent: "border-t-blue-400" },
-  { key: "preparing", title: "Cooking", accent: "border-t-orange-500" },
+  { key: "preparing", title: "Cooking", accent: "border-t-amber-500" },
   { key: "ready", title: "Ready to serve", accent: "border-t-emerald-500" },
 ];
 
@@ -42,10 +43,10 @@ const COLUMNS: { key: keyof Omit<KitchenQueue, "total">; title: string; accent: 
 const ageStyle = (placedAt: string): string => {
   const minutes = minutesSince(placedAt);
 
-  if (minutes >= 15) return "ring-2 ring-red-400 bg-red-50";
-  if (minutes >= 8) return "ring-1 ring-amber-300 bg-amber-50";
+  if (minutes >= 15) return "ring-2 ring-ember bg-ember/15 text-ivory border border-ember/40";
+  if (minutes >= 8) return "ring-1 ring-gold bg-gold/10 text-ivory border border-gold/40";
 
-  return "ring-1 ring-slate-200 bg-white";
+  return "border border-smoke bg-charcoal text-ivory";
 };
 
 /**
@@ -67,8 +68,6 @@ const CookTimer = ({ order }: { order: Order }) => {
 
   const estMinutes = order.estimatedMinutes ?? 15;
 
-  // Cooking started at preparedAt; before that, count against placedAt so the
-  // ticket still shows a moving clock while it waits to be started.
   const startedAt = new Date(order.preparedAt ?? order.placedAt).getTime();
   const target = startedAt + estMinutes * 60_000;
   const remainingMs = target - now;
@@ -80,12 +79,12 @@ const CookTimer = ({ order }: { order: Order }) => {
 
   return (
     <span
-      className={`inline-flex items-center gap-1 rounded-md px-1.5 py-0.5 font-mono text-[11px] font-semibold tabular-nums ${
+      className={`inline-flex items-center gap-1 rounded-md px-1.5 py-0.5 font-mono text-[11px] font-bold tabular-nums ${
         overdue
-          ? "bg-red-100 text-red-700"
+          ? "bg-ember/20 text-ember border border-ember/40"
           : remainingMs < 120_000
-            ? "bg-amber-100 text-amber-800"
-            : "bg-slate-100 text-slate-600"
+            ? "bg-gold/20 text-gold border border-gold/40"
+            : "bg-graphite text-ivory-dim border border-smoke"
       }`}
       title={overdue ? "Over the estimated cook time" : "Estimated time remaining"}
     >
@@ -107,32 +106,29 @@ const Ticket = ({
   isUpdating: boolean;
 }) => {
   const action = NEXT_ACTION[order.status];
-  // The countdown is meaningful once cooking is imminent or underway.
   const showTimer = order.status === "CONFIRMED" || order.status === "PREPARING";
 
   return (
-    <article className={`rounded-xl p-3 ${ageStyle(order.placedAt)}`}>
+    <article className={`rounded-xl p-3 shadow-md ${ageStyle(order.placedAt)}`}>
       <div className="flex items-baseline justify-between">
-        <span className="font-black text-slate-900">{order.orderNumber}</span>
-        <span className="text-xs text-slate-500">{timeAgo(order.placedAt)}</span>
+        <span className="font-bold text-ivory font-mono text-base">{order.orderNumber}</span>
+        <span className="text-xs text-ivory-dim font-medium">{timeAgo(order.placedAt)}</span>
       </div>
 
-      <div className="mt-0.5 flex items-center justify-between gap-2">
-        <p className="text-xs font-medium text-slate-600">
+      <div className="mt-1 flex items-center justify-between gap-2">
+        <p className="text-xs font-semibold text-gold">
           {order.table ? `Table ${order.table.tableNumber}` : "Takeaway"}
         </p>
         {showTimer && <CookTimer order={order} />}
       </div>
 
-      <ul className="mt-2 space-y-1">
+      <ul className="mt-2.5 space-y-1.5 border-t border-smoke/60 pt-2">
         {order.items.map((item) => (
           <li key={item.id} className="text-sm">
-            <span className="font-bold text-slate-900">{item.quantity}×</span>{" "}
-            <span className="text-slate-800">{item.foodName}</span>
-            {/* Special requests are what the kitchen most often misses, so
-                they are highlighted rather than shown as muted small print. */}
+            <span className="font-bold text-gold">{item.quantity}×</span>{" "}
+            <span className="text-ivory font-medium">{item.foodName}</span>
             {item.notes && (
-              <span className="mt-0.5 block rounded bg-yellow-100 px-1.5 py-0.5 text-xs font-medium text-yellow-900">
+              <span className="mt-1 block rounded bg-gold/20 border border-gold/40 px-2 py-0.5 text-xs font-semibold text-gold">
                 {item.notes}
               </span>
             )}
@@ -141,7 +137,7 @@ const Ticket = ({
       </ul>
 
       {order.notes && (
-        <p className="mt-2 rounded bg-slate-100 px-2 py-1 text-xs text-slate-700">
+        <p className="mt-2 rounded bg-graphite border border-smoke px-2 py-1 text-xs text-ivory-dim">
           Note: {order.notes}
         </p>
       )}
@@ -151,7 +147,7 @@ const Ticket = ({
           <Button
             onClick={() => onAdvance(order.id, action.next)}
             disabled={isUpdating}
-            className="flex-1"
+            className="flex-1 font-bold uppercase tracking-wider text-xs"
           >
             {action.label}
           </Button>
@@ -159,7 +155,7 @@ const Ticket = ({
         <Button
           variant="secondary"
           onClick={() => onPrintKOT(order)}
-          className="shrink-0 text-xs px-2.5"
+          className="shrink-0 text-xs px-2.5 font-bold"
         >
           🖨️ KOT
         </Button>
@@ -175,15 +171,12 @@ const KitchenDisplay = () => {
   const queueQuery = useQuery({
     queryKey: queryKeys.kitchen,
     queryFn: async () => unwrap(await api.get<ApiResponse<KitchenQueue>>("/orders/kitchen")),
-    // Socket events drive updates; this only recovers from a missed event.
     refetchInterval: 30_000,
   });
 
   const advance = useMutation({
     mutationFn: async ({ id, next }: { id: string; next: OrderStatus }) =>
       api.patch(`/orders/${id}/status`, { status: next }),
-    // Refetch immediately rather than waiting for the socket round-trip, so
-    // the chef sees their own tap land instantly.
     onSuccess: () => {
       void queryClient.invalidateQueries({ queryKey: queryKeys.orders });
     },
@@ -204,14 +197,19 @@ const KitchenDisplay = () => {
   if (!queue) return null;
 
   return (
-    <div>
-      <div className="mb-4 flex items-center justify-between">
-        <h1 className="text-xl font-bold text-slate-900">Kitchen Display</h1>
-        <span className="text-sm text-slate-500">{queue.total} open order(s)</span>
+    <div className="space-y-6">
+      <div className="flex items-center justify-between">
+        <div>
+          <h1 className="text-2xl font-bold text-ivory font-display">Kitchen Display System</h1>
+          <p className="text-xs text-ivory-dim mt-0.5 font-medium">Real-time KOT order dispatch pass</p>
+        </div>
+        <span className="text-sm text-gold font-bold bg-graphite border border-smoke px-3 py-1 rounded-full">
+          {queue.total} open order(s)
+        </span>
       </div>
 
       {advance.isError && (
-        <div className="mb-4">
+        <div>
           <ErrorBox message={getErrorMessage(advance.error)} />
         </div>
       )}
@@ -230,20 +228,20 @@ const KitchenDisplay = () => {
             return (
               <section
                 key={column.key}
-                className={`rounded-2xl border border-t-4 border-slate-200 bg-slate-50 p-3 ${column.accent}`}
+                className={`rounded-2xl border border-t-4 border-smoke bg-graphite/40 p-3 shadow-sm ${column.accent}`}
               >
                 <header className="mb-3 flex items-center justify-between">
-                  <h2 className="text-sm font-bold uppercase tracking-wide text-slate-700">
+                  <h2 className="text-xs font-bold uppercase tracking-widest text-gold">
                     {column.title}
                   </h2>
-                  <span className="rounded-full bg-white px-2 py-0.5 text-xs font-semibold text-slate-600">
+                  <span className="rounded-full bg-charcoal border border-smoke px-2.5 py-0.5 text-xs font-bold text-ivory">
                     {orders.length}
                   </span>
                 </header>
 
                 <div className="space-y-3">
                   {orders.length === 0 ? (
-                    <p className="py-6 text-center text-xs text-slate-400">Empty</p>
+                    <p className="py-8 text-center text-xs text-ivory-faint italic">Empty pass</p>
                   ) : (
                     orders.map((order) => (
                       <Ticket

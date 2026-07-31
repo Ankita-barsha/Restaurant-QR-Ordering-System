@@ -5,6 +5,7 @@
  * tab, record payment and cancel. Each action is gated by permission, so the
  * same screen serves a waiter and a manager while showing each only what they
  * may do.
+ * Theme-aware styling ensures clear contrast in both Dark and Light modes.
  */
 
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
@@ -41,7 +42,6 @@ const StaffOrders = () => {
   const [filter, setFilter] = useState<OrderStatus | "OPEN">("OPEN");
   const [cancelling, setCancelling] = useState<string | null>(null);
   const [reason, setReason] = useState("");
-  /** Order id whose invoice is open, if any. */
   const [invoiceFor, setInvoiceFor] = useState<string | null>(null);
   const [kotOrder, setKotOrder] = useState<Order | null>(null);
 
@@ -94,26 +94,27 @@ const StaffOrders = () => {
     );
   }
 
-  // "Open" is a client-side view over the same list, so switching filters
-  // does not require a different endpoint.
   const orders = (ordersQuery.data ?? []).filter((order) =>
     filter === "OPEN" ? !["SERVED", "CANCELLED"].includes(order.status) : true
   );
 
   return (
-    <div>
-      <h1 className="text-xl font-bold text-slate-900">Orders</h1>
+    <div className="space-y-6">
+      <div>
+        <h1 className="text-2xl font-bold text-ivory font-display">Orders Queue</h1>
+        <p className="text-sm text-ivory-dim mt-0.5">Live order management and billing pass</p>
+      </div>
 
-      <div className="mt-3 flex gap-2 overflow-x-auto pb-2">
+      <div className="flex gap-2 overflow-x-auto pb-1 [scrollbar-width:none]">
         {FILTERS.map((option) => (
           <button
             key={option.value}
             type="button"
             onClick={() => setFilter(option.value)}
-            className={`flex min-h-10 shrink-0 items-center rounded-full px-4 text-sm font-medium ${
+            className={`flex min-h-10 shrink-0 items-center rounded-full px-4 text-xs font-bold uppercase tracking-wider transition ${
               filter === option.value
-                ? "bg-slate-900 text-white"
-                : "bg-white text-slate-600 ring-1 ring-slate-200"
+                ? "bg-gold text-obsidian shadow-sm"
+                : "bg-graphite border border-smoke text-ivory-dim hover:border-gold/50 hover:text-ivory"
             }`}
           >
             {option.label}
@@ -122,7 +123,7 @@ const StaffOrders = () => {
       </div>
 
       {(advance.isError || markPaid.isError || cancelOrder.isError) && (
-        <div className="mt-4">
+        <div>
           <ErrorBox
             message={getErrorMessage(
               advance.error ?? markPaid.error ?? cancelOrder.error
@@ -132,64 +133,65 @@ const StaffOrders = () => {
       )}
 
       {orders.length === 0 ? (
-        <div className="mt-4">
-          <EmptyState title="No orders here" hint="New orders appear automatically." />
+        <div>
+          <EmptyState title="No orders here" hint="New orders appear automatically as customers place them." />
         </div>
       ) : (
-        <div className="mt-4 grid gap-3">
+        <div className="grid gap-3">
           {orders.map((order) => {
             const action = NEXT_ACTION[order.status];
 
             return (
               <article
                 key={order.id}
-                className="rounded-2xl border border-slate-200 bg-white p-3.5 sm:p-4"
+                className="rounded-2xl border border-smoke bg-charcoal p-4 shadow-sm hover:border-gold/30 transition"
               >
                 <div className="flex flex-wrap items-center gap-3">
-                  <span className="font-black text-slate-900">{order.orderNumber}</span>
+                  <span className="font-bold text-ivory font-mono text-base">{order.orderNumber}</span>
                   <StatusBadge status={order.status} />
-                  <span className="text-sm text-slate-500">
+                  <span className="text-sm text-gold font-medium">
                     {order.table ? `Table ${order.table.tableNumber}` : "Takeaway"}
                   </span>
-                  <span className="text-xs text-slate-400">{timeAgo(order.placedAt)}</span>
+                  <span className="text-xs text-ivory-faint">{timeAgo(order.placedAt)}</span>
 
-                  <span className="ml-auto font-bold text-slate-900">
+                  <span className="ml-auto font-bold text-gold text-base">
                     {formatMoney(order.totalAmount)}
                   </span>
 
                   <span
-                    className={`rounded-full px-2 py-0.5 text-xs font-semibold ${
+                    className={`rounded-full px-2.5 py-0.5 text-xs font-bold ${
                       order.paymentStatus === "PAID"
-                        ? "bg-emerald-100 text-emerald-700"
-                        : "bg-slate-100 text-slate-600"
+                        ? "bg-emerald-500/15 text-emerald-400 border border-emerald-500/30"
+                        : "bg-graphite text-ivory-dim border border-smoke"
                     }`}
                   >
                     {order.paymentStatus}
                   </span>
                 </div>
 
-                <ul className="mt-2 text-sm text-slate-700">
+                <ul className="mt-3 space-y-1 border-t border-smoke/60 pt-2 text-sm text-ivory">
                   {order.items.map((item) => (
                     <li key={item.id}>
-                      {item.quantity} × {item.foodName}
+                      <span className="font-bold text-gold">{item.quantity}×</span> {item.foodName}
                       {item.notes && (
-                        <span className="text-xs text-slate-400"> — {item.notes}</span>
+                        <span className="text-xs text-gold/90 font-medium"> — Note: {item.notes}</span>
                       )}
                     </li>
                   ))}
                 </ul>
 
                 {order.handledBy && (
-                  <p className="mt-2 text-xs text-slate-400">
+                  <p className="mt-2 text-xs text-ivory-faint">
                     Handled by {order.handledBy.fullName}
                   </p>
                 )}
 
-                <div className="mt-3 grid grid-cols-2 gap-2 xs:flex xs:flex-wrap">
+                <div className="mt-3.5 flex flex-wrap gap-2 pt-2 border-t border-smoke/40">
                   {action && can("order:updateStatus") && (
                     <Button
                       onClick={() => advance.mutate({ id: order.id, next: action.next })}
                       disabled={advance.isPending}
+                      className="font-bold uppercase tracking-wider text-xs"
                     >
                       {action.label}
                     </Button>
@@ -202,16 +204,17 @@ const StaffOrders = () => {
                         variant="secondary"
                         onClick={() => markPaid.mutate(order.id)}
                         disabled={markPaid.isPending}
+                        className="font-bold text-xs"
                       >
                         Mark paid
                       </Button>
                     )}
 
-                  <Button variant="secondary" onClick={() => setKotOrder(order)}>
+                  <Button variant="secondary" onClick={() => setKotOrder(order)} className="font-bold text-xs">
                     🖨️ KOT
                   </Button>
 
-                  <Button variant="secondary" onClick={() => setInvoiceFor(order.id)}>
+                  <Button variant="secondary" onClick={() => setInvoiceFor(order.id)} className="font-bold text-xs">
                     Invoice
                   </Button>
 
@@ -221,21 +224,20 @@ const StaffOrders = () => {
                         variant="danger"
                         onClick={() => setCancelling(order.id)}
                         disabled={cancelOrder.isPending}
+                        className="font-bold text-xs"
                       >
                         Cancel
                       </Button>
                     )}
                 </div>
 
-                {/* The server requires a reason, so the UI collects one rather
-                    than letting the request fail. */}
                 {cancelling === order.id && (
-                  <div className="mt-3 rounded-xl bg-red-50 p-3">
+                  <div className="mt-3 rounded-xl bg-ember/15 border border-ember/40 p-3">
                     <input
                       value={reason}
                       onChange={(event) => setReason(event.target.value)}
-                      placeholder="Why is this being cancelled?"
-                      className="w-full rounded-lg border border-red-200 px-3 py-2 text-sm outline-none"
+                      placeholder="Why is this order being cancelled?"
+                      className="w-full rounded-lg border border-smoke bg-graphite px-3 py-2 text-sm text-ivory outline-none focus:border-ember"
                     />
                     <div className="mt-2 flex gap-2">
                       <Button
