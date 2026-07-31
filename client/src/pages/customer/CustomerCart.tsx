@@ -125,7 +125,7 @@ const CustomerCart = () => {
 
   return (
     <div className="min-h-screen bg-obsidian pb-44 pt-24 sm:pt-28">
-      <div className="mx-auto max-w-3xl px-4 sm:px-6">
+      <div className="mx-auto max-w-5xl px-4 sm:px-6">
         <header className="text-center">
           <p className="eyebrow">
             {table ? `Table ${table.tableNumber}` : "Takeaway"}
@@ -136,8 +136,11 @@ const CustomerCart = () => {
           <div className="rule-fade mx-auto mt-5 h-px w-28" />
         </header>
 
-        {/* ------------------------------------------------------ line items */}
-        <div className="mt-12 divide-y divide-smoke border-y border-smoke">
+        {/* Tablet two-column: items list left, summary+details right */}
+        <div className="mt-12 md:grid md:grid-cols-[1fr_360px] md:items-start md:gap-10 lg:grid-cols-[1fr_400px]">
+
+          {/* ---------------------------------------------- line items (left col) */}
+          <div className="divide-y divide-smoke border-y border-smoke">
           {items.map((item) => {
             const image = imageUrl(item.imageUrl, config.apiUrl);
 
@@ -159,16 +162,12 @@ const CustomerCart = () => {
                   <div className="flex flex-wrap items-start justify-between gap-x-3 gap-y-1">
                     <h2 className="text-lg leading-tight text-ivory sm:text-xl">{item.name}</h2>
                     <span className="font-display shrink-0 text-lg text-slate sm:text-xl">
-                      {/* Multiplied in paise: 19.99 x 3 as floats is 59.97000000000001. */}
                       {money(fromMinor(toMinor(item.price) * item.quantity))}
                     </span>
                   </div>
 
                   <p className="mt-1 flex flex-wrap items-baseline gap-x-2 text-xs text-ivory-faint">
                     <span>{money(item.price)} each</span>
-                    {/* The list price this line was discounted from. Shown, but
-                        never summed — the totals below use item.price, which is
-                        what the server will actually bill. */}
                     {item.listPrice && (
                       <span className="line-through opacity-70">
                         {money(item.listPrice)}
@@ -219,107 +218,109 @@ const CustomerCart = () => {
               </div>
             );
           })}
-        </div>
-
-        {/* --------------------------------------------------------- details */}
-        <section className="mt-12">
-          <h2 className="text-2xl text-ivory">Your details</h2>
-          <p className="mt-1.5 text-[13px] text-ivory-faint">
-            Optional. A number lets us recognise you next time.
-          </p>
-
-          <div className="mt-5 grid gap-4 sm:grid-cols-2">
-            <input
-              value={name}
-              onChange={(event) => setName(event.target.value)}
-              placeholder="Name"
-              aria-label="Your name"
-              className={fieldClass}
-            />
-            <input
-              value={phone}
-              onChange={(event) => setPhone(event.target.value)}
-              placeholder="Phone"
-              inputMode="tel"
-              aria-label="Your phone number"
-              className={fieldClass}
-            />
           </div>
 
-          <textarea
-            value={orderNotes}
-            onChange={(event) => setOrderNotes(event.target.value)}
-            placeholder="Anything the kitchen should know — allergies, preferences"
-            rows={2}
-            aria-label="Notes for the kitchen"
-            className={`${fieldClass} mt-4`}
-          />
-        </section>
+          {/* --------------------------------- details + totals (right col on tablet) */}
+          <div className="md:sticky md:top-28">
+            {/* --------------------------------------------------------- details */}
+            <section className="mt-12 md:mt-0">
+              <h2 className="text-2xl text-ivory">Your details</h2>
+              <p className="mt-1.5 text-[13px] text-ivory-faint">
+                Optional. A number lets us recognise you next time.
+              </p>
 
-        {/* ---------------------------------------------------------- totals */}
-        <section className="glass rounded-luxe mt-10 p-5 sm:mt-12 sm:p-7">
-          <dl className="space-y-3 text-sm">
-            <div className="flex justify-between text-ivory-dim">
-              <dt>Subtotal</dt>
-              <dd>{money(quote.subtotal)}</dd>
-            </div>
-
-            {/* Listed separately, and only when charged, so the total is
-                arithmetic the diner can follow rather than a surprise. */}
-            {hasTax && (
-              <div className="flex justify-between text-ivory-dim">
-                <dt>Tax ({taxPercent}%)</dt>
-                <dd>{money(quote.tax)}</dd>
+              <div className="mt-5 grid gap-4 sm:grid-cols-2 md:grid-cols-1">
+                <input
+                  value={name}
+                  onChange={(event) => setName(event.target.value)}
+                  placeholder="Name"
+                  aria-label="Your name"
+                  className={fieldClass}
+                />
+                <input
+                  value={phone}
+                  onChange={(event) => setPhone(event.target.value)}
+                  placeholder="Phone"
+                  inputMode="tel"
+                  aria-label="Your phone number"
+                  className={fieldClass}
+                />
               </div>
-            )}
 
-            {toMinor(rawServicePercent) > 0 && (
-              <div className="flex items-center justify-between text-ivory-dim">
-                <div className="flex items-center gap-2">
-                  <dt>Service charge ({rawServicePercent}%)</dt>
-                  <button
-                    type="button"
-                    onClick={() => setIncludeServiceCharge(!includeServiceCharge)}
-                    className="text-[10px] uppercase tracking-wider text-slate hover:underline"
-                  >
-                    {includeServiceCharge ? "[Remove]" : "[Add back]"}
-                  </button>
+              <textarea
+                value={orderNotes}
+                onChange={(event) => setOrderNotes(event.target.value)}
+                placeholder="Anything the kitchen should know — allergies, preferences"
+                rows={2}
+                aria-label="Notes for the kitchen"
+                className={`${fieldClass} mt-4`}
+              />
+            </section>
+
+            {/* ---------------------------------------------------------- totals */}
+            <section className="glass rounded-luxe mt-8 p-5 sm:p-7">
+              <dl className="space-y-3 text-sm">
+                <div className="flex justify-between text-ivory-dim">
+                  <dt>Subtotal</dt>
+                  <dd>{money(quote.subtotal)}</dd>
                 </div>
-                <dd>{includeServiceCharge ? money(quote.serviceCharge) : "Opted out"}</dd>
+
+                {hasTax && (
+                  <div className="flex justify-between text-ivory-dim">
+                    <dt>Tax ({taxPercent}%)</dt>
+                    <dd>{money(quote.tax)}</dd>
+                  </div>
+                )}
+
+                {toMinor(rawServicePercent) > 0 && (
+                  <div className="flex items-center justify-between text-ivory-dim">
+                    <div className="flex items-center gap-2">
+                      <dt>Service charge ({rawServicePercent}%)</dt>
+                      <button
+                        type="button"
+                        onClick={() => setIncludeServiceCharge(!includeServiceCharge)}
+                        className="text-[10px] uppercase tracking-wider text-slate hover:underline"
+                      >
+                        {includeServiceCharge ? "[Remove]" : "[Add back]"}
+                      </button>
+                    </div>
+                    <dd>{includeServiceCharge ? money(quote.serviceCharge) : "Opted out"}</dd>
+                  </div>
+                )}
+
+                {savedMinor > 0 && (
+                  <div className="flex justify-between text-ember">
+                    <dt>Offer savings</dt>
+                    <dd>− {money(fromMinor(savedMinor))}</dd>
+                  </div>
+                )}
+              </dl>
+
+              <div className="rule-fade my-5 h-px" />
+
+              <div className="flex items-baseline justify-between">
+                <span className="eyebrow">Total</span>
+                <span className="font-display text-3xl text-slate sm:text-4xl">
+                  {money(quote.total)}
+                </span>
+              </div>
+
+              <p className="mt-3 text-[11px] leading-relaxed text-ivory-faint">
+                Service charge is voluntary (CCPA guidelines). Payment is settled at the table.
+              </p>
+
+              <p className="mt-2 text-[10px] text-ivory-faint">
+                🔒 <strong>Data Privacy Notice:</strong> Your contact details are stored securely solely to fulfill your order and handle table service. We do not sell your personal data.
+              </p>
+            </section>
+
+            {placeOrder.isError && (
+              <div className="mt-6">
+                <LuxeError message={getErrorMessage(placeOrder.error)} />
               </div>
             )}
-
-            {savedMinor > 0 && (
-              <div className="flex justify-between text-ember">
-                <dt>Offer savings</dt>
-                <dd>− {money(fromMinor(savedMinor))}</dd>
-              </div>
-            )}
-          </dl>
-
-          <div className="rule-fade my-5 h-px" />
-
-          <div className="flex items-baseline justify-between">
-            <span className="eyebrow">Total</span>
-            <span className="font-display text-3xl text-slate sm:text-4xl">
-              {money(quote.total)}
-            </span>
           </div>
-
-          <p className="mt-3 text-[11px] leading-relaxed text-ivory-faint">
-            Service charge is voluntary (CCPA guidelines). Payment is settled at the table.
-          </p>
-
-          <p className="mt-2 text-[10px] text-ivory-faint">
-            🔒 <strong>Data Privacy Notice:</strong> Your contact details are stored securely solely to fulfill your order and handle table service. We do not sell your personal data.
-          </p>
-        </section>
-
-        {placeOrder.isError && (
-          <div className="mt-6">
-            <LuxeError message={getErrorMessage(placeOrder.error)} />
-          </div>
-        )}
+        </div>
       </div>
 
       <div className="mt-20">

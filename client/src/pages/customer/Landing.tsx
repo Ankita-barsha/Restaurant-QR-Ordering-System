@@ -249,7 +249,7 @@ const Landing = () => {
           </Reveal>
 
           {/* Stats row */}
-          <div className="mt-14 grid gap-6 sm:grid-cols-2 lg:grid-cols-4">
+          <div className="mt-14 grid gap-6 sm:grid-cols-2 md:grid-cols-4">
             {[
               { number: "200+", label: "Dishes on the seasonal menu", icon: "🍽️" },
               { number: "4.9★", label: "Average guest rating", icon: "⭐" },
@@ -297,7 +297,7 @@ const Landing = () => {
           />
         </Reveal>
 
-        <div className="mt-16 grid gap-8 sm:grid-cols-2 lg:grid-cols-3">
+        <div className="mt-16 grid gap-8 sm:grid-cols-2 md:grid-cols-3">
           {signatureQuery.isLoading &&
             Array.from({ length: 6 }, (_, index) => (
               <LuxeSkeleton key={index} className="h-[360px] sm:h-[420px]" />
@@ -392,7 +392,7 @@ const Landing = () => {
               />
             </Reveal>
 
-            <div className="mt-16 grid gap-6 sm:grid-cols-2 lg:grid-cols-3">
+            <div className="mt-16 grid gap-6 sm:grid-cols-2 md:grid-cols-3">
               {featured.map((food, index) => {
                 const image = imageUrl(food.imageUrl, config.apiUrl);
 
@@ -628,7 +628,7 @@ const Landing = () => {
             <SectionHeading eyebrow="Gallery" title="From the pass" />
           </Reveal>
 
-          <div className="mt-16 grid auto-rows-[140px] grid-cols-2 gap-3 sm:auto-rows-[220px] sm:gap-4 lg:grid-cols-4">
+          <div className="mt-16 grid auto-rows-[140px] grid-cols-2 gap-3 sm:auto-rows-[200px] sm:gap-4 md:grid-cols-3 md:auto-rows-[220px] lg:grid-cols-4">
             {GALLERY.map((item, index) => (
               <Reveal key={item.alt} delay={index * 70} className={item.span}>
                 <figure className="group relative h-full overflow-hidden rounded-luxe">

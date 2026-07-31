@@ -281,7 +281,7 @@ const TrackOrder = () => {
 
   return (
     <div className="min-h-screen bg-obsidian px-4 pb-16 pt-24 sm:px-6 sm:pb-20 sm:pt-28">
-      <div className="mx-auto max-w-md">
+      <div className="mx-auto max-w-2xl">
         <header className="text-center">
           <p className="eyebrow">
             {order.table ? `Table ${order.table.tableNumber}` : "Takeaway"}

@@ -68,7 +68,7 @@ const Navbar = () => {
           Bite me Bistro
         </Link>
 
-        <div className="hidden items-center gap-9 md:flex">
+        <div className="hidden items-center gap-6 lg:flex xl:gap-9">
           {LINKS.map((link) => (
             <NavLink
               key={link.to}
@@ -86,7 +86,7 @@ const Navbar = () => {
 
         <div className="flex items-center gap-4">
           {table && (
-            <span className="hidden rounded-full border border-gold/30 px-4 py-1.5 text-[10px] uppercase tracking-[0.2em] text-slate sm:inline">
+            <span className="hidden rounded-full border border-gold/30 px-4 py-1.5 text-[10px] uppercase tracking-[0.2em] text-slate lg:inline">
               Table {table.tableNumber}
             </span>
           )}
@@ -122,7 +122,7 @@ const Navbar = () => {
             onClick={() => setMenuOpen((open) => !open)}
             aria-label="Menu"
             aria-expanded={menuOpen}
-            className="flex h-11 w-11 items-center justify-center text-ivory transition-colors hover:text-slate md:hidden"
+            className="flex h-11 w-11 items-center justify-center text-ivory transition-colors hover:text-slate lg:hidden"
           >
             <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.4" strokeLinecap="round">
               {menuOpen ? <path d="M18 6 6 18M6 6l12 12" /> : <path d="M3 7h18M3 12h18M3 17h18" />}
@@ -132,13 +132,13 @@ const Navbar = () => {
       </nav>
 
       {menuOpen && (
-        <div className="animate-rise max-h-[70svh] overflow-y-auto border-t border-smoke bg-obsidian/95 px-4 py-4 backdrop-blur-xl sm:px-6 md:hidden">
-          <div className="flex flex-col gap-1">
+        <div className="animate-rise max-h-[70svh] overflow-y-auto border-t border-smoke bg-obsidian/95 px-4 py-4 backdrop-blur-xl sm:px-6 lg:hidden">
+          <div className="flex flex-col gap-1 sm:flex-row sm:flex-wrap sm:gap-3">
             {LINKS.map((link) => (
               <Link
                 key={link.to}
                 to={link.to}
-                className="flex min-h-11 items-center text-[11px] uppercase tracking-[0.22em] text-ivory-dim hover:text-slate"
+                className="flex min-h-11 items-center text-[11px] uppercase tracking-[0.22em] text-ivory-dim hover:text-slate sm:px-3"
               >
                 {link.label}
               </Link>

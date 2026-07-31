@@ -200,7 +200,7 @@ const CustomerMenu = () => {
       {/* --------------------------------------------------------- the dishes */}
       <div className="mx-auto max-w-6xl px-4 py-8 sm:px-6 sm:py-12">
         {foodsQuery.isLoading && (
-          <div className="grid gap-6 sm:grid-cols-2 lg:grid-cols-3">
+          <div className="grid gap-6 sm:grid-cols-2 md:grid-cols-3">
             {Array.from({ length: 6 }, (_, index) => (
               <LuxeSkeleton key={index} className="h-[360px]" />
             ))}
@@ -239,7 +239,7 @@ const CustomerMenu = () => {
           />
         )}
 
-        <div className="grid gap-6 sm:grid-cols-2 lg:grid-cols-3">
+        <div className="grid gap-6 sm:grid-cols-2 md:grid-cols-3">
           {foods.map((food, index) => {
             const image = imageUrl(food.imageUrl, config.apiUrl);
             const quantity = inCart.get(food.id) ?? 0;
