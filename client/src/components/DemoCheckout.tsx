@@ -82,14 +82,14 @@ const DemoCheckout = ({
       >
         <div className="text-center">
           <p className="eyebrow">Pay online</p>
-          <p className="font-display mt-3 text-5xl text-gold-gradient">
+          <p className="font-display mt-3 text-5xl text-slate-gradient">
             {formatMoney(amount)}
           </p>
         </div>
 
         {/* Honesty banner — this is never presented as a real charge. */}
         <div className="mt-6 rounded-xl border border-gold/25 bg-gold/5 px-4 py-3 text-center">
-          <p className="text-[11px] uppercase tracking-[0.18em] text-gold">
+          <p className="text-[11px] uppercase tracking-[0.18em] text-slate">
             Demo payment
           </p>
           <p className="mt-1 text-[12px] leading-relaxed text-ivory-faint">

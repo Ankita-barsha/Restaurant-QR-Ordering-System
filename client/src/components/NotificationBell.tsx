@@ -99,7 +99,7 @@ const NotificationBell = () => {
         type="button"
         onClick={() => setOpen((value) => !value)}
         aria-label={`Notifications${unread > 0 ? `, ${unread} unread` : ""}`}
-        className="relative flex h-9 w-9 items-center justify-center rounded-full text-ivory-faint transition-colors hover:text-gold"
+        className="relative flex h-9 w-9 items-center justify-center rounded-full text-ivory-faint transition-colors hover:text-slate"
       >
         <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round">
           <path d="M18 8A6 6 0 0 0 6 8c0 7-3 9-3 9h18s-3-2-3-9M13.7 21a2 2 0 0 1-3.4 0" />
@@ -123,7 +123,7 @@ const NotificationBell = () => {
                 type="button"
                 onClick={() => markAllRead.mutate()}
                 disabled={markAllRead.isPending}
-                className="text-[10px] uppercase tracking-[0.16em] text-gold hover:text-gold-light"
+                className="text-[10px] uppercase tracking-[0.16em] text-slate hover:text-slate-light"
               >
                 Mark all read
               </button>

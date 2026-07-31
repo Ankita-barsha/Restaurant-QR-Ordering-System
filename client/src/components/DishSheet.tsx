@@ -140,13 +140,13 @@ const DishSheet = ({
             </div>
           )}
 
-          <div className="absolute inset-0 bg-gradient-to-t from-charcoal via-transparent to-transparent" />
+          <div className="absolute inset-0 bg-gradient-to-t from-charcoal via-transparent to-transparent opacity-0 dark:opacity-100 transition-opacity" />
 
           <button
             type="button"
             onClick={onClose}
             aria-label="Close"
-            className="glass absolute right-4 top-4 flex h-11 w-11 items-center justify-center rounded-full text-ivory transition hover:text-gold"
+            className="glass absolute right-4 top-4 flex h-11 w-11 items-center justify-center rounded-full text-ivory transition hover:text-slate"
           >
             <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round">
               <path d="M18 6 6 18M6 6l12 12" />
@@ -205,7 +205,7 @@ const DishSheet = ({
 
           {/* -------------------------------- Modifiers & Preferences (#29) */}
           <div className="mt-6">
-            <p className="eyebrow text-gold">Preparation & Preferences</p>
+            <p className="eyebrow text-slate">Preparation & Preferences</p>
             <div className="mt-3 flex flex-wrap gap-2">
               {preferences.map((pref) => {
                 const active = selectedPreference === pref;

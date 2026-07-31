@@ -47,7 +47,7 @@ export class ErrorBoundary extends Component<Props, State> {
         <div className="flex min-h-screen items-center justify-center bg-obsidian p-6 text-center text-ivory">
           <div className="max-w-md rounded-2xl border border-smoke bg-charcoal p-8 shadow-2xl">
             <span className="text-4xl">⚠️</span>
-            <h2 className="font-display mt-4 text-2xl font-bold text-gold">
+            <h2 className="font-display mt-4 text-2xl font-bold text-slate">
               Something went wrong
             </h2>
             <p className="mt-2 text-xs leading-relaxed text-ivory-dim">

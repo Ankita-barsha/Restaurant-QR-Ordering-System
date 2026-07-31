@@ -87,8 +87,6 @@ const App = () => (
         {/* Standalone: the scan landing is a full-screen welcome with no chrome. */}
         <Route path="/t/:token" element={<ScanTable />} />
 
-import PrivacyPolicy from "./pages/customer/PrivacyPolicy";
-
         {/* The rest share the branded navbar, which also shows the table number. */}
         <Route element={<MainLayout />}>
           <Route path="/welcome" element={<Landing />} />

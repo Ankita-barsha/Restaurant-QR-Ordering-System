@@ -3,6 +3,8 @@
  *
  * Provides focus trapping, focus restoration, body scroll-lock,
  * and Escape key dismiss behavior across all dialogs (Modal, DemoCheckout).
+ * Uses onCloseRef inside useEffect to prevent re-triggering auto-focus on re-renders when
+ * form state changes.
  */
 
 import { useEffect, useRef } from "react";
@@ -16,6 +18,11 @@ export const useDialog = ({
 }) => {
   const dialogRef = useRef<HTMLDivElement>(null);
   const previousActiveElement = useRef<Element | null>(null);
+  const onCloseRef = useRef(onClose);
+
+  useEffect(() => {
+    onCloseRef.current = onClose;
+  }, [onClose]);
 
   useEffect(() => {
     if (!open) return;
@@ -24,7 +31,7 @@ export const useDialog = ({
 
     const onKeyDown = (event: KeyboardEvent) => {
       if (event.key === "Escape") {
-        onClose();
+        onCloseRef.current();
         return;
       }
 
@@ -56,13 +63,16 @@ export const useDialog = ({
     const previousOverflow = document.body.style.overflow;
     document.body.style.overflow = "hidden";
 
-    // Auto-focus first focusable element in dialog panel
+    // Auto-focus first focusable element in dialog panel ONLY ONCE when opened,
+    // and only if activeElement is currently outside the dialog container.
     const timer = setTimeout(() => {
       if (dialogRef.current) {
-        const firstFocusable = dialogRef.current.querySelector<HTMLElement>(
-          'button:not([disabled]), input:not([disabled]), [tabindex]:not([tabindex="-1"])'
-        );
-        firstFocusable?.focus();
+        if (!dialogRef.current.contains(document.activeElement)) {
+          const firstFocusable = dialogRef.current.querySelector<HTMLElement>(
+            'button:not([disabled]), input:not([disabled]), [tabindex]:not([tabindex="-1"])'
+          );
+          firstFocusable?.focus();
+        }
       }
     }, 50);
 
@@ -74,7 +84,7 @@ export const useDialog = ({
         previousActiveElement.current.focus();
       }
     };
-  }, [open, onClose]);
+  }, [open]);
 
   return { dialogRef };
 };
