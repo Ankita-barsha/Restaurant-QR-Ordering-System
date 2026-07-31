@@ -5,6 +5,7 @@
  * cash-versus-online split the manager reconciles the till against, and the
  * outstanding total still to be collected. Aggregation happens in the
  * database; this screen only renders what it returns.
+ * Theme-aware styling ensures clear contrast in both Dark and Light modes.
  */
 
 import { useQuery } from "@tanstack/react-query";
@@ -31,7 +32,6 @@ interface RevenueReport {
   };
 }
 
-
 const PERIODS: { value: Period; label: string }[] = [
   { value: "daily", label: "Daily" },
   { value: "weekly", label: "Weekly" },
@@ -40,11 +40,11 @@ const PERIODS: { value: Period; label: string }[] = [
 ];
 
 const METHOD_STYLE: Record<string, string> = {
-  CASH: "text-emerald-500",
-  ONLINE: "text-blue-400",
-  CARD: "text-purple-400",
-  UPI: "text-amber-400",
-  UNRECORDED: "text-slate-400",
+  CASH: "text-emerald-400 font-semibold",
+  ONLINE: "text-blue-400 font-semibold",
+  CARD: "text-purple-400 font-semibold",
+  UPI: "text-gold font-semibold",
+  UNRECORDED: "text-ivory-dim",
 };
 
 /** Formats a bucket date according to how coarse the period is. */
@@ -73,14 +73,6 @@ const AdminReports = () => {
       ),
   });
 
-  /**
-   * `scope=all` is passed explicitly, unlike on the dashboard.
-   *
-   * This screen reconciles takings over weeks and months, and every other
-   * figure on it counts all non-cancelled orders. Letting the endpoint's
-   * default (completed only) apply here would leave one card on the page
-   * measuring a different set of orders from the totals above it.
-   */
   const topItemsQuery = useQuery({
     queryKey: ["reports", "top-items", "all"],
     queryFn: async () =>
@@ -105,21 +97,20 @@ const AdminReports = () => {
   const report = revenueQuery.data;
   if (!report) return null;
 
-  // Peak revenue drives the bar widths, so the tallest bar fills the row.
   const peak = Math.max(
     1,
     ...report.buckets.map((bucket) => Number(bucket.revenue))
   );
 
   return (
-    <div>
+    <div className="space-y-6">
       <div className="flex flex-wrap items-center justify-between gap-3">
         <div>
-          <h1 className="text-xl font-bold text-slate-900">Reports</h1>
-          <p className="mt-0.5 text-sm text-slate-500">{report.label}</p>
+          <h1 className="text-2xl font-bold text-ivory font-display">Reports</h1>
+          <p className="mt-0.5 text-sm text-ivory-dim">{report.label}</p>
         </div>
 
-        <div className="flex gap-1 rounded-xl bg-slate-200/60 p-1">
+        <div className="flex gap-1 rounded-xl bg-graphite border border-smoke p-1">
           {PERIODS.map((option) => (
             <button
               key={option.value}
@@ -127,8 +118,8 @@ const AdminReports = () => {
               onClick={() => setPeriod(option.value)}
               className={`rounded-lg px-4 py-1.5 text-sm font-semibold transition ${
                 period === option.value
-                  ? "bg-white text-slate-900 shadow-sm"
-                  : "text-slate-600 hover:text-slate-900"
+                  ? "bg-gold text-obsidian shadow-sm font-bold"
+                  : "text-ivory-dim hover:text-ivory"
               }`}
             >
               {option.label}
@@ -138,53 +129,53 @@ const AdminReports = () => {
       </div>
 
       {/* ------------------------------------------------------- headline ---- */}
-      <div className="mt-5 grid grid-cols-2 gap-2.5 sm:gap-3 lg:grid-cols-4">
-        <Stat label="Revenue" value={formatMoney(report.totals.revenue)} accent="text-emerald-600" />
+      <div className="grid grid-cols-2 gap-2.5 sm:gap-3 lg:grid-cols-4">
+        <Stat label="Revenue" value={formatMoney(report.totals.revenue)} accent="text-emerald-400 font-bold" />
         <Stat label="Collected" value={formatMoney(report.totals.collected)} />
         <Stat
           label="Outstanding"
           value={formatMoney(report.totals.outstanding)}
           hint={`${report.totals.outstandingCount} unpaid order(s)`}
           accent={
-            Number(report.totals.outstanding) > 0 ? "text-red-600" : "text-slate-900"
+            Number(report.totals.outstanding) > 0 ? "text-ember font-bold" : "text-ivory"
           }
         />
         <Stat label="Orders" value={report.totals.orders} />
       </div>
 
-      <div className="mt-6 grid gap-6 lg:grid-cols-[1.6fr_1fr]">
+      <div className="grid gap-6 lg:grid-cols-[1.6fr_1fr]">
         {/* --------------------------------------------- revenue over time -- */}
-        <Card>
-          <h2 className="text-sm font-semibold uppercase tracking-wide text-slate-500">
+        <Card className="bg-charcoal">
+          <h2 className="text-sm font-semibold uppercase tracking-wide text-gold">
             Revenue over time
           </h2>
 
           {report.buckets.length === 0 ? (
-            <p className="py-10 text-center text-sm text-slate-500">
+            <p className="py-10 text-center text-sm text-ivory-dim">
               No revenue recorded in this period yet.
             </p>
           ) : (
             <div className="mt-4 space-y-2.5">
               {report.buckets.map((bucket) => (
                 <div key={bucket.date} className="flex items-center gap-3">
-                  <span className="w-24 shrink-0 text-xs text-slate-500">
+                  <span className="w-24 shrink-0 text-xs text-ivory-dim">
                     {formatBucket(bucket.date, period)}
                   </span>
 
-                  <div className="h-6 flex-1 overflow-hidden rounded-md bg-slate-100">
+                  <div className="h-6 flex-1 overflow-hidden rounded-md bg-graphite border border-smoke">
                     <div
-                      className="flex h-full items-center justify-end rounded-md bg-gradient-to-r from-orange-400 to-orange-500 px-2"
+                      className="flex h-full items-center justify-end rounded-md bg-gradient-to-r from-amber-500 to-gold px-2"
                       style={{
                         width: `${Math.max(6, (Number(bucket.revenue) / peak) * 100)}%`,
                       }}
                     >
-                      <span className="text-[10px] font-semibold text-white">
+                      <span className="text-[10px] font-bold text-obsidian">
                         {bucket.orders}
                       </span>
                     </div>
                   </div>
 
-                  <span className="w-24 shrink-0 text-right text-sm font-semibold text-slate-900">
+                  <span className="w-24 shrink-0 text-right text-sm font-semibold text-ivory">
                     {formatMoney(bucket.revenue)}
                   </span>
                 </div>
@@ -194,13 +185,13 @@ const AdminReports = () => {
         </Card>
 
         {/* --------------------------------------------- payment split ------ */}
-        <Card>
-          <h2 className="text-sm font-semibold uppercase tracking-wide text-slate-500">
+        <Card className="bg-charcoal">
+          <h2 className="text-sm font-semibold uppercase tracking-wide text-gold">
             How guests paid
           </h2>
 
           {report.payments.length === 0 ? (
-            <p className="py-10 text-center text-sm text-slate-500">
+            <p className="py-10 text-center text-sm text-ivory-dim">
               No payments collected yet.
             </p>
           ) : (
@@ -208,19 +199,19 @@ const AdminReports = () => {
               {report.payments.map((payment) => (
                 <div
                   key={payment.method}
-                  className="flex items-center justify-between border-b border-slate-100 pb-3 last:border-0"
+                  className="flex items-center justify-between border-b border-smoke pb-3 last:border-0"
                 >
                   <div>
                     <p
-                      className={`text-sm font-semibold ${
-                        METHOD_STYLE[payment.method] ?? "text-slate-700"
+                      className={`text-sm ${
+                        METHOD_STYLE[payment.method] ?? "text-ivory"
                       }`}
                     >
                       {payment.method === "UNRECORDED" ? "Method not set" : payment.method}
                     </p>
-                    <p className="text-xs text-slate-500">{payment.count} order(s)</p>
+                    <p className="text-xs text-ivory-faint">{payment.count} order(s)</p>
                   </div>
-                  <span className="text-sm font-semibold text-slate-900">
+                  <span className="text-sm font-semibold text-gold">
                     {formatMoney(payment.total)}
                   </span>
                 </div>
@@ -231,26 +222,26 @@ const AdminReports = () => {
       </div>
 
       {/* ------------------------------------------------------- best sellers */}
-      <Card className="mt-6 p-0">
-        <h2 className="border-b border-slate-100 px-5 py-4 text-sm font-semibold uppercase tracking-wide text-slate-500">
+      <Card className="p-0 bg-charcoal">
+        <h2 className="border-b border-smoke px-5 py-4 text-sm font-semibold uppercase tracking-wide text-gold">
           Highest selling items
-          <span className="ml-2 text-xs font-normal normal-case tracking-normal text-slate-400">
+          <span className="ml-2 text-xs font-normal normal-case tracking-normal text-ivory-faint">
             all orders · by quantity
           </span>
         </h2>
 
         {topItemsQuery.data?.length === 0 ? (
-          <p className="px-5 py-8 text-sm text-slate-500">No sales recorded yet.</p>
+          <p className="px-5 py-8 text-sm text-ivory-dim">No sales recorded yet.</p>
         ) : (
-          <div className="divide-y divide-slate-100">
+          <div className="divide-y divide-smoke">
             {topItemsQuery.data?.slice(0, 10).map((item, index) => (
-              <div key={item.foodId} className="flex items-center gap-3 px-5 py-3">
-                <span className="w-5 text-sm font-bold text-slate-400">{index + 1}</span>
-                <span className="min-w-0 flex-1 truncate text-sm font-medium text-slate-800">
+              <div key={item.foodId} className="flex items-center gap-3 px-5 py-3 hover:bg-graphite/40 transition">
+                <span className="w-5 text-sm font-bold text-gold">{index + 1}</span>
+                <span className="min-w-0 flex-1 truncate text-sm font-medium text-ivory">
                   {item.foodName}
                 </span>
-                <span className="text-xs text-slate-500">{item.quantitySold} sold</span>
-                <span className="w-24 text-right text-sm font-semibold text-slate-900">
+                <span className="text-xs text-ivory-dim font-mono">{item.quantitySold} sold</span>
+                <span className="w-24 text-right text-sm font-semibold text-gold">
                   {formatMoney(item.revenue)}
                 </span>
               </div>
@@ -266,17 +257,17 @@ const Stat = ({
   label,
   value,
   hint,
-  accent = "text-slate-900",
+  accent = "text-ivory",
 }: {
   label: string;
   value: string | number;
   hint?: string;
   accent?: string;
 }) => (
-  <Card>
-    <p className="text-xs font-medium uppercase tracking-wide text-slate-500">{label}</p>
+  <Card className="bg-charcoal">
+    <p className="text-xs font-medium uppercase tracking-wide text-ivory-dim">{label}</p>
     <p className={`mt-1 text-2xl font-black ${accent}`}>{value}</p>
-    {hint && <p className="mt-0.5 text-xs text-slate-400">{hint}</p>}
+    {hint && <p className="mt-0.5 text-xs text-ivory-faint">{hint}</p>}
   </Card>
 );
 

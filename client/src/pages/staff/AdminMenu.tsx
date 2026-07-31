@@ -11,6 +11,7 @@
  * instantly; featured decides what the public welcome page advertises, and an
  * admin changing their mind about tonight's recommendation should not have to
  * re-submit a price and a photo to do it.
+ * Theme-aware styling ensures clear contrast in both Dark and Light modes.
  */
 
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
@@ -38,7 +39,7 @@ type Tab = "dishes" | "categories";
 
 /** Shared input styling, so every field on the page matches. */
 const inputClass =
-  "w-full rounded-lg border border-slate-300 px-3 py-2 text-sm outline-none transition focus:border-orange-500 focus:ring-2 focus:ring-orange-100";
+  "w-full rounded-lg border border-smoke bg-graphite px-3 py-2 text-sm text-ivory placeholder:text-ivory-faint outline-none transition focus:border-gold focus:ring-2 focus:ring-gold/20";
 
 const Field = ({
   label,
@@ -50,9 +51,9 @@ const Field = ({
   hint?: string;
 }) => (
   <label className="flex flex-col gap-1.5">
-    <span className="text-sm font-medium text-slate-700">{label}</span>
+    <span className="text-sm font-medium text-ivory-dim">{label}</span>
     {children}
-    {hint && <span className="text-xs text-slate-400">{hint}</span>}
+    {hint && <span className="text-xs text-ivory-faint">{hint}</span>}
   </label>
 );
 
@@ -62,31 +63,13 @@ const AdminMenu = () => {
 
   const [tab, setTab] = useState<Tab>("dishes");
 
-  // null = closed, "new" = create, otherwise the record being edited.
   const [dishForm, setDishForm] = useState<Food | "new" | null>(null);
   const [categoryForm, setCategoryForm] = useState<Category | "new" | null>(null);
   const [imageFile, setImageFile] = useState<File | null>(null);
   const [confirmDelete, setConfirmDelete] = useState<Food | Category | null>(null);
 
-  /**
-   * The category the dish form has selected.
-   *
-   * Controlled rather than left to `defaultValue`, so that a category created
-   * from inside the dish form can be selected the moment it exists. With an
-   * uncontrolled select the admin would create "Desserts", return to a form
-   * that had reset to "Choose…", and have to find it again.
-   */
   const [selectedCategoryId, setSelectedCategoryId] = useState("");
 
-  /**
-   * The offer fields, held in state rather than left uncontrolled.
-   *
-   * The brief calls for the offer price to appear "in real time without
-   * requiring manual input", and a preview cannot react to inputs the
-   * component does not observe. The price is here for the same reason — a
-   * percentage discount is meaningless without it, so editing the price has to
-   * move the preview too.
-   */
   const [price, setPrice] = useState("");
   const [offerEnabled, setOfferEnabled] = useState(false);
   const [offerType, setOfferType] = useState<OfferType>("PERCENTAGE");
@@ -123,8 +106,6 @@ const AdminMenu = () => {
 
     setPrice(editing?.price ?? "");
     setOfferEnabled(editing?.isOfferActive ?? false);
-    // A dish that has never had an offer opens on the commoner of the two
-    // types rather than on an empty select.
     setOfferType(editing?.offerType ?? "PERCENTAGE");
     setOfferValue(editing?.offerValue ?? "");
     setOfferLabel(editing?.offerLabel ?? "");
@@ -141,12 +122,6 @@ const AdminMenu = () => {
     setOfferLabel("");
   };
 
-  /**
-   * Create and update both post multipart/form-data, because either may carry
-   * a photo. Content-Type is set to undefined so the browser supplies it WITH
-   * the multipart boundary — setting it by hand produces a body multer cannot
-   * parse.
-   */
   const saveDish = useMutation({
     mutationFn: async ({ id, form }: { id?: string; form: FormData }) => {
       const headers = { "Content-Type": undefined };
@@ -169,8 +144,6 @@ const AdminMenu = () => {
     onSuccess: (category) => {
       setCategoryForm(null);
 
-      // A category created while adding a dish is selected straight away, so
-      // the admin carries on from where they were rather than hunting for it.
       if (dishForm !== null) setSelectedCategoryId(category.id);
 
       invalidate();
@@ -223,28 +196,13 @@ const AdminMenu = () => {
 
     const form = new FormData(event.currentTarget);
 
-    // Blank optional fields are dropped rather than sent as "", which the
-    // server's optional string schemas reject.
     for (const [key, value] of [...form.entries()]) {
       if (typeof value === "string" && value.trim() === "") form.delete(key);
     }
 
-    // Checkboxes are absent when unchecked, so every boolean is set
-    // explicitly — otherwise unticking "vegetarian" would never save.
     form.set("isVegetarian", form.get("isVegetarian") === "true" ? "true" : "false");
     form.set("isFeatured", form.get("isFeatured") === "true" ? "true" : "false");
 
-    /**
-     * The offer fields are set from state, not read out of the form.
-     *
-     * They are controlled inputs driving the live preview, and the blank-field
-     * strip above would have deleted an empty label anyway. Sending the label
-     * explicitly — as "" when cleared — is what lets an admin REMOVE a custom
-     * badge; omitting it would mean "unchanged" and the old wording would
-     * stick forever.
-     *
-     * offerPrice is deliberately absent. The server derives it.
-     */
     form.set("isOfferActive", offerEnabled ? "true" : "false");
     form.set("offerLabel", offerEnabled ? offerLabel.trim() : "");
 
@@ -252,8 +210,6 @@ const AdminMenu = () => {
       form.set("offerType", offerType);
       form.set("offerValue", offerValue.trim());
     } else {
-      // Left out entirely when off: the server keeps the stored discount so a
-      // seasonal offer can be switched back on without re-entering it.
       form.delete("offerType");
       form.delete("offerValue");
     }
@@ -263,7 +219,6 @@ const AdminMenu = () => {
     saveDish.mutate({ id: editingDish?.id, form });
   };
 
-  /** The live preview, and the reason it cannot be shown. */
   const offerDraft = {
     isOfferActive: offerEnabled,
     offerType,
@@ -277,11 +232,11 @@ const AdminMenu = () => {
     previewPrice !== null ? toMinor(price) - toMinor(previewPrice) : 0;
 
   return (
-    <div>
+    <div className="space-y-6">
       <div className="flex flex-wrap items-center justify-between gap-3">
         <div>
-          <h1 className="text-xl font-bold text-slate-900">Menu</h1>
-          <p className="mt-0.5 text-sm text-slate-500">
+          <h1 className="text-2xl font-bold text-ivory font-display">Menu Catalog</h1>
+          <p className="mt-0.5 text-sm text-ivory-dim">
             {foods.length} dish{foods.length === 1 ? "" : "es"} across{" "}
             {categories.length} categor{categories.length === 1 ? "y" : "ies"}
           </p>
@@ -289,14 +244,14 @@ const AdminMenu = () => {
 
         {tab === "dishes"
           ? can("food:create") && (
-              <Button onClick={() => openDishForm("new")}>+ Add dish</Button>
+              <Button onClick={() => openDishForm("new")} className="font-bold uppercase tracking-wider text-xs">+ Add dish</Button>
             )
           : can("category:create") && (
-              <Button onClick={() => setCategoryForm("new")}>+ Add category</Button>
+              <Button onClick={() => setCategoryForm("new")} className="font-bold uppercase tracking-wider text-xs">+ Add category</Button>
             )}
       </div>
 
-      <div className="mt-4 flex gap-1 rounded-xl bg-slate-200/60 p-1">
+      <div className="flex gap-1 rounded-xl bg-graphite border border-smoke p-1">
         {(["dishes", "categories"] as Tab[]).map((option) => (
           <button
             key={option}
@@ -304,8 +259,8 @@ const AdminMenu = () => {
             onClick={() => setTab(option)}
             className={`flex-1 rounded-lg px-4 py-2 text-sm font-semibold capitalize transition ${
               tab === option
-                ? "bg-white text-slate-900 shadow-sm"
-                : "text-slate-600 hover:text-slate-900"
+                ? "bg-gold text-obsidian shadow-sm font-bold"
+                : "text-ivory-dim hover:text-ivory"
             }`}
           >
             {option}
@@ -314,7 +269,7 @@ const AdminMenu = () => {
       </div>
 
       {(toggleAvailability.isError || toggleFeatured.isError || removeItem.isError) && (
-        <div className="mt-4">
+        <div>
           <ErrorBox
             message={getErrorMessage(
               toggleAvailability.error ?? toggleFeatured.error ?? removeItem.error
@@ -325,7 +280,7 @@ const AdminMenu = () => {
 
       {/* ---------------- Dishes ---------------- */}
       {tab === "dishes" && (
-        <div className="mt-4 grid gap-3">
+        <div className="grid gap-3">
           {foods.length === 0 && (
             <EmptyState
               title="No dishes yet"
@@ -340,20 +295,20 @@ const AdminMenu = () => {
             return (
               <Card
                 key={food.id}
-                className={`flex flex-wrap items-center gap-3 p-3 transition sm:flex-nowrap sm:gap-4 ${
-                  food.isAvailable ? "" : "bg-slate-50"
+                className={`flex flex-wrap items-center gap-3 p-4 bg-charcoal border border-smoke shadow-sm transition sm:flex-nowrap sm:gap-4 ${
+                  food.isAvailable ? "" : "opacity-60"
                 }`}
               >
                 {image ? (
                   <img
                     src={image}
                     alt={food.name}
-                    className={`h-16 w-16 shrink-0 rounded-xl object-cover sm:h-20 sm:w-20 ${
+                    className={`h-16 w-16 shrink-0 rounded-xl object-cover border border-smoke sm:h-20 sm:w-20 ${
                       food.isAvailable ? "" : "grayscale"
                     }`}
                   />
                 ) : (
-                  <div className="flex h-16 w-16 shrink-0 items-center justify-center rounded-xl bg-slate-100 text-2xl sm:h-20 sm:w-20">
+                  <div className="flex h-16 w-16 shrink-0 items-center justify-center rounded-xl bg-graphite border border-smoke text-2xl sm:h-20 sm:w-20">
                     🍽️
                   </div>
                 )}
@@ -362,54 +317,49 @@ const AdminMenu = () => {
                   <div className="flex items-center gap-2">
                     <span
                       className={`h-3 w-3 shrink-0 rounded-sm ring-1 ${
-                        food.isVegetarian ? "ring-green-600" : "ring-red-600"
+                        food.isVegetarian ? "ring-emerald-500" : "ring-ember"
                       }`}
                       title={food.isVegetarian ? "Vegetarian" : "Non-vegetarian"}
                     >
                       <span
                         className={`block h-full w-full scale-50 rounded-full ${
-                          food.isVegetarian ? "bg-green-600" : "bg-red-600"
+                          food.isVegetarian ? "bg-emerald-500" : "bg-ember"
                         }`}
                       />
                     </span>
-                    <p className="truncate font-semibold text-slate-900">{food.name}</p>
+                    <p className="truncate font-semibold text-ivory text-base">{food.name}</p>
                     {!food.isAvailable && (
-                      <span className="rounded-full bg-red-100 px-2 py-0.5 text-[10px] font-bold uppercase text-red-700">
+                      <span className="rounded-full bg-red-500/15 border border-red-500/30 px-2.5 py-0.5 text-[10px] font-bold uppercase text-red-400">
                         sold out
                       </span>
                     )}
                     {food.isFeatured && (
-                      <span className="rounded-full bg-amber-100 px-2 py-0.5 text-[10px] font-bold uppercase text-amber-700">
+                      <span className="rounded-full bg-gold/15 border border-gold/30 px-2.5 py-0.5 text-[10px] font-bold uppercase text-gold">
                         ★ featured
                       </span>
                     )}
                     {offerBadge(food) && (
-                      <span className="rounded-full bg-emerald-100 px-2 py-0.5 text-[10px] font-bold uppercase text-emerald-700">
+                      <span className="rounded-full bg-emerald-500/15 border border-emerald-500/30 px-2.5 py-0.5 text-[10px] font-bold uppercase text-emerald-400">
                         {offerBadge(food)}
                       </span>
                     )}
                   </div>
 
-                  <p className="mt-0.5 truncate text-xs text-slate-500">
+                  <p className="mt-0.5 truncate text-xs text-ivory-dim font-medium">
                     {food.category.name}
-                    {food.preparationMinutes ? ` · ${food.preparationMinutes} min` : ""}
+                    {food.preparationMinutes ? ` · ${food.preparationMinutes} min cook` : ""}
                   </p>
                 </div>
 
-                {/* The selling price leads, with the list price struck through
-                    beside it — the same order the customer menu uses. */}
-                <span className="flex flex-wrap items-baseline gap-x-2 text-base font-bold text-slate-900">
+                <span className="flex flex-wrap items-baseline gap-x-2 text-lg font-bold text-gold">
                   {formatMoney(effectivePrice(food))}
                   {strikethroughPrice(food) && (
-                    <span className="text-xs font-medium text-slate-400 line-through">
+                    <span className="text-xs font-medium text-ivory-faint line-through">
                       {formatMoney(strikethroughPrice(food) as string)}
                     </span>
                   )}
                 </span>
 
-                {/* Four actions do not fit one phone-width row. A 2-up grid
-                    below sm keeps every one of them on screen and at a size a
-                    thumb can hit; from sm they sit in a row as before. */}
                 <div className="grid w-full grid-cols-2 gap-2 xs:grid-cols-4 sm:flex sm:w-auto">
                   {can("food:read") && (
                     <Button
@@ -421,22 +371,21 @@ const AdminMenu = () => {
                           isAvailable: !food.isAvailable,
                         })
                       }
+                      className="font-bold text-xs"
                     >
                       {food.isAvailable ? "Sold out" : "In stock"}
                     </Button>
                   )}
 
-                  {/* Featuring is what the welcome page advertises, so it sits
-                      beside sold-out rather than inside the edit form. */}
                   {can("food:update") && (
                     <Button
                       variant="secondary"
                       disabled={toggleFeatured.isPending}
-                      className={
+                      className={`font-bold text-xs ${
                         food.isFeatured
-                          ? "!bg-amber-50 !text-amber-700 !ring-amber-300"
+                          ? "!bg-gold/20 !text-gold !border-gold/50"
                           : ""
-                      }
+                      }`}
                       onClick={() =>
                         toggleFeatured.mutate({
                           id: food.id,
@@ -449,13 +398,13 @@ const AdminMenu = () => {
                   )}
 
                   {can("food:update") && (
-                    <Button variant="secondary" onClick={() => openDishForm(food)}>
+                    <Button variant="secondary" onClick={() => openDishForm(food)} className="font-bold text-xs">
                       Edit
                     </Button>
                   )}
 
                   {can("food:delete") && (
-                    <Button variant="ghost" onClick={() => setConfirmDelete(food)}>
+                    <Button variant="ghost" onClick={() => setConfirmDelete(food)} className="font-bold text-xs">
                       Delete
                     </Button>
                   )}
@@ -468,7 +417,7 @@ const AdminMenu = () => {
 
       {/* ---------------- Categories ---------------- */}
       {tab === "categories" && (
-        <div className="mt-4 grid gap-3">
+        <div className="grid gap-3">
           {categories.length === 0 && (
             <EmptyState
               title="No categories yet"
@@ -477,28 +426,28 @@ const AdminMenu = () => {
           )}
 
           {categories.map((category) => (
-            <Card key={category.id} className="flex flex-wrap items-center gap-3 p-3.5 sm:gap-4 sm:p-4">
+            <Card key={category.id} className="flex flex-wrap items-center gap-3 p-4 bg-charcoal border border-smoke sm:gap-4">
               <div className="min-w-0 flex-1">
-                <p className="font-semibold text-slate-900">{category.name}</p>
-                <p className="mt-0.5 text-xs text-slate-500">
+                <p className="font-semibold text-ivory text-base">{category.name}</p>
+                <p className="mt-0.5 text-xs text-ivory-dim">
                   {category._count?.foods ?? 0} dish
                   {(category._count?.foods ?? 0) === 1 ? "" : "es"}
                   {!category.isActive && " · hidden from customers"}
                 </p>
               </div>
 
-              <span className="rounded-full bg-slate-100 px-2.5 py-1 text-xs font-medium text-slate-600">
+              <span className="rounded-full bg-graphite border border-smoke px-3 py-1 text-xs font-bold text-gold">
                 order {category.sortOrder}
               </span>
 
               <div className="flex gap-2">
                 {can("category:update") && (
-                  <Button variant="secondary" onClick={() => setCategoryForm(category)}>
+                  <Button variant="secondary" onClick={() => setCategoryForm(category)} className="font-bold text-xs">
                     Edit
                   </Button>
                 )}
                 {can("category:delete") && (
-                  <Button variant="ghost" onClick={() => setConfirmDelete(category)}>
+                  <Button variant="ghost" onClick={() => setConfirmDelete(category)} className="font-bold text-xs">
                     Delete
                   </Button>
                 )}
@@ -536,8 +485,6 @@ const AdminMenu = () => {
           </Field>
 
           <div className="grid gap-4 sm:grid-cols-2">
-            {/* Controlled, so a percentage discount re-prices the moment the
-                price changes rather than on the next save. */}
             <Field label="Price" hint="The full price, before any offer">
               <input
                 name="price"
@@ -559,8 +506,6 @@ const AdminMenu = () => {
               }
             >
               <div className="flex gap-2">
-                {/* Controlled, so a category created from the button beside it
-                    can be selected the instant it exists. */}
                 <select
                   name="categoryId"
                   required
@@ -582,7 +527,7 @@ const AdminMenu = () => {
                     onClick={() => setCategoryForm("new")}
                     title="Create a category"
                     aria-label="Create a category"
-                    className="shrink-0 rounded-lg border border-slate-300 px-3 text-lg font-semibold text-slate-600 transition hover:border-orange-500 hover:text-orange-600"
+                    className="shrink-0 rounded-lg border border-smoke bg-graphite px-3.5 text-lg font-bold text-gold transition hover:border-gold"
                   >
                     +
                   </button>
@@ -625,26 +570,26 @@ const AdminMenu = () => {
             </Field>
 
             <div className="grid gap-2">
-              <label className="flex items-center gap-3 rounded-xl bg-slate-50 px-3 py-2.5">
+              <label className="flex items-center gap-3 rounded-xl bg-graphite border border-smoke px-3 py-2.5">
                 <input
                   type="checkbox"
                   name="isVegetarian"
                   value="true"
                   defaultChecked={editingDish?.isVegetarian ?? false}
-                  className="h-4 w-4"
+                  className="h-4 w-4 accent-gold"
                 />
-                <span className="text-sm font-medium text-slate-700">Vegetarian</span>
+                <span className="text-sm font-medium text-ivory">Vegetarian</span>
               </label>
 
-              <label className="flex items-center gap-3 rounded-xl bg-slate-50 px-3 py-2.5">
+              <label className="flex items-center gap-3 rounded-xl bg-graphite border border-smoke px-3 py-2.5">
                 <input
                   type="checkbox"
                   name="isFeatured"
                   value="true"
                   defaultChecked={editingDish?.isFeatured ?? false}
-                  className="h-4 w-4"
+                  className="h-4 w-4 accent-gold"
                 />
-                <span className="text-sm font-medium text-slate-700">
+                <span className="text-sm font-medium text-ivory">
                   Chef's recommendation
                 </span>
               </label>
@@ -652,9 +597,9 @@ const AdminMenu = () => {
           </div>
 
           {/* ------------------------------------------------------ offer ---- */}
-          <fieldset className="rounded-xl border border-slate-200 p-4">
-            <legend className="px-1 text-sm font-semibold text-slate-900">
-              Offer
+          <fieldset className="rounded-xl border border-smoke bg-graphite/30 p-4">
+            <legend className="px-1 text-sm font-bold text-gold">
+              Offer Config
             </legend>
 
             <label className="flex items-center gap-3">
@@ -662,9 +607,9 @@ const AdminMenu = () => {
                 type="checkbox"
                 checked={offerEnabled}
                 onChange={(event) => setOfferEnabled(event.target.checked)}
-                className="h-4 w-4"
+                className="h-4 w-4 accent-gold"
               />
-              <span className="text-sm font-medium text-slate-700">
+              <span className="text-sm font-medium text-ivory">
                 Run an offer on this dish
               </span>
             </label>
@@ -722,31 +667,28 @@ const AdminMenu = () => {
                   />
                 </Field>
 
-                {/* The calculated offer price. Never an input — it is derived
-                    from the price and the discount, and the server derives it
-                    again on save from the same rule. */}
                 {previewProblem ? (
-                  <p className="rounded-xl bg-amber-50 px-4 py-3 text-sm text-amber-800">
+                  <p className="rounded-xl bg-ember/15 border border-ember/30 px-4 py-3 text-sm text-ember">
                     {previewProblem}
                   </p>
                 ) : (
                   previewPrice !== null && (
-                    <div className="flex flex-wrap items-center justify-between gap-x-4 gap-y-2 rounded-xl bg-emerald-50 px-4 py-3">
+                    <div className="flex flex-wrap items-center justify-between gap-x-4 gap-y-2 rounded-xl bg-emerald-500/15 border border-emerald-500/30 px-4 py-3">
                       <div>
-                        <p className="text-xs font-medium uppercase tracking-wide text-emerald-700">
-                          Offer price
+                        <p className="text-xs font-bold uppercase tracking-wide text-emerald-400">
+                          Offer price preview
                         </p>
                         <p className="mt-0.5 flex flex-wrap items-baseline gap-2">
-                          <span className="text-xl font-bold text-emerald-800">
+                          <span className="text-xl font-bold text-emerald-300">
                             {formatMoney(previewPrice)}
                           </span>
-                          <span className="text-sm text-emerald-700/70 line-through">
+                          <span className="text-sm text-ivory-faint line-through">
                             {formatMoney(price)}
                           </span>
                         </p>
                       </div>
 
-                      <p className="text-xs font-medium text-emerald-700">
+                      <p className="text-xs font-bold text-emerald-400">
                         Guest saves {formatMoney(fromMinor(previewSavingMinor))}
                       </p>
                     </div>
@@ -759,7 +701,7 @@ const AdminMenu = () => {
           {saveDish.isError && <ErrorBox message={getErrorMessage(saveDish.error)} />}
         </form>
 
-        <div className="mt-5 flex justify-end gap-2 border-t border-slate-200 pt-4">
+        <div className="mt-5 flex justify-end gap-2 border-t border-smoke pt-4">
           <Button variant="secondary" onClick={closeDishForm}>
             Cancel
           </Button>
@@ -767,7 +709,7 @@ const AdminMenu = () => {
             type="submit"
             form="dish-form"
             disabled={saveDish.isPending}
-            className="rounded-xl bg-orange-500 px-4 py-2.5 text-sm font-semibold text-white transition hover:bg-orange-600 disabled:bg-orange-300"
+            className="rounded-xl bg-gold px-5 py-2.5 text-sm font-bold text-obsidian shadow-sm transition hover:bg-gold-light disabled:opacity-50"
           >
             {saveDish.isPending ? "Saving…" : editingDish ? "Save changes" : "Add dish"}
           </button>
@@ -828,15 +770,15 @@ const AdminMenu = () => {
             />
           </Field>
 
-          <label className="flex items-center gap-3 rounded-xl bg-slate-50 px-3 py-2.5">
+          <label className="flex items-center gap-3 rounded-xl bg-graphite border border-smoke px-3 py-2.5">
             <input
               type="checkbox"
               name="isActive"
               value="true"
               defaultChecked={editingCategory?.isActive ?? true}
-              className="h-4 w-4"
+              className="h-4 w-4 accent-gold"
             />
-            <span className="text-sm font-medium text-slate-700">
+            <span className="text-sm font-medium text-ivory">
               Visible to customers
             </span>
           </label>
@@ -846,7 +788,7 @@ const AdminMenu = () => {
           )}
         </form>
 
-        <div className="mt-5 flex justify-end gap-2 border-t border-slate-200 pt-4">
+        <div className="mt-5 flex justify-end gap-2 border-t border-smoke pt-4">
           <Button variant="secondary" onClick={() => setCategoryForm(null)}>
             Cancel
           </Button>
@@ -854,7 +796,7 @@ const AdminMenu = () => {
             type="submit"
             form="category-form"
             disabled={saveCategory.isPending}
-            className="rounded-xl bg-orange-500 px-4 py-2.5 text-sm font-semibold text-white transition hover:bg-orange-600 disabled:bg-orange-300"
+            className="rounded-xl bg-gold px-5 py-2.5 text-sm font-bold text-obsidian shadow-sm transition hover:bg-gold-light disabled:opacity-50"
           >
             {saveCategory.isPending ? "Saving…" : "Save"}
           </button>
@@ -867,22 +809,19 @@ const AdminMenu = () => {
         onClose={() => setConfirmDelete(null)}
         title="Remove from the menu?"
       >
-        <p className="text-sm text-slate-600">
-          <strong className="text-slate-900">
+        <p className="text-sm text-ivory-dim">
+          <strong className="text-ivory font-bold">
             {confirmDelete && "name" in confirmDelete ? confirmDelete.name : ""}
           </strong>{" "}
           will stop appearing for customers.
         </p>
 
-        {/* Explains the soft delete, so nobody fears losing their reports. */}
-        <p className="mt-2 text-sm text-slate-500">
+        <p className="mt-2 text-sm text-ivory-faint">
           Past orders keep it, so your sales history and receipts stay accurate.
         </p>
 
-        {/* The server refuses this, so the reason is stated before the attempt
-            rather than surfaced as an error afterwards. */}
         {confirmDelete && !("price" in confirmDelete) && (
-          <p className="mt-2 text-sm text-slate-500">
+          <p className="mt-2 text-sm text-ivory-faint">
             {(confirmDelete._count?.foods ?? 0) > 0
               ? `This category still holds ${confirmDelete._count?.foods} dish${
                   confirmDelete._count?.foods === 1 ? "" : "es"
@@ -897,7 +836,7 @@ const AdminMenu = () => {
           </div>
         )}
 
-        <div className="mt-5 flex justify-end gap-2 border-t border-slate-200 pt-4">
+        <div className="mt-5 flex justify-end gap-2 border-t border-smoke pt-4">
           <Button variant="secondary" onClick={() => setConfirmDelete(null)}>
             Keep it
           </Button>

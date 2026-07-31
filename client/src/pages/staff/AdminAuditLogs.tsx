@@ -74,8 +74,8 @@ const AdminAuditLogs = () => {
 
   return (
     <div>
-      <h1 className="text-xl font-bold text-slate-900">Audit trail</h1>
-      <p className="mt-1 text-sm text-slate-500">
+      <h1 className="text-xl font-bold text-white-900">Audit trail</h1>
+      <p className="mt-1 text-sm text-white-500">
         Every privileged action, with who did it and from where. Append-only —
         entries cannot be edited or removed.
       </p>
@@ -129,20 +129,20 @@ const AdminAuditLogs = () => {
                 {log.action}
               </span>
 
-              <span className="text-sm text-slate-700">{log.entity}</span>
+              <span className="text-sm text-white-700">{log.entity}</span>
 
-              <span className="min-w-0 flex-1 truncate text-sm text-slate-500">
+              <span className="min-w-0 flex-1 truncate text-sm text-white-500">
                 {log.actor ? log.actor.fullName : "System"}
                 {log.actor && (
-                  <span className="text-slate-400"> · {log.actor.email}</span>
+                  <span className="text-white-400"> · {log.actor.email}</span>
                 )}
               </span>
 
               {log.ipAddress && (
-                <code className="text-xs text-slate-400">{log.ipAddress}</code>
+                <code className="text-xs text-white-400">{log.ipAddress}</code>
               )}
 
-              <time className="text-xs text-slate-400">
+              <time className="text-xs text-white-400">
                 {new Date(log.createdAt).toLocaleString()}
               </time>
             </div>
@@ -156,12 +156,12 @@ const AdminAuditLogs = () => {
             type="button"
             onClick={() => setPage((previous) => previous - 1)}
             disabled={!meta.hasPreviousPage}
-            className="rounded-lg px-3 py-1.5 text-sm font-medium text-slate-600 disabled:opacity-40"
+            className="rounded-lg px-3 py-1.5 text-sm font-medium text-white-600 disabled:opacity-40"
           >
             ← Previous
           </button>
 
-          <span className="text-sm text-slate-500">
+          <span className="text-sm text-white-500">
             Page {meta.page} of {meta.totalPages} · {meta.total} entries
           </span>
 
@@ -169,7 +169,7 @@ const AdminAuditLogs = () => {
             type="button"
             onClick={() => setPage((previous) => previous + 1)}
             disabled={!meta.hasNextPage}
-            className="rounded-lg px-3 py-1.5 text-sm font-medium text-slate-600 disabled:opacity-40"
+            className="rounded-lg px-3 py-1.5 text-sm font-medium text-white-600 disabled:opacity-40"
           >
             Next →
           </button>

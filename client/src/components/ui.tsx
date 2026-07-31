@@ -58,7 +58,7 @@ const STATUS_STYLES: Record<OrderStatus, string> = {
   CONFIRMED: "bg-blue-500/15 text-blue-300 ring-blue-500/30",
   PREPARING: "bg-orange-500/15 text-orange-300 ring-orange-500/30",
   READY: "bg-emerald-500/15 text-emerald-300 ring-emerald-500/30",
-  SERVED: "bg-slate-500/15 text-slate-300 ring-slate-500/30",
+  SERVED: "bg-slate-500/15 text-white-300 ring-slate-500/30",
   CANCELLED: "bg-red-500/15 text-red-300 ring-red-500/30",
 };
 
