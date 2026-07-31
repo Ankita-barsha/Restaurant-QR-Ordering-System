@@ -164,7 +164,7 @@ const DinerReviewForm = ({ customerName }: { customerName: string }) => {
   }
 
   return (
-    <form onSubmit={handleSubmit} className="my-4 rounded-xl border border-gold/20 bg-obsidian/60 p-4 text-left">
+    <form onSubmit={handleSubmit} className="my-4 rounded-xl border border-gold/20 bg-obsidian/60 dark:bg-obsidian/60 html-light:bg-white p-4 text-left shadow-sm">
       <p className="text-xs font-semibold uppercase tracking-wider text-slate text-center">Leave a Review</p>
       
       <div className="mt-3 flex justify-center gap-2">
@@ -194,14 +194,14 @@ const DinerReviewForm = ({ customerName }: { customerName: string }) => {
         onChange={(e) => setComment(e.target.value)}
         placeholder="Tell us about your meal & service..."
         rows={2}
-        className="mt-3 w-full rounded-lg border border-smoke bg-charcoal p-2.5 text-xs text-ivory placeholder-ivory-faint focus:border-gold focus:outline-none"
+        className="mt-3 w-full rounded-lg border border-smoke bg-charcoal dark:bg-charcoal html-light:bg-slate-50 html-light:text-slate-900 html-light:placeholder-slate-400 p-2.5 text-xs text-ivory placeholder-ivory-faint focus:border-gold focus:outline-none"
       />
 
       <div className="mt-3 flex items-center justify-between gap-2">
         <button
           type="button"
           onClick={() => setOptedOut(true)}
-          className="text-[10px] text-ivory-faint hover:text-ivory underline"
+          className="text-[10px] text-ivory-faint dark:text-ivory-faint html-light:text-slate-600 hover:text-slate underline"
         >
           Opt out of reminders
         </button>

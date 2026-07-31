@@ -209,55 +209,116 @@ html:not(.light) label {
 }
 
 /* Light Mode Overrides for Glass Utilities & Card Panels */
-html.light .glass {
-  background: rgba(255, 255, 255, 0.92) !important;
+html.light .glass,
+body.light .glass,
+.light .glass {
+  background: #ffffff !important;
   backdrop-filter: blur(6px) saturate(130%);
   -webkit-backdrop-filter: blur(6px) saturate(130%);
-  border: 1px solid rgba(226, 232, 240, 0.9) !important;
-  box-shadow: 0 10px 30px -10px rgba(0, 0, 0, 0.08);
-}
-
-html.light .glass-light {
-  background: rgba(248, 250, 252, 0.95) !important;
-  backdrop-filter: blur(4px) saturate(120%);
-  -webkit-backdrop-filter: blur(4px) saturate(120%);
-  border: 1px solid rgba(203, 213, 225, 0.8) !important;
-}
-
-html.light .bg-charcoal {
-  background-color: #ffffff !important;
-}
-
-html.light .bg-obsidian {
-  background-color: #f8fafc !important;
-}
-
-html.light .bg-graphite {
-  background-color: #f1f5f9 !important;
-}
-
-html.light .bg-smoke {
-  background-color: #e2e8f0 !important;
-}
-
-html.light .border-smoke {
-  border-color: #cbd5e1 !important;
-}
-
-html.light .text-ivory {
+  border: 1px solid #e2e8f0 !important;
+  box-shadow: 0 10px 30px -10px rgba(0, 0, 0, 0.08) !important;
   color: #0f172a !important;
 }
 
-html.light .text-ivory-dim {
+html.light .glass-light,
+body.light .glass-light,
+.light .glass-light {
+  background: #f8fafc !important;
+  backdrop-filter: blur(4px) saturate(120%);
+  -webkit-backdrop-filter: blur(4px) saturate(120%);
+  border: 1px solid #cbd5e1 !important;
+}
+
+html.light .bg-charcoal,
+body.light .bg-charcoal,
+.light .bg-charcoal {
+  background-color: #ffffff !important;
+}
+
+html.light .bg-obsidian,
+body.light .bg-obsidian,
+.light .bg-obsidian {
+  background-color: #f8fafc !important;
+}
+
+html.light .bg-graphite,
+body.light .bg-graphite,
+.light .bg-graphite {
+  background-color: #f1f5f9 !important;
+}
+
+html.light .bg-smoke,
+body.light .bg-smoke,
+.light .bg-smoke {
+  background-color: #e2e8f0 !important;
+}
+
+html.light .border-smoke,
+body.light .border-smoke,
+.light .border-smoke {
+  border-color: #cbd5e1 !important;
+}
+
+html.light .text-ivory,
+body.light .text-ivory,
+.light .text-ivory {
+  color: #0f172a !important;
+}
+
+html.light .text-ivory-dim,
+body.light .text-ivory-dim,
+.light .text-ivory-dim {
   color: #334155 !important;
 }
 
-html.light .text-ivory-faint {
+html.light .text-ivory-faint,
+body.light .text-ivory-faint,
+.light .text-ivory-faint {
   color: #475569 !important;
 }
 
-html.light .text-slate {
+html.light .text-slate,
+body.light .text-slate,
+.light .text-slate {
   color: #1e293b !important;
+}
+
+/* Light mode specific background overrides for cards and review containers */
+html.light [class*="bg-obsidian/"],
+body.light [class*="bg-obsidian/"],
+.light [class*="bg-obsidian/"] {
+  background-color: #ffffff !important;
+  border-color: #e2e8f0 !important;
+}
+
+html.light [class*="bg-charcoal/"],
+body.light [class*="bg-charcoal/"],
+.light [class*="bg-charcoal/"] {
+  background-color: #f8fafc !important;
+  border-color: #cbd5e1 !important;
+}
+
+html.light [class*="bg-gold/10"],
+body.light [class*="bg-gold/10"],
+.light [class*="bg-gold/10"] {
+  background-color: #fffbeb !important;
+  border-color: #fde68a !important;
+}
+
+html.light input,
+html.light textarea,
+body.light input,
+body.light textarea {
+  background-color: #ffffff !important;
+  color: #0f172a !important;
+  border-color: #cbd5e1 !important;
+}
+
+html.light input::placeholder,
+html.light textarea::placeholder,
+body.light input::placeholder,
+body.light textarea::placeholder {
+  color: #64748b !important;
 }
 
 /* A hairline that fades at both ends — a full-width rule looks like a table
