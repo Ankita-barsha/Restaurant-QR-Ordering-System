@@ -21,6 +21,12 @@ export const SOCKET_EVENTS = {
   TABLE_STATUS_CHANGED: "table:statusChanged",
   /** A new notification for staff — drives the notification bell. */
   NOTIFICATION_NEW: "notification:new",
+  /** A guest submitted or updated a review. Admin content dashboard reacts. */
+  REVIEW_CHANGED: "review:changed",
+  /** A payment was created, confirmed, or refunded — waiter and admin see it live. */
+  PAYMENT_STATUS_CHANGED: "payment:statusChanged",
+  /** An order just became READY — waiter screens flash the alert immediately. */
+  WAITER_ORDER_READY: "waiter:orderReady",
 } as const;
 
 /**
@@ -37,6 +43,8 @@ export const ROOMS = {
   ADMIN: "room:admin",
   /** All authenticated staff. */
   STAFF: "room:staff",
+  /** Waiter staff — receive READY order alerts and payment confirmations. */
+  WAITER: "room:waiter",
   /**
    * One room per order, joined by the anonymous customer tracking it.
    *

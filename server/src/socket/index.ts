@@ -65,6 +65,18 @@ const joinStaffRooms = (socket: AuthedSocket, user: AccessTokenPayload): void =>
   if (isSuperAdmin || permissions.has(PERMISSIONS.DASHBOARD_VIEW)) {
     void socket.join(ROOMS.ADMIN);
   }
+
+  // Waiters (STAFF role members with order:updateStatus) get the waiter room
+  // so READY-order alerts reach only those who can act on them.
+  if (
+    isSuperAdmin ||
+    (permissions.has(PERMISSIONS.ORDER_UPDATE_STATUS) &&
+      !permissions.has(PERMISSIONS.DASHBOARD_VIEW) &&
+      !permissions.has(PERMISSIONS.KITCHEN_ACCESS)) ||
+    user.roleName === "STAFF"
+  ) {
+    void socket.join(ROOMS.WAITER);
+  }
 };
 
 export const initSocketServer = (httpServer: HttpServer): SocketServer => {
@@ -291,6 +303,36 @@ export const emitNotification = (notification: {
   metadata?: unknown;
 }): void => {
   emitToRooms([ROOMS.STAFF], SOCKET_EVENTS.NOTIFICATION_NEW, notification);
+};
+
+export const emitReviewChanged = (review?: unknown): void => {
+  if (!io) return;
+  try {
+    io.emit(SOCKET_EVENTS.REVIEW_CHANGED, review ?? {});
+  } catch (error) {
+    console.error("[socket] failed to emit review change:", error);
+  }
+};
+
+/**
+ * Emits to the waiter room when an order reaches READY.
+ *
+ * Only waiters receive this — kitchen and admin already have ORDER_STATUS_CHANGED.
+ * Keeping it a separate event lets the waiter screen play a distinct alert sound
+ * and highlight the card differently from a generic status update.
+ */
+export const emitWaiterOrderReady = (order: unknown): void => {
+  emitToRooms([ROOMS.WAITER, ROOMS.STAFF], SOCKET_EVENTS.WAITER_ORDER_READY, order);
+};
+
+/**
+ * Broadcasts a payment lifecycle change to staff rooms.
+ *
+ * Waiter and admin dashboards both react: waiter sees their order paid, admin
+ * sees the ledger row update without refreshing the page.
+ */
+export const emitPaymentStatusChanged = (payload: unknown): void => {
+  emitToRooms([ROOMS.STAFF, ROOMS.ADMIN, ROOMS.WAITER], SOCKET_EVENTS.PAYMENT_STATUS_CHANGED, payload);
 };
 
 /** Exposed for graceful shutdown. */
