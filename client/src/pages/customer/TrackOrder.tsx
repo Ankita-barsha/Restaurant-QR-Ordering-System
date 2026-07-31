@@ -424,12 +424,19 @@ const TrackOrder = () => {
               {/* Interactive Review & Feedback Section (#26) */}
               <DinerReviewForm customerName="Guest" />
 
-              <div className="mt-5 flex flex-col gap-2.5">
-                <Link to="/menu">
+              <div className="mt-5 grid grid-cols-2 gap-2.5">
+                <Link to="/menu?category=desserts">
                   <LuxeButton className="w-full text-xs">
-                    Order Drinks & Desserts
+                    🍧 Order Desserts
                   </LuxeButton>
                 </Link>
+                <Link to="/menu?category=drinks">
+                  <LuxeButton className="w-full text-xs">
+                    🥤 Order Drinks
+                  </LuxeButton>
+                </Link>
+              </div>
+              <div className="mt-2.5">
                 <Link to="/reserve">
                   <LuxeButton variant="outline" className="w-full text-xs">
                     Book a Table for Next Time

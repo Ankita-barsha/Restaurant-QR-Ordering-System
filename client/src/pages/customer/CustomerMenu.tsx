@@ -11,8 +11,8 @@
  */
 
 import { useQuery } from "@tanstack/react-query";
-import { useMemo, useState } from "react";
-import { Link } from "react-router-dom";
+import { useEffect, useMemo, useState } from "react";
+import { Link, useSearchParams } from "react-router-dom";
 
 import CustomerFooter from "../../components/CustomerFooter";
 import {
@@ -36,8 +36,11 @@ import { effectivePrice, offerBadge, strikethroughPrice } from "../../lib/offer"
 import type { ApiResponse, Category, Food } from "../../types/api";
 
 const CustomerMenu = () => {
+  const [searchParams] = useSearchParams();
+  const initialCategoryParam = searchParams.get("category");
+
   const [search, setSearch] = useState("");
-  const [categorySlug, setCategorySlug] = useState<string | null>(null);
+  const [categorySlug, setCategorySlug] = useState<string | null>(initialCategoryParam);
   const [vegOnly, setVegOnly] = useState(false);
   const [favouritesOnly, setFavouritesOnly] = useState(false);
   const [offersOnly, setOffersOnly] = useState(false);
@@ -52,6 +55,23 @@ const CustomerMenu = () => {
     queryKey: queryKeys.categories,
     queryFn: async () => unwrap(await api.get<ApiResponse<Category[]>>("/categories")),
   });
+
+  // Smart matching for URL ?category= (e.g. drinks, desserts, beverages)
+  useEffect(() => {
+    if (initialCategoryParam && categoriesQuery.data && categoriesQuery.data.length > 0) {
+      const paramLower = initialCategoryParam.toLowerCase();
+      const matched = categoriesQuery.data.find(
+        (c) =>
+          c.slug.toLowerCase() === paramLower ||
+          c.name.toLowerCase() === paramLower ||
+          (paramLower === "drinks" && c.name.toLowerCase().includes("bev")) ||
+          (paramLower === "drinks" && c.slug.toLowerCase().includes("bev"))
+      );
+      if (matched) {
+        setCategorySlug(matched.slug);
+      }
+    }
+  }, [initialCategoryParam, categoriesQuery.data]);
 
   const foodsQuery = useQuery({
     queryKey: [...queryKeys.foods, search, categorySlug, vegOnly, offersOnly],
