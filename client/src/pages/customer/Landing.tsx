@@ -51,6 +51,7 @@ import dessertImage from "../../assets/image/dessert.jpg";
 import latteImage from "../../assets/image/latte.webp";
 import pizzaImage from "../../assets/image/margherita-pizza.jpg";
 import burgerImage from "../../assets/image/burger.jpg";
+import ambianceImage from "../../assets/image/restaurant-ambiance.jpg";
 
 const GALLERY = [
   { src: biryaniImage, alt: "Slow-cooked biryani", span: "row-span-2" },
@@ -162,15 +163,15 @@ const Landing = () => {
       <section className="relative flex min-h-[100svh] items-center justify-center overflow-hidden">
         <div className="absolute inset-0">
           <img
-            src={heroImage}
+            src={ambianceImage}
             alt=""
             className="animate-kenburns h-full w-full object-cover"
             fetchPriority="high"
           />
-          {/* Two gradients, not one: a vertical wash for legibility and a
-              radial vignette so the eye settles in the middle. */}
-          <div className="absolute inset-0 bg-gradient-to-b from-obsidian/85 via-obsidian/55 to-obsidian" />
-          <div className="absolute inset-0 bg-[radial-gradient(ellipse_at_center,transparent_25%,rgba(10,10,11,0.75)_100%)]" />
+          {/* Two gradients — vertical wash for legibility, radial vignette for focus.
+              Dark mode: deep obsidian overlay. Light mode: soft warm-cream overlay. */}
+          <div className="absolute inset-0 bg-gradient-to-b from-obsidian/90 via-obsidian/60 to-obsidian html-light:from-slate-100/80 html-light:via-slate-50/50 html-light:to-white" />
+          <div className="absolute inset-0 bg-[radial-gradient(ellipse_at_center,transparent_20%,rgba(10,10,11,0.80)_100%)]" />
         </div>
 
         <div className="relative z-10 mx-auto max-w-3xl px-6 text-center">
@@ -223,6 +224,68 @@ const Landing = () => {
           </p>
         </div>
       </aside>
+
+      {/* --------------------------------------------------------- why dine here */}
+      <section className="relative overflow-hidden">
+        {/* Soft background image with strong overlay for text legibility */}
+        <div className="absolute inset-0">
+          <img
+            src={ambianceImage}
+            alt=""
+            className="h-full w-full object-cover object-center"
+            aria-hidden="true"
+          />
+          {/* Dark mode: deep dark overlay. Light mode: warm ivory overlay */}
+          <div className="absolute inset-0 bg-obsidian/80 dark:bg-obsidian/85" />
+        </div>
+
+        <div className="relative mx-auto max-w-7xl px-4 py-20 sm:px-6 sm:py-28 md:py-32">
+          <Reveal>
+            <SectionHeading
+              eyebrow="The experience"
+              title="Why guests come back"
+              lede="Every plate tells the story of careful sourcing, slow cooking and a kitchen that takes pride in never repeating a shortcut."
+            />
+          </Reveal>
+
+          {/* Stats row */}
+          <div className="mt-14 grid gap-6 sm:grid-cols-2 lg:grid-cols-4">
+            {[
+              { number: "200+", label: "Dishes on the seasonal menu", icon: "🍽️" },
+              { number: "4.9★", label: "Average guest rating", icon: "⭐" },
+              { number: "25+", label: "Min. kitchen-to-table freshness", icon: "⏱️" },
+              { number: "100%", label: "Farm-to-fork ingredients", icon: "🌿" },
+            ].map((stat) => (
+              <Reveal key={stat.label}>
+                <div className="glass rounded-luxe p-7 text-center">
+                  <div className="text-4xl mb-3">{stat.icon}</div>
+                  <p className="font-display text-[2.5rem] leading-none text-slate-gradient">{stat.number}</p>
+                  <p className="mt-3 text-[13px] leading-relaxed text-ivory-dim">{stat.label}</p>
+                </div>
+              </Reveal>
+            ))}
+          </div>
+
+          {/* Feature pills row */}
+          <div className="mt-14 flex flex-wrap justify-center gap-4">
+            {[
+              "Scan & Order from the table",
+              "Live kitchen tracking",
+              "UPI & Card payments",
+              "Allergen-aware menu",
+              "Private dining room",
+              "Chef's seasonal specials",
+            ].map((feature) => (
+              <span
+                key={feature}
+                className="rounded-full border border-gold/40 bg-gold/10 px-5 py-2.5 text-[12px] font-medium uppercase tracking-[0.16em] text-ivory-dim backdrop-blur-sm transition hover:border-gold/70 hover:text-ivory"
+              >
+                {feature}
+              </span>
+            ))}
+          </div>
+        </div>
+      </section>
 
       {/* ---------------------------------------------------------- signatures */}
       <section id="signatures" className="mx-auto max-w-7xl px-4 py-20 sm:px-6 sm:py-28 md:py-36">
@@ -516,6 +579,45 @@ const Landing = () => {
 
         <div className="mt-12 pt-8 border-t border-smoke/40 flex justify-center">
           <MonkDeveloperBrand variant="compact" />
+        </div>
+      </section>
+
+      {/* ------------------------------------------ ambiance / dining experience */}
+      <section className="relative overflow-hidden py-24 sm:py-32">
+        <div className="absolute inset-0">
+          <img
+            src={ambianceImage}
+            alt="Restaurant ambiance"
+            className="h-full w-full object-cover object-center"
+            loading="lazy"
+          />
+          <div className="absolute inset-0 bg-gradient-to-r from-obsidian/95 via-obsidian/70 to-obsidian/40" />
+        </div>
+
+        <div className="relative mx-auto max-w-7xl px-4 sm:px-6">
+          <div className="max-w-lg">
+            <Reveal>
+              <p className="eyebrow">The Atmosphere</p>
+              <h2 className="font-display mt-5 text-[clamp(2rem,7vw,4rem)] leading-[0.95] text-ivory">
+                Crafted for those who dine, not just those who eat.
+              </h2>
+              <div className="rule-fade mt-7 h-px w-24" />
+              <p className="mt-7 text-[15px] leading-loose text-ivory-dim">
+                From the first glance at the menu to the final sip of dessert wine, every moment at our table has been considered. The lighting, the spacing, the sound — none of it is accidental.
+              </p>
+              <p className="mt-4 text-[15px] leading-loose text-ivory-dim">
+                Our kitchen is open because we have nothing to hide. Watch your dish being finished at the pass, then scan the QR to order again — because at a table like this, one course is never enough.
+              </p>
+              <div className="mt-10 flex flex-wrap gap-4">
+                <Link to="/menu">
+                  <LuxeButton>Browse the full menu</LuxeButton>
+                </Link>
+                <Link to="/reserve">
+                  <LuxeButton variant="outline">Reserve your table</LuxeButton>
+                </Link>
+              </div>
+            </Reveal>
+          </div>
         </div>
       </section>
 
