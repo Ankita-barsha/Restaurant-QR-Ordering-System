@@ -111,7 +111,9 @@ export const getReviewById = async (id: string) => {
 
 export const createReview = async (
   input: CreateReviewInput,
-  imageUrl?: string
+  imageUrl?: string,
+  /** When true the review is hidden by default and waits for admin approval. */
+  pendingApproval = false
 ) =>
   prisma.review.create({
     data: {
@@ -120,7 +122,8 @@ export const createReview = async (
       comment: input.comment,
       visitedOn: input.visitedOn,
       imageUrl,
-      isVisible: input.isVisible ?? true,
+      // Customer-submitted reviews start hidden; admin-added ones are visible.
+      isVisible: pendingApproval ? false : (input.isVisible ?? true),
       sortOrder: input.sortOrder ?? 0,
     },
   });
