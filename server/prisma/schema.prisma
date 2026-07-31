@@ -602,6 +602,18 @@ model RestaurantSettings {
   openingTime       String?
   closingTime       String?
 
+  /// Merchant Banking & UPI VPA configuration for diner checkout
+  bankingName   String? @default("Bite me Bistro")
+  merchantVpa   String? @default("bitemebistro@upi")
+  bankAccountNo String?
+  bankIfscCode  String?
+
+  /// Real-world Online Gateway Credentials (Razorpay / Paytm Merchant API)
+  paymentGatewayProvider String? @default("RAZORPAY")
+  razorpayKeyId          String?
+  razorpayKeySecret       String?
+  paytmMerchantId        String?
+
   updatedAt DateTime @updatedAt
 
   @@map("restaurant_settings")

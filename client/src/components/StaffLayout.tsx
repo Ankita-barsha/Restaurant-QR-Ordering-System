@@ -39,6 +39,7 @@ const NAV_ITEMS: NavItem[] = [
   { to: "/admin/roles", label: "Roles", permission: "role:read" },
   { to: "/admin/audit", label: "Audit", permission: "auditLog:read" },
   { to: "/admin/settings", label: "Settings", permission: "settings:read" },
+  { to: "/admin/banking", label: "Banking", permission: "settings:read" },
 ];
 
 /**

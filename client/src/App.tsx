@@ -59,6 +59,7 @@ const AdminReports = lazy(() => import("./pages/staff/AdminReports"));
 const AdminReservations = lazy(() => import("./pages/staff/AdminReservations"));
 const AdminRoles = lazy(() => import("./pages/staff/AdminRoles"));
 const AdminSettings = lazy(() => import("./pages/staff/AdminSettings"));
+const AdminBanking = lazy(() => import("./pages/staff/AdminBanking"));
 const AdminTables = lazy(() => import("./pages/staff/AdminTables"));
 const AdminUsers = lazy(() => import("./pages/staff/AdminUsers"));
 const KitchenDisplay = lazy(() => import("./pages/staff/KitchenDisplay"));
@@ -206,6 +207,14 @@ const App = () => (
             element={
               <ProtectedRoute permission="settings:read">
                 <AdminSettings />
+              </ProtectedRoute>
+            }
+          />
+          <Route
+            path="/admin/banking"
+            element={
+              <ProtectedRoute permission="settings:read">
+                <AdminBanking />
               </ProtectedRoute>
             }
           />

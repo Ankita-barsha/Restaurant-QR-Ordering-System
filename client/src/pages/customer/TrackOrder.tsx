@@ -393,21 +393,26 @@ const TrackOrder = () => {
           {!cancelled && (
             <div className="mt-6">
               {order.paymentStatus === "PAID" ? (
-                <p className="flex items-center justify-center gap-2 rounded-full border border-emerald-500/40 py-3 text-[11px] uppercase tracking-[0.2em] text-emerald-400">
-                  <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
-                    <path d="M20 6 9 17l-5-5" />
-                  </svg>
-                  Paid
-                </p>
-              ) : (
-                <>
-                  <LuxeButton className="w-full" onClick={() => setCheckoutOpen(true)}>
-                    Pay online
-                  </LuxeButton>
-                  <p className="mt-3 text-center text-[11px] text-ivory-faint">
-                    Or pay by cash at the table.
+                <div className="rounded-2xl border border-emerald-500/40 bg-emerald-500/10 p-4 text-center">
+                  <p className="flex items-center justify-center gap-2 text-xs font-bold uppercase tracking-[0.2em] text-emerald-400">
+                    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
+                      <path d="M20 6 9 17l-5-5" />
+                    </svg>
+                    Payment Completed (Paid)
                   </p>
-                </>
+                  <p className="mt-1 text-[11px] text-emerald-200/80">
+                    Thank you! Your payment has been received and tax invoice is generated.
+                  </p>
+                </div>
+              ) : (
+                <div className="space-y-2">
+                  <LuxeButton className="w-full font-bold" onClick={() => setCheckoutOpen(true)}>
+                    💳 Pay Bill (UPI, Card, Cash)
+                  </LuxeButton>
+                  <p className="text-center text-[11px] text-ivory-faint">
+                    Supports GPay, PhonePe, Paytm, Credit/Debit Card & Cash.
+                  </p>
+                </div>
               )}
             </div>
           )}

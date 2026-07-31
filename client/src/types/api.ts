@@ -196,6 +196,14 @@ export interface PublicSettings {
   closingTime: string | null;
   address: string;
   phone: string | null;
+  bankingName?: string | null;
+  merchantVpa?: string | null;
+  bankAccountNo?: string | null;
+  bankIfscCode?: string | null;
+  paymentGatewayProvider?: string | null;
+  razorpayKeyId?: string | null;
+  razorpayKeySecret?: string | null;
+  paytmMerchantId?: string | null;
 }
 
 /**

@@ -132,6 +132,14 @@ export const updateSettingsSchema = z
     isAcceptingOrders: booleanish.optional(),
     openingTime: timeSchema.optional(),
     closingTime: timeSchema.optional(),
+    bankingName: z.string().trim().max(100).optional(),
+    merchantVpa: z.string().trim().max(100).optional(),
+    bankAccountNo: z.string().trim().max(50).optional(),
+    bankIfscCode: z.string().trim().max(20).optional(),
+    paymentGatewayProvider: z.string().trim().max(50).optional(),
+    razorpayKeyId: z.string().trim().max(100).optional(),
+    razorpayKeySecret: z.string().trim().max(100).optional(),
+    paytmMerchantId: z.string().trim().max(100).optional(),
   })
   .refine((data) => Object.keys(data).length > 0, {
     message: "Provide at least one field to update",

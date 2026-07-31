@@ -55,6 +55,13 @@ export const getPublicSettings = async () => {
       .filter(Boolean)
       .join(", "),
     phone: settings.phone,
+    bankingName: settings.bankingName ?? settings.name,
+    merchantVpa: settings.merchantVpa ?? "bitemebistro@upi",
+    bankAccountNo: settings.bankAccountNo,
+    bankIfscCode: settings.bankIfscCode,
+    paymentGatewayProvider: settings.paymentGatewayProvider ?? "RAZORPAY",
+    razorpayKeyId: settings.razorpayKeyId,
+    paytmMerchantId: settings.paytmMerchantId,
   };
 };
 
