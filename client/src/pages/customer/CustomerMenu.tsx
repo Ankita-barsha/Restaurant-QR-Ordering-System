@@ -11,7 +11,7 @@
  */
 
 import { useQuery } from "@tanstack/react-query";
-import { useEffect, useMemo, useState } from "react";
+import { useMemo, useState } from "react";
 import { Link, useSearchParams } from "react-router-dom";
 
 import CustomerFooter from "../../components/CustomerFooter";
@@ -40,7 +40,8 @@ const CustomerMenu = () => {
   const initialCategoryParam = searchParams.get("category");
 
   const [search, setSearch] = useState("");
-  const [categorySlug, setCategorySlug] = useState<string | null>(initialCategoryParam);
+  const [userSelectedCategory, setUserSelectedCategory] = useState<string | null>(null);
+  const [userClearedCategory, setUserClearedCategory] = useState(false);
   const [vegOnly, setVegOnly] = useState(false);
   const [favouritesOnly, setFavouritesOnly] = useState(false);
   const [offersOnly, setOffersOnly] = useState(false);
@@ -56,8 +57,10 @@ const CustomerMenu = () => {
     queryFn: async () => unwrap(await api.get<ApiResponse<Category[]>>("/categories")),
   });
 
-  // Smart matching for URL ?category= (e.g. drinks, desserts, beverages)
-  useEffect(() => {
+  // Derived category slug: user selection > matched query param > null
+  const categorySlug = useMemo(() => {
+    if (userClearedCategory) return null;
+    if (userSelectedCategory) return userSelectedCategory;
     if (initialCategoryParam && categoriesQuery.data && categoriesQuery.data.length > 0) {
       const paramLower = initialCategoryParam.toLowerCase();
       const matched = categoriesQuery.data.find(
@@ -67,11 +70,20 @@ const CustomerMenu = () => {
           (paramLower === "drinks" && c.name.toLowerCase().includes("bev")) ||
           (paramLower === "drinks" && c.slug.toLowerCase().includes("bev"))
       );
-      if (matched) {
-        setCategorySlug(matched.slug);
-      }
+      if (matched) return matched.slug;
     }
-  }, [initialCategoryParam, categoriesQuery.data]);
+    return initialCategoryParam;
+  }, [userClearedCategory, userSelectedCategory, initialCategoryParam, categoriesQuery.data]);
+
+  const selectCategory = (slug: string | null) => {
+    if (slug === null) {
+      setUserClearedCategory(true);
+      setUserSelectedCategory(null);
+    } else {
+      setUserClearedCategory(false);
+      setUserSelectedCategory(slug);
+    }
+  };
 
   const foodsQuery = useQuery({
     queryKey: [...queryKeys.foods, search, categorySlug, vegOnly, offersOnly],
@@ -145,7 +157,7 @@ const CustomerMenu = () => {
           <div className="mt-3 flex gap-2 overflow-x-auto pb-1 [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
             <FilterPill
               active={categorySlug === null}
-              onClick={() => setCategorySlug(null)}
+              onClick={() => selectCategory(null)}
             >
               All
             </FilterPill>
@@ -154,7 +166,7 @@ const CustomerMenu = () => {
               <FilterPill
                 key={category.id}
                 active={categorySlug === category.slug}
-                onClick={() => setCategorySlug(category.slug)}
+                onClick={() => selectCategory(category.slug)}
               >
                 {category.name}
               </FilterPill>
@@ -215,7 +227,7 @@ const CustomerMenu = () => {
                 variant="outline"
                 onClick={() => {
                   setSearch("");
-                  setCategorySlug(null);
+                  selectCategory(null);
                   setVegOnly(false);
                   setFavouritesOnly(false);
                   setOffersOnly(false);
