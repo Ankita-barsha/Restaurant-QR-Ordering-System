@@ -196,10 +196,10 @@ def create_documentation():
     c_hdrs[3].text = "Portal Route"
 
     creds = [
-        ("Chef (Kitchen)", "chef@restaurant.local", "DemoPassword2026", "http://localhost:5173/kitchen"),
-        ("Staff (Waiter)", "waiter@restaurant.local", "DemoPassword2026", "http://localhost:5173/staff"),
-        ("Admin (Manager)", "manager@restaurant.local", "DemoPassword2026", "http://localhost:5173/admin"),
-        ("Super Admin", "admin@restaurant.local", "6-so4GCeMvkbRTa0", "http://localhost:5173/login")
+        ("Chef (Kitchen)", "chef@restaurant.local", "Env: SEED_CHEF_PASSWORD", "http://localhost:5173/kitchen"),
+        ("Staff (Waiter)", "waiter@restaurant.local", "Env: SEED_WAITER_PASSWORD", "http://localhost:5173/staff"),
+        ("Admin (Manager)", "manager@restaurant.local", "Env: SEED_MANAGER_PASSWORD", "http://localhost:5173/admin"),
+        ("Super Admin", "admin@restaurant.local", "Env: SEED_ADMIN_PASSWORD", "http://localhost:5173/login")
     ]
 
     for r, e, p, u in creds:
@@ -215,9 +215,9 @@ def create_documentation():
     doc.add_paragraph("• Database Host: localhost")
     doc.add_paragraph("• Database Port: 5432")
     doc.add_paragraph("• Database Name: restaurant_db")
-    doc.add_paragraph("• Username: restaurant")
-    doc.add_paragraph("• Password: restaurant123")
-    doc.add_paragraph("• Connection String (DATABASE_URL): postgresql://restaurant:restaurant123@localhost:5432/restaurant_db")
+    doc.add_paragraph("• Username: <POSTGRES_USER>")
+    doc.add_paragraph("• Password: <POSTGRES_PASSWORD>")
+    doc.add_paragraph("• Connection String (DATABASE_URL): postgresql://<POSTGRES_USER>:<POSTGRES_PASSWORD>@localhost:5432/restaurant_db")
 
     doc.add_paragraph().paragraph_format.space_after = Pt(12)
 
