@@ -94,7 +94,7 @@ const ScanTable = () => {
         <div className="glass rounded-luxe animate-rise delay-2 mt-10 px-5 py-8 sm:mt-12 sm:px-8 sm:py-10">
           <p className="eyebrow">You are seated at</p>
 
-          <p className="font-display mt-3 text-[clamp(4rem,22vw,6rem)] leading-none text-gold-gradient">
+          <p className="font-display mt-3 text-[clamp(4rem,22vw,6rem)] leading-none text-slate-gradient">
             {table.tableNumber}
           </p>
 
@@ -117,7 +117,7 @@ const ScanTable = () => {
 
         <Link
           to="/track"
-          className="animate-rise delay-4 mt-6 flex min-h-11 items-center justify-center text-[10px] uppercase tracking-[0.24em] text-ivory-faint transition-colors hover:text-gold"
+          className="animate-rise delay-4 mt-6 flex min-h-11 items-center justify-center text-[10px] uppercase tracking-[0.24em] text-ivory-faint transition-colors hover:text-slate"
         >
           Track an existing order
         </Link>

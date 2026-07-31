@@ -41,7 +41,7 @@ const MyOrdersList = ({ currentToken }: { currentToken?: string }) => {
 
   return (
     <div className="mt-8 rounded-luxe border border-smoke bg-charcoal p-5 text-left">
-      <p className="eyebrow text-gold">My Recent Orders</p>
+      <p className="eyebrow text-slate">My Recent Orders</p>
       <p className="mt-1 text-xs text-ivory-dim">
         Orders placed on this device:
       </p>
@@ -60,7 +60,7 @@ const MyOrdersList = ({ currentToken }: { currentToken?: string }) => {
                 Tap to view status & invoice
               </p>
             </div>
-            <span className="text-xs font-bold text-gold">View →</span>
+            <span className="text-xs font-bold text-slate">View →</span>
           </div>
         ))}
       </div>
@@ -165,7 +165,7 @@ const DinerReviewForm = ({ customerName }: { customerName: string }) => {
 
   return (
     <form onSubmit={handleSubmit} className="my-4 rounded-xl border border-gold/20 bg-obsidian/60 p-4 text-left">
-      <p className="text-xs font-semibold uppercase tracking-wider text-gold text-center">Leave a Review</p>
+      <p className="text-xs font-semibold uppercase tracking-wider text-slate text-center">Leave a Review</p>
       
       <div className="mt-3 flex justify-center gap-2">
         {[1, 2, 3, 4, 5].map((star) => (
@@ -350,7 +350,7 @@ const TrackOrder = () => {
                     </p>
                     <p className="mt-0.5 text-[13px] text-ivory-faint">{step.hint}</p>
                     {at && (
-                      <p className="mt-1 text-[11px] tracking-wide text-gold/70">
+                      <p className="mt-1 text-[11px] tracking-wide text-slate/70">
                         {formatTime(at)}
                       </p>
                     )}
@@ -368,7 +368,7 @@ const TrackOrder = () => {
             {order.items.map((item, index) => (
               <li key={index} className="flex justify-between gap-4 text-sm">
                 <span className="text-ivory-dim">
-                  <span className="text-gold">{item.quantity}×</span> {item.foodName}
+                  <span className="text-slate">{item.quantity}×</span> {item.foodName}
                   {item.notes && (
                     <span className="mt-0.5 block text-[11px] text-ivory-faint">
                       {item.notes}
@@ -384,7 +384,7 @@ const TrackOrder = () => {
 
           <div className="flex items-baseline justify-between">
             <span className="eyebrow">Total</span>
-            <span className="font-display text-2xl text-gold sm:text-3xl">
+            <span className="font-display text-2xl text-slate sm:text-3xl">
               {formatMoney(order.totalAmount)}
             </span>
           </div>
@@ -416,7 +416,7 @@ const TrackOrder = () => {
           {(order.status === "SERVED" || (order.status as string) === "COMPLETED") && (
             <div className="mt-6 rounded-luxe border border-gold/30 bg-gold/10 p-5 text-center shadow-lg">
               <span className="text-3xl">🍷</span>
-              <h3 className="font-display mt-2 text-2xl text-gold">Thank you for dining with us!</h3>
+              <h3 className="font-display mt-2 text-2xl text-slate">Thank you for dining with us!</h3>
               <p className="mt-1 text-[13px] text-ivory-dim leading-relaxed">
                 Your meal has been served. How was your experience today?
               </p>

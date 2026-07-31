@@ -158,7 +158,7 @@ const Reserve = () => {
 
           <div className="glass rounded-luxe animate-rise delay-2 mt-10 p-8">
             <p className="eyebrow">Your reference</p>
-            <p className="font-display mt-2 text-5xl tracking-wide text-gold-gradient">
+            <p className="font-display mt-2 text-5xl tracking-wide text-slate-gradient">
               {confirmed.reference}
             </p>
 
@@ -190,7 +190,7 @@ const Reserve = () => {
               </div>
               <div>
                 <dt className="eyebrow">Status</dt>
-                <dd className="mt-1 text-sm text-gold">Awaiting confirmation</dd>
+                <dd className="mt-1 text-sm text-slate">Awaiting confirmation</dd>
               </div>
             </dl>
           </div>
@@ -206,7 +206,7 @@ const Reserve = () => {
             </Link>
             <Link
               to="/welcome"
-              className="text-[10px] uppercase tracking-[0.24em] text-ivory-faint transition-colors hover:text-gold"
+              className="text-[10px] uppercase tracking-[0.24em] text-ivory-faint transition-colors hover:text-slate"
             >
               Back to the restaurant
             </Link>
@@ -250,7 +250,7 @@ const Reserve = () => {
                 className={`h-12 w-12 shrink-0 rounded-full border text-sm transition-all duration-500 ${
                   partySize === size
                     ? "border-gold bg-gold text-obsidian"
-                    : "border-smoke text-ivory-dim hover:border-gold/40 hover:text-gold"
+                    : "border-smoke text-ivory-dim hover:border-gold/40 hover:text-slate"
                 }`}
               >
                 {size}
@@ -325,7 +325,7 @@ const Reserve = () => {
                   className={`rounded-lg border py-2.5 text-[13px] transition-all duration-500 ${
                     time === slot
                       ? "border-gold bg-gold text-obsidian"
-                      : "border-smoke text-ivory-dim hover:border-gold/40 hover:text-gold"
+                      : "border-smoke text-ivory-dim hover:border-gold/40 hover:text-slate"
                   }`}
                 >
                   {slot}
@@ -354,7 +354,7 @@ const Reserve = () => {
                     </span>
                   </div>
                   <span className="text-[12px] text-ivory-dim">
-                    Total Capacity: <strong className="text-gold">{availability.totalCapacity} Seats</strong>
+                    Total Capacity: <strong className="text-slate">{availability.totalCapacity} Seats</strong>
                   </span>
                 </div>
 
@@ -363,7 +363,7 @@ const Reserve = () => {
                     <p className="text-[10px] uppercase tracking-wider text-ivory-faint">
                       Free Seats ({time})
                     </p>
-                    <p className="font-display mt-1 text-2xl text-gold">
+                    <p className="font-display mt-1 text-2xl text-slate">
                       {availability.seatsRemaining}
                     </p>
                   </div>
@@ -427,7 +427,7 @@ const Reserve = () => {
                                 ).padStart(2, "0")}`
                               );
                             }}
-                            className="rounded-full border border-gold/40 px-4 py-1.5 text-[12px] text-gold transition hover:bg-gold hover:text-obsidian"
+                            className="rounded-full border border-gold/40 px-4 py-1.5 text-[12px] text-slate transition hover:bg-gold hover:text-obsidian"
                           >
                             {alternative.toLocaleTimeString("en-IN", {
                               hour: "2-digit",
@@ -490,7 +490,7 @@ const Reserve = () => {
                 className={`rounded-full border px-4 py-2 text-[11px] uppercase tracking-[0.16em] transition-all duration-500 ${
                   occasion === option
                     ? "border-gold bg-gold text-obsidian"
-                    : "border-smoke text-ivory-dim hover:border-gold/40 hover:text-gold"
+                    : "border-smoke text-ivory-dim hover:border-gold/40 hover:text-slate"
                 }`}
               >
                 {option}
@@ -535,7 +535,7 @@ const Reserve = () => {
         {settingsQuery.data?.phone && (
           <p className="mt-8 text-center text-[13px] text-ivory-faint">
             Larger party or a private room?{" "}
-            <a href={`tel:${settingsQuery.data.phone}`} className="text-gold">
+            <a href={`tel:${settingsQuery.data.phone}`} className="text-slate">
               Call {settingsQuery.data.phone}
             </a>
           </p>
