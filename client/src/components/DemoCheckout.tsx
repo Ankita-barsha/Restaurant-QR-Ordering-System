@@ -74,19 +74,19 @@ const isValidExpiry = (expiryStr: string): boolean => {
 const UPI_BRAND_LOGOS: Record<UpiApp, { name: string; logoUrl: string }> = {
   gpay: {
     name: "Google Pay",
-    logoUrl: "https://lh3.googleusercontent.com/H-_3wZ7G6_Z3X9ZlX1Vj1N0L6N8L9n5g7F8=w120",
+    logoUrl: "https://encrypted-tbn0.gstatic.com/images?q=tbn:ANd9GcQ0EjIrbYAVG99OxA_2amcS-233E1UTA0pl37yN3TzSJA&s=10",
   },
   phonepe: {
     name: "PhonePe",
-    logoUrl: "https://download.logo.wine/logo/PhonePe/PhonePe-Logo.wine.png",
+    logoUrl: "https://encrypted-tbn0.gstatic.com/images?q=tbn:ANd9GcRe0N6bjzJ89P1KNnl9g-kueY850sUinE6Hj4HQkpCGqQ8OlY1BzUoFdXk&s=10",
   },
   paytm: {
     name: "Paytm",
-    logoUrl: "https://download.logo.wine/logo/Paytm/Paytm-Logo.wine.png",
+    logoUrl: "https://toppng.com/uploads/preview/paytm-logo-vector-11573850407xnvt10xxcf.png",
   },
   bhim: {
     name: "BHIM UPI",
-    logoUrl: "https://download.logo.wine/logo/BHIM/BHIM-Logo.wine.png",
+    logoUrl: "https://img.icons8.com/color/1200/bhim.jpg",
   },
 };
 
