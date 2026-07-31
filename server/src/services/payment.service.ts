@@ -21,7 +21,7 @@ import {
   type PaginationMeta,
 } from "../utils/pagination.js";
 import { paymentProvider } from "../utils/paymentProvider.js";
-import { emitOrderUpdated } from "../socket/index.js";
+import { emitOrderUpdated, emitPaymentStatusChanged } from "../socket/index.js";
 import { recordNotification } from "./notification.service.js";
 
 type TxClient = Omit<
@@ -172,6 +172,12 @@ export const confirmOnlinePayment = async (
   // After the commit: refresh staff dashboards and raise a notification.
   if (result.order) {
     emitOrderUpdated(result.order);
+    emitPaymentStatusChanged({
+      orderId: result.order.id,
+      orderNumber: result.order.orderNumber,
+      paymentStatus: result.order.paymentStatus,
+      method: "ONLINE",
+    });
 
     void recordNotification({
       type: "SYSTEM",
@@ -229,6 +235,12 @@ export const recordCashPayment = async (orderId: string) => {
 
   if (result.order) {
     emitOrderUpdated(result.order);
+    emitPaymentStatusChanged({
+      orderId: result.order.id,
+      orderNumber: result.order.orderNumber,
+      paymentStatus: result.order.paymentStatus,
+      method: "CASH",
+    });
   }
 
   return result.payment;

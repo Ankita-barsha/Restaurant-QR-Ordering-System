@@ -15,9 +15,11 @@
  * this text rather than leaving a hole in the layout.
  */
 
-import { useQuery } from "@tanstack/react-query";
+import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
+import { useEffect, useState } from "react";
 import { Link } from "react-router-dom";
 
+import Modal from "../../components/Modal";
 import { MonkDeveloperBrand } from "../../components/MonkDeveloperBrand";
 import {
   DietMark,
@@ -34,6 +36,7 @@ import { queryKeys } from "../../hooks/useLiveOrders";
 import { api, unwrap } from "../../lib/api";
 import { formatMoney, imageUrl } from "../../lib/format";
 import { effectivePrice, offerBadge, strikethroughPrice } from "../../lib/offer";
+import { getSocket, SOCKET_EVENTS } from "../../lib/socket";
 import type {
   ApiResponse,
   Food,
@@ -101,6 +104,46 @@ const Landing = () => {
     queryKey: ["content", "reviews"],
     queryFn: async () =>
       unwrap(await api.get<ApiResponse<Review[]>>("/content/reviews?limit=12")),
+    refetchInterval: 3_000,
+  });
+
+  const queryClient = useQueryClient();
+  const [showReviewModal, setShowReviewModal] = useState(false);
+  const [customerName, setCustomerName] = useState("");
+  const [rating, setRating] = useState(5);
+  const [comment, setComment] = useState("");
+  const [reviewSubmitted, setReviewSubmitted] = useState(false);
+
+  useEffect(() => {
+    const socket = getSocket();
+    const refreshReviews = () => {
+      void queryClient.invalidateQueries({ queryKey: ["content", "reviews"] });
+    };
+    socket.on(SOCKET_EVENTS.REVIEW_CHANGED, refreshReviews);
+    return () => {
+      socket.off(SOCKET_EVENTS.REVIEW_CHANGED, refreshReviews);
+    };
+  }, [queryClient]);
+
+  const submitCustomerReview = useMutation({
+    mutationFn: async () =>
+      api.post("/content/reviews", {
+        customerName: customerName.trim() || "Guest Diner",
+        rating,
+        comment: comment.trim() || "Exquisite dining experience!",
+        visitedOn: new Date().toISOString(),
+      }),
+    onSuccess: () => {
+      setReviewSubmitted(true);
+      void queryClient.invalidateQueries({ queryKey: ["content", "reviews"] });
+      setTimeout(() => {
+        setShowReviewModal(false);
+        setReviewSubmitted(false);
+        setCustomerName("");
+        setComment("");
+        setRating(5);
+      }, 2000);
+    },
   });
 
   const content = contentQuery.data;
@@ -214,10 +257,10 @@ const Landing = () => {
                     <div className="h-full w-full bg-graphite" />
                   )}
 
-                  <div className="absolute inset-0 bg-gradient-to-t from-obsidian via-obsidian/25 to-transparent" />
+                  <div className="absolute inset-0 bg-gradient-to-t from-obsidian via-obsidian/25 to-transparent opacity-0 dark:opacity-100 transition-opacity" />
 
                   {food.isFeatured && (
-                    <span className="absolute right-5 top-5 rounded-full border border-gold/50 bg-obsidian/70 px-3 py-1 text-[10px] uppercase tracking-[0.18em] text-gold backdrop-blur">
+                    <span className="absolute right-5 top-5 rounded-full border border-gold/50 bg-obsidian/70 px-3 py-1 text-[10px] uppercase tracking-[0.18em] text-slate backdrop-blur">
                       Chef's pick
                     </span>
                   )}
@@ -256,7 +299,7 @@ const Landing = () => {
                           where there is no hover to reveal it. */}
                       <Link
                         to="/menu"
-                        className="text-[10px] uppercase tracking-[0.24em] text-ivory-dim opacity-100 transition-all duration-500 hover:text-gold md:opacity-0 md:group-hover:opacity-100"
+                        className="text-[10px] uppercase tracking-[0.24em] text-ivory-dim opacity-100 transition-all duration-500 hover:text-slate md:opacity-0 md:group-hover:opacity-100"
                       >
                         Order →
                       </Link>
@@ -335,7 +378,7 @@ const Landing = () => {
                           />
                           <Link
                             to="/menu"
-                            className="text-[10px] uppercase tracking-[0.24em] text-ivory-dim transition-colors hover:text-gold"
+                            className="text-[10px] uppercase tracking-[0.24em] text-ivory-dim transition-colors hover:text-slate"
                           >
                             Order →
                           </Link>
@@ -510,18 +553,17 @@ const Landing = () => {
       </section>
 
       {/* ----------------------------------------------------------- reviews */}
-      {/* Real rows from the database. Hidden entirely when none are published,
-          for the same reason the featured section is: an empty testimonials
-          block advertises that nobody has said anything. */}
-      {reviews.length > 0 && (
-        <section id="reviews" className="mx-auto max-w-7xl px-4 py-20 sm:px-6 sm:py-28 md:py-36">
-          <Reveal>
+      <section id="reviews" className="mx-auto max-w-7xl px-4 py-20 sm:px-6 sm:py-28 md:py-36">
+        <Reveal>
+          <div className="flex flex-wrap items-end justify-between gap-4">
             <SectionHeading eyebrow="Guests" title="What the room says" />
-          </Reveal>
+            <LuxeButton onClick={() => setShowReviewModal(true)} className="font-bold text-xs uppercase tracking-wider">
+              + Leave a Review
+            </LuxeButton>
+          </div>
+        </Reveal>
 
-          {/* A scroll-snapping row on a phone and a grid from tablet up. One
-              layout, no carousel library and no autoplay to fight with — a
-              guest reads at their own pace, which is the whole point. */}
+        {reviews.length > 0 ? (
           <div className="mt-16 flex snap-x snap-mandatory gap-6 overflow-x-auto pb-4 [scrollbar-width:none] md:grid md:grid-cols-3 md:overflow-visible md:pb-0 [&::-webkit-scrollbar]:hidden">
             {reviews.map((review, index) => (
               <Reveal
@@ -547,7 +589,7 @@ const Landing = () => {
                         className="h-10 w-10 shrink-0 rounded-full object-cover"
                       />
                     ) : (
-                      <span className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full border border-gold/30 text-sm text-gold">
+                      <span className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full border border-gold/30 text-sm text-slate">
                         {review.customerName.slice(0, 1).toUpperCase()}
                       </span>
                     )}
@@ -571,8 +613,95 @@ const Landing = () => {
               </Reveal>
             ))}
           </div>
-        </section>
-      )}
+        ) : (
+          <div className="mt-12 text-center text-ivory-dim">
+            <p className="text-sm">Be the first to leave a review!</p>
+          </div>
+        )}
+      </section>
+
+      {/* Review Submission Modal for Diners */}
+      <Modal
+        open={showReviewModal}
+        onClose={() => setShowReviewModal(false)}
+        title="Share Your Dining Experience"
+        description="Your review will be sent to the restaurant team for approval before going live."
+      >
+        {reviewSubmitted ? (
+          <div className="py-8 text-center">
+            <span className="text-4xl">🌟</span>
+            <p className="mt-3 text-lg font-bold text-emerald-400">Thank you for your review!</p>
+            <p className="mt-1 text-sm text-ivory-dim">
+              Your feedback has been received. It will appear on the page once our team approves it.
+            </p>
+          </div>
+        ) : (
+          <form
+            onSubmit={(e) => {
+              e.preventDefault();
+              submitCustomerReview.mutate();
+            }}
+            className="grid gap-4"
+          >
+            <label className="flex flex-col gap-1.5">
+              <span className="text-sm font-medium text-ivory-dim">Your Name</span>
+              <input
+                type="text"
+                required
+                value={customerName}
+                onChange={(e) => setCustomerName(e.target.value)}
+                placeholder="Ananya Sen"
+                className="w-full rounded-lg border border-smoke bg-graphite px-3 py-2 text-sm text-ivory placeholder:text-ivory-faint outline-none transition focus:border-gold"
+              />
+            </label>
+
+            <label className="flex flex-col gap-1.5">
+              <span className="text-sm font-medium text-ivory-dim">Rating</span>
+              <div className="flex gap-2">
+                {[1, 2, 3, 4, 5].map((star) => (
+                  <button
+                    key={star}
+                    type="button"
+                    onClick={() => setRating(star)}
+                    className="text-2xl transition hover:scale-110"
+                  >
+                    <span className={star <= rating ? "text-gold" : "text-ivory-faint opacity-40"}>★</span>
+                  </button>
+                ))}
+              </div>
+            </label>
+
+            <label className="flex flex-col gap-1.5">
+              <span className="text-sm font-medium text-ivory-dim">Review &amp; Feedback</span>
+              <textarea
+                required
+                rows={4}
+                value={comment}
+                onChange={(e) => setComment(e.target.value)}
+                placeholder="How was the food, service and ambience?"
+                className="w-full rounded-lg border border-smoke bg-graphite px-3 py-2 text-sm text-ivory placeholder:text-ivory-faint outline-none transition focus:border-gold"
+              />
+            </label>
+
+            <div className="mt-4 flex justify-end gap-2 border-t border-smoke pt-4">
+              <button
+                type="button"
+                onClick={() => setShowReviewModal(false)}
+                className="rounded-xl border border-smoke bg-graphite px-4 py-2.5 text-sm font-semibold text-ivory hover:text-gold"
+              >
+                Cancel
+              </button>
+              <button
+                type="submit"
+                disabled={submitCustomerReview.isPending}
+                className="rounded-xl bg-gold px-5 py-2.5 text-sm font-bold text-obsidian shadow-sm transition hover:bg-gold-light disabled:opacity-50"
+              >
+                {submitCustomerReview.isPending ? "Submitting…" : "Submit Review"}
+              </button>
+            </div>
+          </form>
+        )}
+      </Modal>
 
       {/* --------------------------------------------- reserve / events / CTA */}
       <section id="reserve" className="relative overflow-hidden">
@@ -651,14 +780,14 @@ const Landing = () => {
             <p className="eyebrow">Contact</p>
             <div className="mt-5 space-y-2.5 text-[13px] text-ivory-dim">
               {settingsQuery.data?.phone && (
-                <a href={`tel:${settingsQuery.data.phone}`} className="block hover:text-gold">
+                <a href={`tel:${settingsQuery.data.phone}`} className="block hover:text-slate">
                   {settingsQuery.data.phone}
                 </a>
               )}
-              <Link to="/menu" className="block hover:text-gold">
+              <Link to="/menu" className="block hover:text-slate">
                 View the menu
               </Link>
-              <Link to="/reserve" className="block hover:text-gold">
+              <Link to="/reserve" className="block hover:text-slate">
                 Reserve a table
               </Link>
             </div>

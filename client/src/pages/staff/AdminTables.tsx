@@ -20,7 +20,7 @@ const STATUS_STYLES: Record<TableStatus, string> = {
   AVAILABLE: "bg-emerald-100 text-emerald-700",
   OCCUPIED: "bg-orange-100 text-orange-700",
   RESERVED: "bg-blue-100 text-blue-700",
-  INACTIVE: "bg-slate-200 text-slate-600",
+  INACTIVE: "bg-slate-200 text-white-600",
 };
 
 const AdminTables = () => {
@@ -104,7 +104,7 @@ const AdminTables = () => {
 
   return (
     <div>
-      <h1 className="text-xl font-bold text-slate-900">Tables &amp; QR codes</h1>
+      <h1 className="text-xl font-bold text-white-900">Tables &amp; QR codes</h1>
 
       {can("table:create") && (
         <Card className="mt-4">
@@ -121,7 +121,7 @@ const AdminTables = () => {
             className="flex flex-wrap items-center gap-3 sm:flex-nowrap"
           >
             <div className="min-w-0 flex-1">
-              <label htmlFor="table-number-input" className="mb-1 block text-xs font-semibold text-slate-600">
+              <label htmlFor="table-number-input" className="mb-1 block text-xs font-semibold text-white-600">
                 Table Number
               </label>
               <input
@@ -133,7 +133,7 @@ const AdminTables = () => {
               />
             </div>
             <div className="w-32">
-              <label htmlFor="table-capacity-input" className="mb-1 block text-xs font-semibold text-slate-600">
+              <label htmlFor="table-capacity-input" className="mb-1 block text-xs font-semibold text-white-600">
                 Seats (Capacity)
               </label>
               <input
@@ -169,7 +169,7 @@ const AdminTables = () => {
           return (
             <Card key={table.id}>
               <div className="flex items-center justify-between">
-                <span className="text-lg font-black text-slate-900">
+                <span className="text-lg font-black text-white-900">
                   {table.tableNumber}
                 </span>
                 <span
@@ -181,7 +181,7 @@ const AdminTables = () => {
                 </span>
               </div>
 
-              <p className="mt-0.5 text-xs text-slate-500">Seats {table.capacity}</p>
+              <p className="mt-0.5 text-xs text-white-500">Seats {table.capacity}</p>
 
               {qr && (
                 <a href={qr} target="_blank" rel="noreferrer" className="mt-3 block">
@@ -195,7 +195,7 @@ const AdminTables = () => {
 
               {/* The scan URL is shown so it can be verified against what a
                   phone opens, and copied into a print template. */}
-              <p className="mt-2 truncate text-center text-[11px] text-slate-400">
+              <p className="mt-2 truncate text-center text-[11px] text-white-400">
                 /t/{table.qrToken}
               </p>
 
@@ -213,7 +213,7 @@ const AdminTables = () => {
         })}
       </div>
 
-      <p className="mt-6 text-xs text-slate-400">
+      <p className="mt-6 text-xs text-white-400">
         Scan URLs point at {scanUrlHint()}. Set VITE_API_URL and the server's
         QR_BASE_URL to your public domain before printing codes for real use.
       </p>

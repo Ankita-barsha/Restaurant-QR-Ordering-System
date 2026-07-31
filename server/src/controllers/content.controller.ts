@@ -6,6 +6,7 @@ import type { RequestHandler } from "express";
 
 import { PERMISSIONS } from "../config/permissions.js";
 import * as contentService from "../services/content.service.js";
+import { emitReviewChanged } from "../socket/index.js";
 import { storage } from "../utils/storage.js";
 import type {
   CreateReviewInput,
@@ -73,13 +74,25 @@ export const createReview: RequestHandler<
   unknown,
   CreateReviewInput
 > = async (req, res) => {
+  // An unauthenticated diner submitting a review after their meal: hide it
+  // by default so the admin can moderate before it appears on the landing page.
+  const pendingApproval = !req.user;
+
   const review = await contentService.createReview(
     req.body,
-    uploadedImageUrl(req.file)
+    uploadedImageUrl(req.file),
+    pendingApproval
   );
 
-  res.status(201).json({ success: true, message: "Review published", data: review });
+  emitReviewChanged(review);
+
+  const message = pendingApproval
+    ? "Review submitted! It will appear once approved."
+    : "Review published";
+
+  res.status(201).json({ success: true, message, data: review });
 };
+
 
 /** PATCH /api/content/reviews/:id */
 export const updateReview: RequestHandler<
@@ -92,6 +105,8 @@ export const updateReview: RequestHandler<
     req.body,
     uploadedImageUrl(req.file)
   );
+
+  emitReviewChanged(review);
 
   res.json({ success: true, message: "Review updated", data: review });
 };
@@ -107,6 +122,8 @@ export const toggleReviewVisibility: RequestHandler<
     req.body.isVisible
   );
 
+  emitReviewChanged(review);
+
   res.json({
     success: true,
     message: req.body.isVisible ? "Review published" : "Review hidden",
@@ -117,6 +134,8 @@ export const toggleReviewVisibility: RequestHandler<
 /** DELETE /api/content/reviews/:id */
 export const removeReview: RequestHandler<IdParams> = async (req, res) => {
   await contentService.deleteReview(req.params.id);
+
+  emitReviewChanged({ id: req.params.id });
 
   res.json({ success: true, message: "Review deleted" });
 };

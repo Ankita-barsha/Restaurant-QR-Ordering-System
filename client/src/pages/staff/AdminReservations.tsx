@@ -3,6 +3,7 @@
  *
  * Sorted soonest-first and defaulted to today, because the only question the
  * floor asks this screen is "who is arriving next".
+ * Theme-aware styling ensures clear contrast in both Dark and Light modes.
  */
 
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
@@ -36,15 +37,14 @@ interface Reservation {
 }
 
 const STATUS_STYLES: Record<ReservationStatus, string> = {
-  PENDING: "bg-amber-100 text-amber-800",
-  CONFIRMED: "bg-blue-100 text-blue-700",
-  SEATED: "bg-emerald-100 text-emerald-700",
-  COMPLETED: "bg-slate-100 text-slate-600",
-  CANCELLED: "bg-red-100 text-red-700",
-  NO_SHOW: "bg-red-100 text-red-700",
+  PENDING: "bg-amber-500/15 text-amber-300 border border-amber-500/30 font-semibold",
+  CONFIRMED: "bg-blue-500/15 text-blue-400 border border-blue-500/30 font-semibold",
+  SEATED: "bg-emerald-500/15 text-emerald-400 border border-emerald-500/30 font-semibold",
+  COMPLETED: "bg-graphite text-ivory-dim border border-smoke font-semibold",
+  CANCELLED: "bg-red-500/15 text-red-400 border border-red-500/30 font-semibold",
+  NO_SHOW: "bg-ember/15 text-ember border border-ember/30 font-semibold",
 };
 
-/** The next action, matching the server's state machine exactly. */
 const NEXT_ACTIONS: Record<ReservationStatus, { next: ReservationStatus; label: string }[]> = {
   PENDING: [
     { next: "CONFIRMED", label: "Confirm" },
@@ -132,27 +132,27 @@ const AdminReservations = () => {
     .reduce((sum, r) => sum + r.partySize, 0);
 
   return (
-    <div>
+    <div className="space-y-6">
       <div className="flex flex-wrap items-center justify-between gap-3">
         <div>
-          <h1 className="text-xl font-bold text-slate-900">Reservations</h1>
-          <p className="mt-0.5 text-sm text-slate-500">
+          <h1 className="text-2xl font-bold text-ivory font-display">Reservation Book</h1>
+          <p className="mt-0.5 text-sm text-ivory-dim">
             {reservations.length} booking{reservations.length === 1 ? "" : "s"} ·{" "}
             {covers} cover{covers === 1 ? "" : "s"}
           </p>
         </div>
       </div>
 
-      <div className="mt-4 flex gap-2 overflow-x-auto pb-2">
+      <div className="flex gap-2 overflow-x-auto pb-1 [scrollbar-width:none]">
         {FILTERS.map((option) => (
           <button
             key={option.value}
             type="button"
             onClick={() => setFilter(option.value)}
-            className={`shrink-0 rounded-full px-4 py-1.5 text-sm font-medium transition ${
+            className={`shrink-0 rounded-full px-4 py-2 text-[11px] font-bold uppercase tracking-[0.16em] transition ${
               filter === option.value
-                ? "bg-slate-900 text-white"
-                : "bg-white text-slate-600 ring-1 ring-slate-200"
+                ? "bg-gold text-obsidian shadow-sm"
+                : "bg-graphite border border-smoke text-ivory-dim hover:border-gold/50 hover:text-ivory"
             }`}
           >
             {option.label}
@@ -161,36 +161,35 @@ const AdminReservations = () => {
       </div>
 
       {(setStatus.isError || assignTable.isError) && (
-        <div className="mt-4">
+        <div>
           <ErrorBox message={getErrorMessage(setStatus.error ?? assignTable.error)} />
         </div>
       )}
 
       {reservations.length === 0 ? (
-        <div className="mt-4">
+        <div>
           <EmptyState
             title="Nothing in the book"
             hint="Bookings made on the website appear here automatically."
           />
         </div>
       ) : (
-        <div className="mt-4 grid gap-3">
+        <div className="grid gap-3">
           {reservations.map((reservation) => {
             const when = new Date(reservation.reservedAt);
             const actions = NEXT_ACTIONS[reservation.status];
 
             return (
-              <Card key={reservation.id} className="p-4">
+              <Card key={reservation.id} className="p-4 bg-charcoal">
                 <div className="flex flex-wrap items-center gap-3">
-                  {/* Time first: it is what the floor scans for. */}
-                  <div className="shrink-0 text-center">
-                    <p className="text-lg font-black leading-none text-slate-900">
+                  <div className="shrink-0 text-center bg-graphite border border-smoke px-3 py-2 rounded-xl">
+                    <p className="text-lg font-bold font-mono text-gold">
                       {when.toLocaleTimeString("en-IN", {
                         hour: "2-digit",
                         minute: "2-digit",
                       })}
                     </p>
-                    <p className="mt-0.5 text-[11px] text-slate-400">
+                    <p className="mt-0.5 text-[11px] font-medium text-ivory-dim">
                       {when.toLocaleDateString("en-IN", {
                         day: "numeric",
                         month: "short",
@@ -199,26 +198,26 @@ const AdminReservations = () => {
                   </div>
 
                   <div className="min-w-0 flex-1">
-                    <p className="font-semibold text-slate-900">
+                    <p className="font-semibold text-ivory text-base">
                       {reservation.name}
-                      <span className="ml-2 text-sm font-normal text-slate-500">
+                      <span className="ml-2 text-sm font-normal text-gold">
                         party of {reservation.partySize}
                       </span>
                     </p>
-                    <p className="text-xs text-slate-500">
-                      {reservation.reference} · {reservation.phone}
+                    <p className="text-xs text-ivory-dim mt-0.5">
+                      Ref #{reservation.reference} · {reservation.phone}
                       {reservation.occasion && ` · ${reservation.occasion}`}
                     </p>
                   </div>
 
                   {reservation.table && (
-                    <span className="rounded-full bg-slate-100 px-2.5 py-1 text-xs font-semibold text-slate-700">
-                      {reservation.table.tableNumber}
+                    <span className="rounded-full bg-graphite border border-smoke px-3 py-1 text-xs font-bold text-ivory">
+                      Table {reservation.table.tableNumber}
                     </span>
                   )}
 
                   <span
-                    className={`rounded-full px-2.5 py-1 text-xs font-semibold ${
+                    className={`rounded-full px-3 py-1 text-xs font-semibold ${
                       STATUS_STYLES[reservation.status]
                     }`}
                   >
@@ -227,18 +226,18 @@ const AdminReservations = () => {
                 </div>
 
                 {reservation.notes && (
-                  <p className="mt-2 rounded-lg bg-amber-50 px-3 py-2 text-xs text-amber-900">
-                    {reservation.notes}
+                  <p className="mt-2.5 rounded-lg bg-gold/15 border border-gold/30 px-3 py-2 text-xs text-gold font-medium">
+                    Guest Note: {reservation.notes}
                   </p>
                 )}
 
                 {can("reservation:update") && actions.length > 0 && (
-                  <div className="mt-3 flex flex-wrap gap-2">
-                    {/* Seating needs a table, so that button assigns one first. */}
+                  <div className="mt-3.5 flex flex-wrap gap-2 pt-2 border-t border-smoke/40">
                     {reservation.status === "CONFIRMED" && !reservation.table && (
                       <Button
                         variant="secondary"
                         onClick={() => setAssigning(reservation.id)}
+                        className="font-bold text-xs"
                       >
                         Assign table
                       </Button>
@@ -259,6 +258,7 @@ const AdminReservations = () => {
                         onClick={() =>
                           setStatus.mutate({ id: reservation.id, next: action.next })
                         }
+                        className="font-bold text-xs uppercase tracking-wider"
                       >
                         {action.label}
                       </Button>
@@ -267,8 +267,8 @@ const AdminReservations = () => {
                 )}
 
                 {assigning === reservation.id && (
-                  <div className="mt-3 rounded-xl bg-slate-50 p-3">
-                    <p className="text-xs font-medium text-slate-700">
+                  <div className="mt-3 rounded-xl bg-graphite border border-smoke p-3">
+                    <p className="text-xs font-medium text-ivory-dim">
                       Choose a table seating {reservation.partySize} or more
                     </p>
 
@@ -286,11 +286,11 @@ const AdminReservations = () => {
                               })
                             }
                             disabled={assignTable.isPending}
-                            className="rounded-lg bg-white px-3 py-1.5 text-xs font-semibold text-slate-700 ring-1 ring-slate-300 hover:bg-slate-100"
+                            className="rounded-lg bg-charcoal px-3 py-1.5 text-xs font-bold text-ivory border border-smoke hover:border-gold"
                           >
-                            {table.tableNumber}
-                            <span className="ml-1 text-slate-400">
-                              ({table.capacity})
+                            Table {table.tableNumber}
+                            <span className="ml-1 text-gold">
+                              ({table.capacity} seats)
                             </span>
                           </button>
                         ))}
@@ -299,9 +299,9 @@ const AdminReservations = () => {
                     <button
                       type="button"
                       onClick={() => setAssigning(null)}
-                      className="mt-2 text-xs text-slate-500 hover:underline"
+                      className="mt-2.5 text-xs text-ivory-faint hover:text-gold"
                     >
-                      Cancel
+                      Cancel assignment
                     </button>
                   </div>
                 )}

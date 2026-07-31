@@ -12,6 +12,7 @@
 import { NavLink, Outlet, useNavigate } from "react-router-dom";
 
 import { useAuth } from "../context/auth";
+import { useTheme } from "../context/theme";
 import { useLiveOrders, useSocketStatus } from "../hooks/useLiveOrders";
 import NotificationBell from "./NotificationBell";
 import { MonkDeveloperBrand } from "./MonkDeveloperBrand";
@@ -55,6 +56,7 @@ const ROLE_NAV_LOCK: Record<string, string[]> = {
 
 const StaffLayout = () => {
   const { user, logout, can } = useAuth();
+  const { theme, toggleTheme } = useTheme();
   const navigate = useNavigate();
   const connected = useSocketStatus();
 
@@ -76,7 +78,7 @@ const StaffLayout = () => {
   };
 
   return (
-    <div className="min-h-screen bg-obsidian">
+    <div className="flex min-h-screen flex-col bg-obsidian">
       {/**
        * Two rows on a phone, one on a laptop.
        *
@@ -96,11 +98,21 @@ const StaffLayout = () => {
           {/* Pushed to the far right of row one on small screens; inline from
               lg. `order` keeps the DOM order sensible for screen readers. */}
           <div className="ml-auto flex shrink-0 items-center gap-3 lg:order-last lg:ml-0">
+            <button
+              type="button"
+              onClick={toggleTheme}
+              title={`Switch to ${theme === "dark" ? "light" : "dark"} mode`}
+              aria-label={`Switch to ${theme === "dark" ? "light" : "dark"} mode`}
+              className="flex h-9 w-9 items-center justify-center rounded-lg border border-smoke bg-graphite/60 text-sm text-ivory transition-colors hover:border-gold/50 hover:text-slate"
+            >
+              {theme === "dark" ? "☀️" : "🌙"}
+            </button>
+
             <NotificationBell />
 
             <span
               className={`flex shrink-0 items-center gap-1.5 text-[10px] uppercase tracking-[0.18em] ${
-                connected ? "text-gold" : "text-ember"
+                connected ? "text-slate" : "text-ember"
               }`}
             >
               <span
@@ -126,7 +138,7 @@ const StaffLayout = () => {
             <button
               type="button"
               onClick={() => void handleLogout()}
-              className="flex min-h-11 shrink-0 items-center text-[10px] uppercase tracking-[0.18em] text-ivory-faint transition-colors hover:text-gold"
+              className="flex min-h-11 shrink-0 items-center text-[10px] uppercase tracking-[0.18em] text-ivory-faint transition-colors hover:text-slate"
             >
               Sign out
             </button>
@@ -144,7 +156,7 @@ const StaffLayout = () => {
                 className={({ isActive }) =>
                   `flex min-h-9 shrink-0 items-center rounded-lg px-3 text-[11px] uppercase tracking-[0.16em] transition-colors duration-300 ${
                     isActive
-                      ? "bg-gold/10 text-gold"
+                      ? "bg-gold/10 text-slate"
                       : "text-ivory-faint hover:text-ivory"
                   }`
                 }
@@ -162,7 +174,7 @@ const StaffLayout = () => {
         <Outlet />
       </main>
 
-      <footer className="border-t border-smoke/60 bg-graphite/40 py-4">
+      <footer className="mt-auto border-t border-smoke/60 bg-graphite/40 py-4">
         <MonkDeveloperBrand variant="compact" className="justify-center w-full" />
       </footer>
     </div>

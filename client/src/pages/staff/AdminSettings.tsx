@@ -47,7 +47,7 @@ const Field = ({
   hint?: string;
 }) => (
   <label className="block text-sm">
-    <span className="font-medium text-slate-700">{label}</span>
+    <span className="font-medium text-white-700">{label}</span>
     <input
       name={name}
       type={type}
@@ -55,7 +55,7 @@ const Field = ({
       placeholder={placeholder}
       className="mt-1 w-full rounded-lg border border-slate-300 px-3 py-2 text-sm outline-none focus:border-orange-500"
     />
-    {hint && <span className="mt-0.5 block text-xs text-slate-400">{hint}</span>}
+    {hint && <span className="mt-0.5 block text-xs text-white-400">{hint}</span>}
   </label>
 );
 
@@ -119,7 +119,7 @@ const AdminSettings = () => {
 
   return (
     <div>
-      <h1 className="text-xl font-bold text-slate-900">Restaurant settings</h1>
+      <h1 className="text-xl font-bold text-white-900">Restaurant settings</h1>
 
       {updateSettings.isError && (
         <div className="mt-4">
@@ -135,7 +135,7 @@ const AdminSettings = () => {
 
       <form onSubmit={handleSubmit} className="mt-4 grid gap-4">
         <Card>
-          <h2 className="font-semibold text-slate-900">Identity</h2>
+          <h2 className="font-semibold text-white-900">Identity</h2>
           <div className="mt-3 grid gap-3 sm:grid-cols-2">
             <Field label="Restaurant name" name="name" defaultValue={settings.name} />
             <Field label="Tagline" name="tagline" defaultValue={settings.tagline} />
@@ -145,7 +145,7 @@ const AdminSettings = () => {
         </Card>
 
         <Card>
-          <h2 className="font-semibold text-slate-900">Address</h2>
+          <h2 className="font-semibold text-white-900">Address</h2>
           <div className="mt-3 grid gap-3 sm:grid-cols-2">
             <Field label="Address" name="addressLine" defaultValue={settings.addressLine} />
             <Field label="City" name="city" defaultValue={settings.city} />
@@ -156,8 +156,8 @@ const AdminSettings = () => {
         </Card>
 
         <Card>
-          <h2 className="font-semibold text-slate-900">Charges</h2>
-          <p className="mt-1 text-xs text-slate-500">
+          <h2 className="font-semibold text-white-900">Charges</h2>
+          <p className="mt-1 text-xs text-white-500">
             These apply to every new order total. Existing orders keep the rates
             they were placed under.
           </p>
@@ -184,7 +184,7 @@ const AdminSettings = () => {
         </Card>
 
         <Card>
-          <h2 className="font-semibold text-slate-900">Service hours</h2>
+          <h2 className="font-semibold text-white-900">Service hours</h2>
           <div className="mt-3 grid gap-3 sm:grid-cols-2">
             <Field
               label="Opening time"
@@ -210,8 +210,8 @@ const AdminSettings = () => {
               defaultChecked={settings.isAcceptingOrders}
             />
             <span className="text-sm">
-              <span className="font-medium text-slate-800">Accepting orders</span>
-              <span className="block text-xs text-slate-500">
+              <span className="font-medium text-white-800">Accepting orders</span>
+              <span className="block text-xs text-white-500">
                 Turning this off stops new customer orders immediately, across
                 every table.
               </span>

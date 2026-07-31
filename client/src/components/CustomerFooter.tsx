@@ -20,7 +20,7 @@ export const CustomerFooter: React.FC = () => {
   const restaurantName = settingsQuery.data?.name ?? "Bite me Bistro";
 
   return (
-    <footer className="border-t border-smoke bg-obsidian text-ivory">
+    <footer className="mt-auto border-t border-smoke bg-obsidian text-ivory">
       <div className="mx-auto grid max-w-7xl gap-8 px-4 py-10 sm:px-6 sm:py-14 md:grid-cols-3">
         <div>
           <h3 className="font-display text-2xl text-ivory">{restaurantName}</h3>
@@ -49,11 +49,11 @@ export const CustomerFooter: React.FC = () => {
         <div>
           <p className="eyebrow text-xs">Quick Links</p>
           <div className="mt-4 flex flex-wrap gap-x-6 gap-y-2 text-xs text-ivory-dim">
-            <Link to="/menu" className="hover:text-gold transition-colors">Menu</Link>
-            <Link to="/reserve" className="hover:text-gold transition-colors">Reserve Table</Link>
-            <Link to="/track" className="hover:text-gold transition-colors">My Orders</Link>
-            <Link to="/welcome" className="hover:text-gold transition-colors">About Us</Link>
-            <Link to="/privacy" className="hover:text-gold transition-colors">Privacy Policy</Link>
+            <Link to="/menu" className="hover:text-slate transition-colors">Menu</Link>
+            <Link to="/reserve" className="hover:text-slate transition-colors">Reserve Table</Link>
+            <Link to="/track" className="hover:text-slate transition-colors">My Orders</Link>
+            <Link to="/welcome" className="hover:text-slate transition-colors">About Us</Link>
+            <Link to="/privacy" className="hover:text-slate transition-colors">Privacy Policy</Link>
           </div>
         </div>
       </div>

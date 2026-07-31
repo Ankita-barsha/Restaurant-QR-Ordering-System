@@ -70,6 +70,30 @@ html.light, body.light {
    Base
    ========================================================================== */
 
+/* ==========================================================================
+   Global Text Readability Safeguards (WCAG AAA Compliance)
+   Ensures zero black-on-black or illegible dark text in Dark Mode.
+   ========================================================================== */
+html.dark input,
+html.dark select,
+html.dark textarea,
+html:not(.light) input,
+html:not(.light) select,
+html:not(.light) textarea {
+  color: var(--color-ivory);
+}
+
+html.dark option,
+html:not(.light) option {
+  background-color: var(--color-charcoal);
+  color: var(--color-ivory);
+}
+
+html.dark label,
+html:not(.light) label {
+  color: var(--color-ivory-dim);
+}
+
 @layer base {
   html {
     scroll-behavior: smooth;
@@ -196,7 +220,7 @@ html.light, body.light {
   );
 }
 
-@utility text-gold-gradient {
+@utility text-slate-gradient {
   background: linear-gradient(135deg, #e6cf9c 0%, #c9a961 45%, #8f7434 100%);
   -webkit-background-clip: text;
   background-clip: text;

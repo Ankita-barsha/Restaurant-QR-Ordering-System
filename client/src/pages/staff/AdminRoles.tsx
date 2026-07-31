@@ -7,6 +7,7 @@
  *
  * Saving replaces the whole set in one request, so a half-applied change is
  * not possible if the browser dies mid-edit.
+ * Theme-aware styling ensures clear contrast in both Dark and Light modes.
  */
 
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
@@ -31,6 +32,9 @@ interface PermissionGroup {
   permissions: { id: string; key: string; description: string | null }[];
 }
 
+const inputClass =
+  "w-full rounded-lg border border-smoke bg-graphite px-3 py-2 text-sm text-ivory placeholder:text-ivory-faint outline-none transition focus:border-gold focus:ring-2 focus:ring-gold/20";
+
 const AdminRoles = () => {
   const { can } = useAuth();
   const queryClient = useQueryClient();
@@ -53,14 +57,6 @@ const AdminRoles = () => {
   const roles = rolesQuery.data ?? [];
   const selected = roles.find((role) => role.id === selectedId) ?? null;
 
-  /**
-   * The draft resets whenever a different role is opened, so edits to one role
-   * can never leak into another.
-   *
-   * Adjusted during render rather than in an effect: an effect would render
-   * the newly-opened role's checklist showing the PREVIOUS role's ticks for a
-   * frame before correcting itself.
-   */
   const [draftRoleId, setDraftRoleId] = useState<string | null>(null);
 
   if (draftRoleId !== selectedId) {
@@ -120,8 +116,6 @@ const AdminRoles = () => {
     });
   };
 
-  // SUPER_ADMIN bypasses permission checks on the server, so its list is not
-  // editable — showing a checklist would imply a restriction that is not real.
   const isEditable = selected !== null && selected.name !== "SUPER_ADMIN";
 
   const isDirty =
@@ -133,25 +127,28 @@ const AdminRoles = () => {
     createRole.error ?? savePermissions.error ?? deleteRole.error;
 
   return (
-    <div>
+    <div className="space-y-6">
       <div className="flex items-center justify-between">
-        <h1 className="text-xl font-bold text-slate-900">Roles &amp; permissions</h1>
+        <div>
+          <h1 className="text-2xl font-bold text-ivory font-display">Roles &amp; Permissions</h1>
+          <p className="text-sm text-ivory-dim mt-0.5">Role capability matrix and access control policies.</p>
+        </div>
 
         {can("role:create") && (
-          <Button onClick={() => setShowForm((previous) => !previous)}>
-            {showForm ? "Close" : "New role"}
+          <Button onClick={() => setShowForm((previous) => !previous)} className="font-bold uppercase tracking-wider text-xs">
+            {showForm ? "Close" : "+ New role"}
           </Button>
         )}
       </div>
 
       {mutationError && (
-        <div className="mt-4">
+        <div>
           <ErrorBox message={getErrorMessage(mutationError)} />
         </div>
       )}
 
       {showForm && (
-        <Card className="mt-4">
+        <Card className="bg-charcoal border border-smoke">
           <form
             onSubmit={(event) => {
               event.preventDefault();
@@ -161,70 +158,70 @@ const AdminRoles = () => {
                 description: String(form.get("description") || "") || undefined,
               });
             }}
-            className="grid gap-3 sm:grid-cols-2"
+            className="grid gap-3.5 sm:grid-cols-2"
           >
             <input
               name="name"
               required
               placeholder="SHIFT_MANAGER"
-              className="rounded-lg border border-slate-300 px-3 py-2 text-sm uppercase"
+              className={`${inputClass} uppercase`}
             />
             <input
               name="description"
-              placeholder="What this role is for"
-              className="rounded-lg border border-slate-300 px-3 py-2 text-sm"
+              placeholder="Role description"
+              className={inputClass}
             />
-            <p className="text-xs text-slate-500 sm:col-span-2">
+            <p className="text-xs text-ivory-faint sm:col-span-2">
               Use UPPER_SNAKE_CASE. The name is an identifier, so it cannot be
               changed later for built-in roles.
             </p>
-            <Button type="submit" disabled={createRole.isPending} className="sm:col-span-2">
+            <Button type="submit" disabled={createRole.isPending} className="sm:col-span-2 font-bold uppercase tracking-wider">
               {createRole.isPending ? "Creating…" : "Create role"}
             </Button>
           </form>
         </Card>
       )}
 
-      <div className="mt-4 grid gap-4 lg:grid-cols-[280px_1fr]">
+      <div className="grid gap-4 lg:grid-cols-[280px_1fr]">
         <div className="grid h-fit gap-2">
           {roles.map((role) => (
             <button
               key={role.id}
               type="button"
               onClick={() => setSelectedId(role.id)}
-              className={`rounded-xl border p-3 text-left transition ${
+              className={`rounded-xl border p-3.5 text-left transition ${
                 selectedId === role.id
-                  ? "border-orange-300 bg-orange-50"
-                  : "border-slate-200 bg-white hover:bg-slate-50"
+                  ? "border-gold bg-gold/15 shadow-sm"
+                  : "border-smoke bg-charcoal hover:bg-graphite"
               }`}
             >
               <div className="flex items-center justify-between gap-2">
-                <span className="font-semibold text-slate-900">{role.name}</span>
+                <span className="font-semibold text-ivory text-base">{role.name}</span>
                 {role.isSystem && (
-                  <span className="rounded bg-slate-200 px-1.5 py-0.5 text-[10px] font-bold uppercase text-slate-600">
+                  <span className="rounded-full bg-graphite border border-smoke px-2 py-0.5 text-[10px] font-bold uppercase text-gold">
                     built-in
                   </span>
                 )}
               </div>
-              <p className="mt-0.5 text-xs text-slate-500">
+              <p className="mt-1 text-xs text-ivory-dim">
                 {role.userCount} user(s) · {role.permissions.length} permission(s)
               </p>
             </button>
           ))}
         </div>
 
-        <Card>
+        <Card className="bg-charcoal border border-smoke">
           {!selected ? (
-            <p className="py-10 text-center text-sm text-slate-500">
+            <p className="py-12 text-center text-sm text-ivory-dim">
               Choose a role to view and edit its permissions.
             </p>
           ) : (
             <>
-              <div className="flex flex-wrap items-center justify-between gap-2">
+              <div className="flex flex-wrap items-center justify-between gap-2 border-b border-smoke pb-4">
                 <div>
-                  <h2 className="text-lg font-bold text-slate-900">{selected.name}</h2>
+                  <h2 className="text-xl font-bold text-ivory font-display">{selected.name}</h2>
                   {selected.description && (
-                    <p className="text-sm text-slate-500">{selected.description}</p>
+                    <p className="text-sm text-ivory-dim mt-0.5">{selected.description}</p>
                   )}
                 </div>
 
@@ -233,6 +230,7 @@ const AdminRoles = () => {
                     variant="danger"
                     onClick={() => deleteRole.mutate(selected.id)}
                     disabled={deleteRole.isPending || selected.userCount > 0}
+                    className="font-bold text-xs"
                   >
                     {selected.userCount > 0
                       ? `In use by ${selected.userCount}`
@@ -242,38 +240,38 @@ const AdminRoles = () => {
               </div>
 
               {!isEditable ? (
-                <div className="mt-4 rounded-xl bg-amber-50 p-4 text-sm text-amber-800">
+                <div className="mt-4 rounded-xl bg-gold/15 border border-gold/30 p-4 text-sm text-gold font-medium">
                   The super admin always has full access. Its permissions are not
                   editable, so no configuration mistake can lock every administrator
                   out of the system.
                 </div>
               ) : (
                 <>
-                  <div className="mt-4 space-y-4">
+                  <div className="mt-4 space-y-5">
                     {permissionsQuery.data?.map((group) => (
                       <section key={group.group}>
-                        <h3 className="text-xs font-bold uppercase tracking-wide text-slate-500">
+                        <h3 className="text-xs font-bold uppercase tracking-wider text-gold">
                           {group.group}
                         </h3>
 
-                        <div className="mt-2 grid gap-1.5 sm:grid-cols-2">
+                        <div className="mt-2.5 grid gap-2 sm:grid-cols-2">
                           {group.permissions.map((permission) => (
                             <label
                               key={permission.id}
-                              className="flex items-start gap-2 rounded-lg p-1.5 text-sm hover:bg-slate-50"
+                              className="flex items-start gap-2.5 rounded-lg p-2 text-sm bg-graphite/40 border border-smoke/60 hover:border-gold/40 transition cursor-pointer"
                             >
                               <input
                                 type="checkbox"
                                 checked={draft.has(permission.key)}
                                 onChange={() => toggle(permission.key)}
                                 disabled={!can("permission:assign")}
-                                className="mt-0.5"
+                                className="mt-0.5 accent-gold"
                               />
                               <span>
-                                <span className="text-slate-800">
+                                <span className="text-ivory font-medium block">
                                   {permission.description ?? permission.key}
                                 </span>
-                                <code className="ml-1 text-[11px] text-slate-400">
+                                <code className="text-[11px] text-gold/80 font-mono">
                                   {permission.key}
                                 </code>
                               </span>
@@ -285,7 +283,7 @@ const AdminRoles = () => {
                   </div>
 
                   {can("permission:assign") && (
-                    <div className="sticky bottom-0 mt-5 flex items-center gap-3 border-t border-slate-200 bg-white pt-4">
+                    <div className="sticky bottom-0 mt-6 flex items-center gap-3 border-t border-smoke bg-charcoal pt-4">
                       <Button
                         onClick={() =>
                           savePermissions.mutate({
@@ -294,6 +292,7 @@ const AdminRoles = () => {
                           })
                         }
                         disabled={!isDirty || savePermissions.isPending}
+                        className="font-bold uppercase tracking-wider text-xs"
                       >
                         {savePermissions.isPending ? "Saving…" : "Save permissions"}
                       </Button>
@@ -302,13 +301,13 @@ const AdminRoles = () => {
                         <button
                           type="button"
                           onClick={() => setDraft(new Set(selected.permissions))}
-                          className="text-sm font-medium text-slate-500 hover:text-slate-700"
+                          className="text-sm font-medium text-ivory-dim hover:text-gold"
                         >
                           Discard changes
                         </button>
                       )}
 
-                      <span className="ml-auto text-xs text-slate-400">
+                      <span className="ml-auto text-xs font-mono text-gold font-bold">
                         {draft.size} selected
                       </span>
                     </div>

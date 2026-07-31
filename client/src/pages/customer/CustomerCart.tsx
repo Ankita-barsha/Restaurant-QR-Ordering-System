@@ -158,7 +158,7 @@ const CustomerCart = () => {
                 <div className="min-w-0 flex-1">
                   <div className="flex flex-wrap items-start justify-between gap-x-3 gap-y-1">
                     <h2 className="text-lg leading-tight text-ivory sm:text-xl">{item.name}</h2>
-                    <span className="font-display shrink-0 text-lg text-gold sm:text-xl">
+                    <span className="font-display shrink-0 text-lg text-slate sm:text-xl">
                       {/* Multiplied in paise: 19.99 x 3 as floats is 59.97000000000001. */}
                       {money(fromMinor(toMinor(item.price) * item.quantity))}
                     </span>
@@ -182,7 +182,7 @@ const CustomerCart = () => {
                         type="button"
                         onClick={() => decrease(item.foodId)}
                         aria-label={`One fewer ${item.name}`}
-                        className="flex h-11 w-11 items-center justify-center rounded-full text-xl leading-none text-ivory-dim transition-colors hover:text-gold"
+                        className="flex h-11 w-11 items-center justify-center rounded-full text-xl leading-none text-ivory-dim transition-colors hover:text-slate"
                       >
                         −
                       </button>
@@ -193,7 +193,7 @@ const CustomerCart = () => {
                         type="button"
                         onClick={() => increase(item.foodId)}
                         aria-label={`One more ${item.name}`}
-                        className="flex h-11 w-11 items-center justify-center rounded-full text-xl leading-none text-ivory-dim transition-colors hover:text-gold"
+                        className="flex h-11 w-11 items-center justify-center rounded-full text-xl leading-none text-ivory-dim transition-colors hover:text-slate"
                       >
                         +
                       </button>
@@ -280,7 +280,7 @@ const CustomerCart = () => {
                   <button
                     type="button"
                     onClick={() => setIncludeServiceCharge(!includeServiceCharge)}
-                    className="text-[10px] uppercase tracking-wider text-gold hover:underline"
+                    className="text-[10px] uppercase tracking-wider text-slate hover:underline"
                   >
                     {includeServiceCharge ? "[Remove]" : "[Add back]"}
                   </button>
@@ -301,7 +301,7 @@ const CustomerCart = () => {
 
           <div className="flex items-baseline justify-between">
             <span className="eyebrow">Total</span>
-            <span className="font-display text-3xl text-gold sm:text-4xl">
+            <span className="font-display text-3xl text-slate sm:text-4xl">
               {money(quote.total)}
             </span>
           </div>

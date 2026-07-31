@@ -6,6 +6,12 @@
  * - Financial Year Serial Numbering & Place of Supply
  * - HSN/SAC Item Code (996331)
  * - CGST & SGST intra-state tax split table
+ *
+ * NOTE: This component intentionally uses hardcoded slate/stone color classes
+ * instead of CSS custom property aliases (text-white-*, bg-charcoal, etc.)
+ * because the invoice paper must always render as a white document — both on
+ * screen in dark mode and when printed. CSS variable overrides from the dark-
+ * mode theme would make text invisible on the white background.
  */
 
 import { useQuery } from "@tanstack/react-query";
@@ -44,12 +50,15 @@ const PRINT_STYLES = `
     border-radius: 0 !important;
     max-height: none !important;
     overflow: visible !important;
+    background: #fff !important;
+    color: #0f172a !important;
   }
 
   #invoice-sheet .no-print { display: none !important; }
 }
 `;
 
+/** A label/value row used in the totals section. Always on white paper. */
 const Row = ({
   label,
   value,
@@ -99,12 +108,19 @@ const InvoiceSheet = ({
     >
       <style>{PRINT_STYLES}</style>
 
+      {/*
+       * The invoice-paper div is intentionally NOT using CSS custom property
+       * colour classes. It is a white paper document that must be legible
+       * regardless of whether the rest of the UI is in dark or light mode.
+       * All text colours are hardcoded slate values.
+       */}
       <div
         role="dialog"
         aria-modal="true"
         aria-label="Tax Invoice"
         onClick={(event) => event.stopPropagation()}
-        className="invoice-paper mx-auto my-2 max-w-2xl rounded-2xl bg-white p-5 text-slate-900 shadow-xl sm:my-4 sm:p-8 md:p-10"
+        className="invoice-paper mx-auto my-2 max-w-2xl rounded-2xl bg-white p-5 shadow-2xl sm:my-4 sm:p-8 md:p-10"
+        style={{ color: "#0f172a" }}
       >
         {invoiceQuery.isLoading && <LuxeLoader label="Preparing GST Tax Invoice" />}
 
@@ -129,10 +145,15 @@ const InvoiceSheet = ({
                 )}
 
                 <div>
-                  <h2 className="text-xl font-bold sm:text-2xl">{invoice.restaurant.name}</h2>
-                  {invoice.restaurant.legalName && invoice.restaurant.legalName !== invoice.restaurant.name && (
-                    <p className="text-xs font-semibold text-slate-600">({invoice.restaurant.legalName})</p>
-                  )}
+                  <h2 className="text-xl font-bold text-slate-900 sm:text-2xl">
+                    {invoice.restaurant.name}
+                  </h2>
+                  {invoice.restaurant.legalName &&
+                    invoice.restaurant.legalName !== invoice.restaurant.name && (
+                      <p className="text-xs font-semibold text-slate-500">
+                        ({invoice.restaurant.legalName})
+                      </p>
+                    )}
 
                   {invoice.restaurant.address && (
                     <p className="mt-1 max-w-xs text-xs leading-relaxed text-slate-500">
@@ -140,10 +161,20 @@ const InvoiceSheet = ({
                     </p>
                   )}
 
-                  <div className="mt-2 space-y-0.5 text-xs text-slate-700">
-                    <p><span className="font-bold text-slate-900">GSTIN:</span> {invoice.restaurant.gstin ?? invoice.gstin ?? "27AAAAA0000A1Z5"}</p>
-                    <p><span className="font-bold text-slate-900">FSSAI Lic No:</span> {invoice.restaurant.fssaiLicence ?? invoice.fssaiLicence ?? "10019022009876"}</p>
-                    {invoice.restaurant.phone && <p>Ph: {invoice.restaurant.phone}</p>}
+                  <div className="mt-2 space-y-0.5 text-xs text-slate-600">
+                    <p>
+                      <span className="font-bold text-slate-900">GSTIN:</span>{" "}
+                      {invoice.restaurant.gstin ?? invoice.gstin ?? "27AAAAA0000A1Z5"}
+                    </p>
+                    <p>
+                      <span className="font-bold text-slate-900">FSSAI Lic No:</span>{" "}
+                      {invoice.restaurant.fssaiLicence ??
+                        invoice.fssaiLicence ??
+                        "10019022009876"}
+                    </p>
+                    {invoice.restaurant.phone && (
+                      <p className="text-slate-600">Ph: {invoice.restaurant.phone}</p>
+                    )}
                   </div>
                 </div>
               </div>
@@ -152,17 +183,23 @@ const InvoiceSheet = ({
                 <span className="inline-block rounded-md bg-orange-100 px-2.5 py-1 text-[11px] font-black uppercase tracking-wider text-orange-800">
                   Tax Invoice
                 </span>
-                <p className="mt-2 text-base font-bold">{invoice.invoiceNumber}</p>
+                <p className="mt-2 text-base font-bold text-slate-900">
+                  {invoice.invoiceNumber}
+                </p>
                 <p className="text-xs text-slate-500">Order: {invoice.orderNumber}</p>
                 <p className="text-xs text-slate-500">
-                  Date: {new Date(invoice.issuedAt).toLocaleString("en-IN", {
+                  Date:{" "}
+                  {new Date(invoice.issuedAt).toLocaleString("en-IN", {
                     dateStyle: "medium",
                     timeStyle: "short",
                   })}
                 </p>
                 {invoice.placeOfSupply && (
                   <p className="mt-1 text-[11px] text-slate-500">
-                    Place of Supply: <span className="font-medium text-slate-700">{invoice.placeOfSupply}</span>
+                    Place of Supply:{" "}
+                    <span className="font-medium text-slate-700">
+                      {invoice.placeOfSupply}
+                    </span>
                   </p>
                 )}
               </div>
@@ -170,7 +207,8 @@ const InvoiceSheet = ({
 
             {invoice.isCancelled && (
               <p className="mt-4 rounded-lg bg-red-50 px-3 py-2 text-sm font-semibold text-red-700">
-                This order was cancelled. This document is a record, not a request for payment.
+                This order was cancelled. This document is a record, not a request for
+                payment.
               </p>
             )}
 
@@ -190,7 +228,9 @@ const InvoiceSheet = ({
                   <dt className="text-xs uppercase tracking-wider text-slate-500 font-semibold">
                     Guest Name
                   </dt>
-                  <dd className="mt-0.5 font-bold text-slate-900">{invoice.customer.name}</dd>
+                  <dd className="mt-0.5 font-bold text-slate-900">
+                    {invoice.customer.name}
+                  </dd>
                 </div>
               )}
 
@@ -209,12 +249,14 @@ const InvoiceSheet = ({
             <div className="mt-6 overflow-x-auto">
               <table className="w-full min-w-[28rem] border-collapse text-sm">
                 <thead>
-                  <tr className="border-b-2 border-slate-300 text-left text-xs uppercase tracking-wider text-slate-700">
-                    <th className="py-2.5 font-bold">Item Description</th>
-                    <th className="py-2.5 text-center font-bold">HSN/SAC</th>
-                    <th className="py-2.5 text-right font-bold">Qty</th>
-                    <th className="py-2.5 text-right font-bold">Rate</th>
-                    <th className="py-2.5 text-right font-bold">Amount</th>
+                  <tr className="border-b-2 border-slate-300 text-left text-xs uppercase tracking-wider text-slate-600">
+                    <th className="py-2.5 font-bold text-slate-700">Item Description</th>
+                    <th className="py-2.5 text-center font-bold text-slate-700">
+                      HSN/SAC
+                    </th>
+                    <th className="py-2.5 text-right font-bold text-slate-700">Qty</th>
+                    <th className="py-2.5 text-right font-bold text-slate-700">Rate</th>
+                    <th className="py-2.5 text-right font-bold text-slate-700">Amount</th>
                   </tr>
                 </thead>
 
@@ -229,10 +271,10 @@ const InvoiceSheet = ({
                           </span>
                         )}
                       </td>
-                      <td className="py-2.5 text-center text-xs text-slate-600 font-mono">
+                      <td className="py-2.5 text-center text-xs text-slate-500 font-mono">
                         {item.hsnSac ?? "996331"}
                       </td>
-                      <td className="py-2.5 text-right tabular-nums font-medium">
+                      <td className="py-2.5 text-right tabular-nums font-medium text-slate-800">
                         {item.quantity}
                       </td>
                       <td className="py-2.5 text-right tabular-nums text-slate-600">
@@ -249,26 +291,42 @@ const InvoiceSheet = ({
 
             {/* ------------------------------------------------ Totals & Tax Split */}
             <div className="mt-6 ml-auto max-w-xs">
-              <Row label="Taxable Value (Subtotal)" value={money(invoice.totals.subtotal)} />
+              <Row
+                label="Taxable Value (Subtotal)"
+                value={money(invoice.totals.subtotal)}
+              />
 
               <Row
                 label={`CGST (${invoice.totals.cgstRate ?? "2.5%"})`}
-                value={money(invoice.totals.cgstTotal ?? (Number(invoice.totals.tax) / 2).toString())}
+                value={money(
+                  invoice.totals.cgstTotal ??
+                    (Number(invoice.totals.tax) / 2).toString()
+                )}
               />
               <Row
                 label={`SGST (${invoice.totals.sgstRate ?? "2.5%"})`}
-                value={money(invoice.totals.sgstTotal ?? (Number(invoice.totals.tax) / 2).toString())}
+                value={money(
+                  invoice.totals.sgstTotal ??
+                    (Number(invoice.totals.tax) / 2).toString()
+                )}
               />
 
               {Number(invoice.totals.discount) > 0 && (
-                <Row label="Discount" value={`− ${money(invoice.totals.discount)}`} />
+                <Row
+                  label="Discount"
+                  value={`− ${money(invoice.totals.discount)}`}
+                />
               )}
 
               {invoice.totals.roundOff && Number(invoice.totals.roundOff) !== 0 && (
                 <Row label="Round Off" value={money(invoice.totals.roundOff)} />
               )}
 
-              <Row label="Grand Total (Incl. Taxes)" value={money(invoice.totals.grandTotal)} strong />
+              <Row
+                label="Grand Total (Incl. Taxes)"
+                value={money(invoice.totals.grandTotal)}
+                strong
+              />
 
               {Number(invoice.totals.balanceDue) > 0 ? (
                 <p className="mt-2 text-right text-xs font-bold text-amber-700">
@@ -285,10 +343,12 @@ const InvoiceSheet = ({
             </div>
 
             <p className="mt-8 border-t border-slate-200 pt-5 text-center text-xs text-slate-500">
-              Thank you for dining with {invoice.restaurant.name}. This is a computer-generated GST tax invoice.
+              Thank you for dining with {invoice.restaurant.name}. This is a
+              computer-generated GST tax invoice.
             </p>
-            <p className="mt-1 text-center text-[10px] text-slate-500">
-              Software System Powered by <span className="font-bold text-orange-600">MONK DEVELOPER</span>
+            <p className="mt-1 text-center text-[10px] text-slate-400">
+              Software System Powered by{" "}
+              <span className="font-bold text-orange-600">MONK DEVELOPER</span>
             </p>
 
             {/* ------------------------------------------------ Actions */}

@@ -19,7 +19,7 @@ const PrivacyPolicy = () => {
 
       <main className="mx-auto max-w-3xl px-4 py-10 sm:px-6 sm:py-14 space-y-8 text-sm leading-relaxed text-ivory-dim">
         <section className="rounded-2xl border border-smoke bg-charcoal p-6 sm:p-8">
-          <h2 className="text-xl font-bold text-gold">1. Data We Collect</h2>
+          <h2 className="text-xl font-bold text-slate">1. Data We Collect</h2>
           <p className="mt-3">
             When you place an order, reserve a table, or request an invoice, we collect personal information you voluntarily provide:
           </p>
@@ -32,7 +32,7 @@ const PrivacyPolicy = () => {
         </section>
 
         <section className="rounded-2xl border border-smoke bg-charcoal p-6 sm:p-8">
-          <h2 className="text-xl font-bold text-gold">2. Purpose of Collection</h2>
+          <h2 className="text-xl font-bold text-slate">2. Purpose of Collection</h2>
           <p className="mt-3">Your personal data is strictly used for:</p>
           <ul className="mt-2 list-disc list-inside space-y-1 text-ivory">
             <li>Processing & delivering your meal order to your table</li>
@@ -43,14 +43,14 @@ const PrivacyPolicy = () => {
         </section>
 
         <section className="rounded-2xl border border-smoke bg-charcoal p-6 sm:p-8">
-          <h2 className="text-xl font-bold text-gold">3. Consent & Your Rights</h2>
+          <h2 className="text-xl font-bold text-slate">3. Consent & Your Rights</h2>
           <p className="mt-3">
             By placing an order or reserving a table, you consent to processing your contact details for service delivery. You may opt out of non-essential communications (such as review reminders) at any time directly on your order tracking page.
           </p>
         </section>
 
         <section className="rounded-2xl border border-smoke bg-charcoal p-6 sm:p-8">
-          <h2 className="text-xl font-bold text-gold">4. Data Retention</h2>
+          <h2 className="text-xl font-bold text-slate">4. Data Retention</h2>
           <p className="mt-3">
             Transaction and tax invoice records are retained in compliance with statutory GST regulations. Non-statutory diner contact details are not sold or shared with third parties.
           </p>

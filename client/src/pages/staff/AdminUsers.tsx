@@ -4,6 +4,7 @@
  * Deactivation is soft on the server (User is referenced by orders and audit
  * logs), so the wording here says "deactivate", never "delete": the account
  * stops working but its history survives.
+ * Theme-aware styling ensures clear contrast in both Dark and Light modes.
  */
 
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
@@ -32,6 +33,9 @@ interface RoleSummary {
   userCount: number;
   permissions: string[];
 }
+
+const inputClass =
+  "w-full rounded-lg border border-smoke bg-graphite px-3 py-2 text-sm text-ivory placeholder:text-ivory-faint outline-none transition focus:border-gold focus:ring-2 focus:ring-gold/20";
 
 const AdminUsers = () => {
   const { can, user: currentUser } = useAuth();
@@ -94,57 +98,60 @@ const AdminUsers = () => {
   const mutationError = createUser.error ?? resetPassword.error ?? deactivate.error;
 
   return (
-    <div>
+    <div className="space-y-6">
       <div className="flex items-center justify-between">
-        <h1 className="text-xl font-bold text-slate-900">Staff accounts</h1>
+        <div>
+          <h1 className="text-2xl font-bold text-ivory font-display">Staff Accounts</h1>
+          <p className="mt-0.5 text-sm text-ivory-dim">Manage system access, roles, and permissions.</p>
+        </div>
 
         {can("user:create") && (
-          <Button onClick={() => setShowForm((previous) => !previous)}>
-            {showForm ? "Close" : "Add staff"}
+          <Button onClick={() => setShowForm((previous) => !previous)} className="font-bold uppercase tracking-wider text-xs">
+            {showForm ? "Close form" : "+ Add staff member"}
           </Button>
         )}
       </div>
 
       {mutationError && (
-        <div className="mt-4">
+        <div>
           <ErrorBox message={getErrorMessage(mutationError)} />
         </div>
       )}
 
       {showForm && (
-        <Card className="mt-4">
+        <Card className="bg-charcoal border border-smoke">
           <form
             onSubmit={(event) => {
               event.preventDefault();
               const form = new FormData(event.currentTarget);
               createUser.mutate(Object.fromEntries(form) as Record<string, string>);
             }}
-            className="grid gap-3 sm:grid-cols-2"
+            className="grid gap-3.5 sm:grid-cols-2"
           >
             <input
               name="fullName"
               required
               placeholder="Full name"
-              className="rounded-lg border border-slate-300 px-3 py-2 text-sm"
+              className={inputClass}
             />
             <input
               name="email"
               type="email"
               required
-              placeholder="Email"
-              className="rounded-lg border border-slate-300 px-3 py-2 text-sm"
+              placeholder="Email address"
+              className={inputClass}
             />
             <input
               name="password"
               type="password"
               required
-              placeholder="Password (12+ chars, mixed case, a number)"
-              className="rounded-lg border border-slate-300 px-3 py-2 text-sm"
+              placeholder="Password (12+ chars, mixed case, number)"
+              className={inputClass}
             />
             <select
               name="roleId"
               required
-              className="rounded-lg border border-slate-300 px-3 py-2 text-sm"
+              className={inputClass}
             >
               <option value="">Choose a role…</option>
               {rolesQuery.data?.map((role) => (
@@ -154,78 +161,76 @@ const AdminUsers = () => {
               ))}
             </select>
 
-            <Button type="submit" disabled={createUser.isPending} className="sm:col-span-2">
-              {createUser.isPending ? "Creating…" : "Create account"}
+            <Button type="submit" disabled={createUser.isPending} className="sm:col-span-2 font-bold uppercase tracking-wider">
+              {createUser.isPending ? "Creating…" : "Create staff account"}
             </Button>
           </form>
         </Card>
       )}
 
       {usersQuery.data?.length === 0 && (
-        <div className="mt-4">
+        <div>
           <EmptyState title="No staff accounts yet" />
         </div>
       )}
 
-      <div className="mt-4 grid gap-3">
+      <div className="grid gap-3">
         {usersQuery.data?.map((staff) => {
           const isSelf = staff.id === currentUser?.id;
 
           return (
             <Card
               key={staff.id}
-              className={staff.isActive ? "" : "bg-slate-50 opacity-70"}
+              className={`p-4 bg-charcoal border border-smoke ${staff.isActive ? "" : "opacity-60"}`}
             >
               <div className="flex flex-wrap items-center gap-3">
                 <div className="min-w-0 flex-1">
-                  <p className="font-semibold text-slate-900">
+                  <p className="font-semibold text-ivory text-base">
                     {staff.fullName}
                     {isSelf && (
-                      <span className="ml-2 rounded bg-slate-200 px-1.5 py-0.5 text-xs font-medium text-slate-600">
-                        you
+                      <span className="ml-2.5 rounded bg-gold/20 border border-gold/40 px-2 py-0.5 text-xs font-bold text-gold">
+                        You
                       </span>
                     )}
                   </p>
-                  <p className="truncate text-sm text-slate-500">{staff.email}</p>
+                  <p className="truncate text-sm text-ivory-dim">{staff.email}</p>
                 </div>
 
-                <span className="rounded-full bg-slate-100 px-2.5 py-1 text-xs font-semibold text-slate-700">
+                <span className="rounded-full bg-graphite border border-smoke px-3 py-1 text-xs font-semibold text-gold">
                   {staff.role.name}
                 </span>
 
                 <span
-                  className={`rounded-full px-2.5 py-1 text-xs font-semibold ${
+                  className={`rounded-full px-3 py-1 text-xs font-semibold ${
                     staff.isActive
-                      ? "bg-emerald-100 text-emerald-700"
-                      : "bg-red-100 text-red-700"
+                      ? "bg-emerald-500/15 text-emerald-400 border border-emerald-500/30"
+                      : "bg-red-500/15 text-red-400 border border-red-500/30"
                   }`}
                 >
                   {staff.isActive ? "Active" : "Deactivated"}
                 </span>
               </div>
 
-              <p className="mt-1 text-xs text-slate-400">
+              <p className="mt-2 text-xs text-ivory-faint">
                 {staff.lastLoginAt
                   ? `Last signed in ${new Date(staff.lastLoginAt).toLocaleString()}`
                   : "Never signed in"}
               </p>
 
               {staff.isActive && (
-                <div className="mt-3 flex flex-wrap gap-2">
+                <div className="mt-3.5 flex flex-wrap gap-2 pt-2 border-t border-smoke/40">
                   {can("user:update") && (
-                    <Button variant="secondary" onClick={() => setResettingId(staff.id)}>
+                    <Button variant="secondary" onClick={() => setResettingId(staff.id)} className="font-bold text-xs">
                       Reset password
                     </Button>
                   )}
 
-                  {/* The server also refuses self-deactivation and removing the
-                      last super admin; hiding the button avoids a pointless
-                      round trip for the obvious case. */}
                   {can("user:delete") && !isSelf && (
                     <Button
                       variant="danger"
                       onClick={() => deactivate.mutate(staff.id)}
                       disabled={deactivate.isPending}
+                      className="font-bold text-xs"
                     >
                       Deactivate
                     </Button>
@@ -234,8 +239,8 @@ const AdminUsers = () => {
               )}
 
               {resettingId === staff.id && (
-                <div className="mt-3 rounded-xl bg-amber-50 p-3">
-                  <p className="text-xs font-medium text-amber-900">
+                <div className="mt-3 rounded-xl bg-gold/15 border border-gold/30 p-3">
+                  <p className="text-xs font-semibold text-gold">
                     This signs {staff.fullName} out of every device immediately.
                   </p>
                   <input
@@ -243,7 +248,7 @@ const AdminUsers = () => {
                     value={newPassword}
                     onChange={(event) => setNewPassword(event.target.value)}
                     placeholder="New password"
-                    className="mt-2 w-full rounded-lg border border-amber-200 px-3 py-2 text-sm"
+                    className="mt-2 w-full rounded-lg border border-smoke bg-graphite px-3 py-2 text-sm text-ivory outline-none focus:border-gold"
                   />
                   <div className="mt-2 flex gap-2">
                     <Button
@@ -251,10 +256,11 @@ const AdminUsers = () => {
                       onClick={() =>
                         resetPassword.mutate({ id: staff.id, password: newPassword })
                       }
+                      className="font-bold text-xs"
                     >
                       Set password
                     </Button>
-                    <Button variant="ghost" onClick={() => setResettingId(null)}>
+                    <Button variant="ghost" onClick={() => setResettingId(null)} className="font-bold text-xs">
                       Cancel
                     </Button>
                   </div>

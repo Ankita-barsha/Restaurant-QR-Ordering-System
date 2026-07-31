@@ -29,6 +29,7 @@ import {
   emitOrderCreated,
   emitOrderStatusChanged,
   emitOrderUpdated,
+  emitWaiterOrderReady,
 } from "../socket/index.js";
 import {
   notifyOrderPlaced,
@@ -496,6 +497,13 @@ export const updateStatus = async (
 
   emitOrderStatusChanged(updated);
   notifyOrderStatus(updated);
+
+  // When a dish is ready, fire a dedicated event so the waiter screen can
+  // play its own alert sound and highlight the card — without the waiter
+  // having to watch the same generic status feed as the kitchen.
+  if (next === "READY") {
+    emitWaiterOrderReady(updated);
+  }
 
   return updated;
 };

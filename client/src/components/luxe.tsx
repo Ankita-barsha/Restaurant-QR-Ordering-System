@@ -155,9 +155,9 @@ export const LuxeButton = ({
     "group relative inline-flex items-center justify-center gap-2.5 overflow-hidden px-8 py-3.5 text-[12px] font-medium uppercase tracking-[0.18em] transition-all duration-500 ease-[cubic-bezier(0.22,1,0.36,1)] disabled:cursor-not-allowed disabled:opacity-45";
 
   const variants = {
-    gold: "bg-gold text-obsidian hover:bg-gold-light hover:shadow-[0_18px_40px_-18px_rgba(201,169,97,0.55)]",
+    gold: "bg-gold text-obsidian font-bold hover:bg-gold-light hover:shadow-[0_18px_40px_-18px_rgba(201,169,97,0.55)]",
     outline:
-      "border border-gold/40 text-gold hover:border-gold hover:bg-gold/10",
+      "border border-gold/50 text-gold hover:border-gold hover:bg-gold/10 font-bold",
     ghost: "text-ivory-dim hover:text-gold",
   };
 
@@ -315,7 +315,7 @@ export const PriceTag = ({
 
   if (!listPrice) {
     return (
-      <span className={`font-display text-gold ${sizes.now} ${className}`}>
+      <span className={`font-display text-slate ${sizes.now} ${className}`}>
         {price}
       </span>
     );
@@ -326,7 +326,7 @@ export const PriceTag = ({
       className={`flex flex-wrap items-baseline gap-x-2 gap-y-0.5 ${className}`}
       aria-label={`${price}, reduced from ${listPrice}`}
     >
-      <span className={`font-display text-gold ${sizes.now}`} aria-hidden="true">
+      <span className={`font-display text-slate ${sizes.now}`} aria-hidden="true">
         {price}
       </span>
       <span
@@ -351,7 +351,7 @@ export const Stars = ({ rating = 5 }: { rating?: number }) => (
         fill={index < rating ? "currentColor" : "none"}
         stroke="currentColor"
         strokeWidth="1.2"
-        className="text-gold"
+        className="text-slate"
         aria-hidden="true"
       >
         <path d="m12 2 3.09 6.26L22 9.27l-5 4.87 1.18 6.88L12 17.77l-6.18 3.25L7 14.14 2 9.27l6.91-1.01L12 2z" />

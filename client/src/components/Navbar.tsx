@@ -75,7 +75,7 @@ const Navbar = () => {
               to={link.to}
               className={({ isActive }) =>
                 `text-[11px] uppercase tracking-[0.22em] transition-colors duration-500 ${
-                  isActive ? "text-gold" : "text-ivory-dim hover:text-gold"
+                  isActive ? "text-slate" : "text-ivory-dim hover:text-slate"
                 }`
               }
             >
@@ -86,7 +86,7 @@ const Navbar = () => {
 
         <div className="flex items-center gap-4">
           {table && (
-            <span className="hidden rounded-full border border-gold/30 px-4 py-1.5 text-[10px] uppercase tracking-[0.2em] text-gold sm:inline">
+            <span className="hidden rounded-full border border-gold/30 px-4 py-1.5 text-[10px] uppercase tracking-[0.2em] text-slate sm:inline">
               Table {table.tableNumber}
             </span>
           )}
@@ -94,7 +94,7 @@ const Navbar = () => {
           <Link
             to="/cart"
             aria-label={`Cart, ${itemCount} item${itemCount === 1 ? "" : "s"}`}
-            className="relative flex h-11 w-11 items-center justify-center text-ivory transition-colors duration-500 hover:text-gold"
+            className="relative flex h-11 w-11 items-center justify-center text-ivory transition-colors duration-500 hover:text-slate"
           >
             <svg width="21" height="21" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.4" strokeLinecap="round" strokeLinejoin="round">
               <path d="M6 2 3 6v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2V6l-3-4zM3 6h18M16 10a4 4 0 0 1-8 0" />
@@ -112,7 +112,7 @@ const Navbar = () => {
             onClick={toggleTheme}
             title={`Switch to ${theme === "dark" ? "light" : "dark"} mode`}
             aria-label={`Switch to ${theme === "dark" ? "light" : "dark"} mode`}
-            className="flex h-11 w-11 items-center justify-center text-lg text-ivory transition-colors duration-300 hover:text-gold"
+            className="flex h-11 w-11 items-center justify-center text-lg text-ivory transition-colors duration-300 hover:text-slate"
           >
             {theme === "dark" ? "☀️" : "🌙"}
           </button>
@@ -122,7 +122,7 @@ const Navbar = () => {
             onClick={() => setMenuOpen((open) => !open)}
             aria-label="Menu"
             aria-expanded={menuOpen}
-            className="flex h-11 w-11 items-center justify-center text-ivory transition-colors hover:text-gold md:hidden"
+            className="flex h-11 w-11 items-center justify-center text-ivory transition-colors hover:text-slate md:hidden"
           >
             <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.4" strokeLinecap="round">
               {menuOpen ? <path d="M18 6 6 18M6 6l12 12" /> : <path d="M3 7h18M3 12h18M3 17h18" />}
@@ -138,7 +138,7 @@ const Navbar = () => {
               <Link
                 key={link.to}
                 to={link.to}
-                className="flex min-h-11 items-center text-[11px] uppercase tracking-[0.22em] text-ivory-dim hover:text-gold"
+                className="flex min-h-11 items-center text-[11px] uppercase tracking-[0.22em] text-ivory-dim hover:text-slate"
               >
                 {link.label}
               </Link>

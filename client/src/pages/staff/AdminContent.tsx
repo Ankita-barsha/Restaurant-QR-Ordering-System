@@ -9,10 +9,11 @@
  * that will be used if it is left blank. That is what makes the form safe to
  * open and close without a plan: nothing is lost by editing nothing, and
  * clearing a box restores the original wording rather than leaving a gap.
+ * Theme-aware styling ensures clear contrast in both Dark and Light modes.
  */
 
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { useState, type FormEvent } from "react";
+import { useEffect, useRef, useState, type FormEvent } from "react";
 
 import ImagePicker from "../../components/ImagePicker";
 import Modal from "../../components/Modal";
@@ -21,14 +22,14 @@ import { config } from "../../config/env";
 import { useAuth } from "../../context/auth";
 import { api, getErrorMessage, unwrap } from "../../lib/api";
 import { imageUrl } from "../../lib/format";
+import { getSocket, SOCKET_EVENTS } from "../../lib/socket";
 import type { ApiResponse, Review, SiteContent } from "../../types/api";
 
 type Tab = "page" | "reviews";
 
 const inputClass =
-  "w-full rounded-lg border border-slate-300 px-3 py-2 text-sm outline-none transition focus:border-orange-500 focus:ring-2 focus:ring-orange-100";
+  "w-full rounded-lg border border-smoke bg-graphite px-3 py-2 text-sm text-ivory placeholder:text-ivory-faint outline-none transition focus:border-gold focus:ring-2 focus:ring-gold/20";
 
-/** Query keys, so an edit anywhere refreshes the public page's copy too. */
 const contentKey = ["content"] as const;
 const reviewsKey = ["content", "reviews"] as const;
 
@@ -48,7 +49,7 @@ const Field = ({
   hint?: string;
 }) => (
   <label className="flex flex-col gap-1.5">
-    <span className="text-sm font-medium text-slate-700">{label}</span>
+    <span className="text-sm font-medium text-ivory-dim">{label}</span>
 
     {rows ? (
       <textarea
@@ -67,15 +68,14 @@ const Field = ({
       />
     )}
 
-    {hint && <span className="text-xs text-slate-400">{hint}</span>}
+    {hint && <span className="text-xs text-ivory-faint">{hint}</span>}
   </label>
 );
 
-/** Read-only star row, matching the marks the welcome page renders. */
 const StarRow = ({ rating }: { rating: number }) => (
-  <span aria-label={`${rating} out of 5`} className="text-sm text-amber-500">
+  <span aria-label={`${rating} out of 5`} className="text-sm text-gold">
     {"★".repeat(rating)}
-    <span className="text-slate-300">{"★".repeat(5 - rating)}</span>
+    <span className="text-ivory-faint opacity-40">{"★".repeat(5 - rating)}</span>
   </span>
 );
 
@@ -86,14 +86,18 @@ const AdminContent = () => {
   const [tab, setTab] = useState<Tab>("page");
   const [saved, setSaved] = useState(false);
 
-  // null = closed, "new" = create, otherwise the review being edited.
   const [reviewForm, setReviewForm] = useState<Review | "new" | null>(null);
   const [imageFile, setImageFile] = useState<File | null>(null);
   const [confirmDelete, setConfirmDelete] = useState<Review | null>(null);
 
+  /** Pending customer reviews waiting for moderation — shown as a live alert. */
+  const [pendingAlerts, setPendingAlerts] = useState<Review[]>([]);
+  const alertAudioRef = useRef<HTMLAudioElement | null>(null);
+
   const contentQuery = useQuery({
     queryKey: contentKey,
     queryFn: async () => unwrap(await api.get<ApiResponse<SiteContent>>("/content")),
+    refetchInterval: 10_000,
   });
 
   const reviewsQuery = useQuery({
@@ -104,11 +108,47 @@ const AdminContent = () => {
           "/content/reviews?includeHidden=true&limit=100"
         )
       ),
+    refetchInterval: 3_000,
   });
 
   const invalidate = () => {
     void queryClient.invalidateQueries({ queryKey: contentKey });
+    void queryClient.invalidateQueries({ queryKey: reviewsKey });
   };
+
+  useEffect(() => {
+    const socket = getSocket();
+
+    const handleReviewChanged = (review: Review) => {
+      void queryClient.invalidateQueries({ queryKey: contentKey });
+      void queryClient.invalidateQueries({ queryKey: reviewsKey });
+
+      // A freshly submitted customer review arrives with isVisible=false.
+      // Show a live alert and switch to the Reviews tab automatically.
+      if (review?.id && review.isVisible === false) {
+        setTab("reviews");
+        setPendingAlerts((prev) => {
+          // Avoid duplicate alerts for the same review.
+          if (prev.some((r) => r.id === review.id)) return prev;
+          return [review, ...prev];
+        });
+
+        // Play a soft chime if the audio element is ready.
+        if (alertAudioRef.current) {
+          alertAudioRef.current.currentTime = 0;
+          void alertAudioRef.current.play().catch(() => {
+            /* user hasn't interacted yet — silent fail is fine */
+          });
+        }
+      }
+    };
+
+    socket.on(SOCKET_EVENTS.REVIEW_CHANGED, handleReviewChanged);
+
+    return () => {
+      socket.off(SOCKET_EVENTS.REVIEW_CHANGED, handleReviewChanged);
+    };
+  }, [queryClient]);
 
   const saveContent = useMutation({
     mutationFn: async (payload: Record<string, string>) =>
@@ -116,17 +156,12 @@ const AdminContent = () => {
     onSuccess: () => {
       setSaved(true);
       invalidate();
-      // Clears itself so it cannot be mistaken for the state of a later,
-      // unsaved edit.
       setTimeout(() => setSaved(false), 3000);
     },
   });
 
   const saveReview = useMutation({
     mutationFn: async ({ id, form }: { id?: string; form: FormData }) => {
-      // Content-Type is undefined so the browser supplies it WITH the
-      // multipart boundary — setting it by hand produces a body multer
-      // cannot parse.
       const headers = { "Content-Type": undefined };
 
       return id
@@ -173,13 +208,6 @@ const AdminContent = () => {
   const editingReview = reviewForm !== "new" ? reviewForm : null;
   const visibleCount = reviews.filter((review) => review.isVisible).length;
 
-  /**
-   * Every box is submitted, including the empty ones.
-   *
-   * Unlike the settings form, blanks are NOT dropped here: an empty string is
-   * how an editor says "clear this and go back to the built-in wording", and
-   * omitting the field would silently leave the old text in place.
-   */
   const submitContent = (event: FormEvent<HTMLFormElement>) => {
     event.preventDefault();
 
@@ -198,14 +226,10 @@ const AdminContent = () => {
 
     const form = new FormData(event.currentTarget);
 
-    // Blank optional fields are dropped rather than sent as "", which the
-    // server's optional schemas reject.
     for (const [key, value] of [...form.entries()]) {
       if (typeof value === "string" && value.trim() === "") form.delete(key);
     }
 
-    // Absent when unchecked, so it is set explicitly — otherwise unticking
-    // "visible" would never save.
     form.set("isVisible", form.get("isVisible") === "true" ? "true" : "false");
 
     if (imageFile) form.set("image", imageFile);
@@ -214,22 +238,23 @@ const AdminContent = () => {
   };
 
   return (
-    <div>
+    <div className="space-y-6">
       <div className="flex flex-wrap items-center justify-between gap-3">
         <div>
-          <h1 className="text-xl font-bold text-slate-900">Welcome page</h1>
-          <p className="mt-0.5 text-sm text-slate-500">
-            Copy and reviews, editable without touching the code. Changes are live
-            immediately.
+          <h1 className="text-2xl font-bold text-ivory font-display">Welcome Page Editor</h1>
+          <p className="mt-0.5 text-sm text-ivory-dim">
+            Copy and reviews, editable without touching the code. Changes are live immediately.
           </p>
         </div>
 
         {tab === "reviews" && can("review:create") && (
-          <Button onClick={() => setReviewForm("new")}>+ Add review</Button>
+          <Button onClick={() => setReviewForm("new")} className="font-bold uppercase tracking-wider text-xs">
+            + Add review
+          </Button>
         )}
       </div>
 
-      <div className="mt-4 flex gap-1 rounded-xl bg-slate-200/60 p-1">
+      <div className="flex gap-1 rounded-xl bg-graphite border border-smoke p-1">
         {(
           [
             { value: "page", label: "Page content" },
@@ -242,8 +267,8 @@ const AdminContent = () => {
             onClick={() => setTab(option.value)}
             className={`flex-1 rounded-lg px-4 py-2 text-sm font-semibold transition ${
               tab === option.value
-                ? "bg-white text-slate-900 shadow-sm"
-                : "text-slate-600 hover:text-slate-900"
+                ? "bg-gold text-obsidian shadow-sm font-bold"
+                : "text-ivory-dim hover:text-ivory"
             }`}
           >
             {option.label}
@@ -251,27 +276,88 @@ const AdminContent = () => {
         ))}
       </div>
 
+      {/* Silent chime element — src is a tiny base64 data-URI so there is
+           no network request and no 404 in environments without assets. */}
+      <audio
+        ref={alertAudioRef}
+        src="data:audio/wav;base64,UklGRiQAAABXQVZFZm10IBAAAAABAAEARKwAAIhYAQACABAAZGF0YQAAAAA="
+        preload="auto"
+        style={{ display: "none" }}
+      />
+
       {saved && (
-        <div className="mt-4 rounded-xl bg-emerald-50 p-3 text-sm font-medium text-emerald-700">
+        <div className="rounded-xl bg-emerald-500/15 border border-emerald-500/30 p-3.5 text-sm font-semibold text-emerald-400">
           Saved. The welcome page is already showing it.
+        </div>
+      )}
+
+      {/* ---- Live incoming-review alerts ---- */}
+      {pendingAlerts.length > 0 && (
+        <div className="space-y-2">
+          {pendingAlerts.map((alert) => (
+            <div
+              key={alert.id}
+              className="flex items-start gap-3 rounded-xl border border-amber-500/40 bg-amber-500/10 px-4 py-3 animate-rise"
+            >
+              <span className="mt-0.5 text-xl">⭐</span>
+              <div className="flex-1 min-w-0">
+                <p className="text-sm font-bold text-amber-300">
+                  New customer review — awaiting approval
+                </p>
+                <p className="mt-0.5 text-sm text-amber-200/80">
+                  <span className="font-semibold">{alert.customerName}</span>
+                  {" · "}
+                  {"★".repeat(alert.rating)}{"☆".repeat(5 - alert.rating)}
+                </p>
+                {alert.comment && (
+                  <p className="mt-1 text-xs text-amber-200/60 italic line-clamp-2">
+                    "{alert.comment}"
+                  </p>
+                )}
+              </div>
+              <div className="flex gap-2 shrink-0">
+                <button
+                  type="button"
+                  onClick={() => {
+                    // Find the full review in the list and open the editor.
+                    const full = reviews.find((r) => r.id === alert.id);
+                    if (full) setReviewForm(full);
+                    setPendingAlerts((prev) => prev.filter((r) => r.id !== alert.id));
+                  }}
+                  className="rounded-lg bg-amber-500/20 px-3 py-1.5 text-xs font-bold text-amber-300 hover:bg-amber-500/30 transition"
+                >
+                  Review
+                </button>
+                <button
+                  type="button"
+                  onClick={() =>
+                    setPendingAlerts((prev) => prev.filter((r) => r.id !== alert.id))
+                  }
+                  className="rounded-lg px-2 py-1.5 text-xs text-amber-400/60 hover:text-amber-300 transition"
+                >
+                  ✕
+                </button>
+              </div>
+            </div>
+          ))}
         </div>
       )}
 
       {/* ---------------- Page content ---------------- */}
       {tab === "page" && (
-        <form onSubmit={submitContent} className="mt-4 grid gap-4">
+        <form onSubmit={submitContent} className="grid gap-4">
           {saveContent.isError && (
             <ErrorBox message={getErrorMessage(saveContent.error)} />
           )}
 
-          <Card>
-            <h2 className="font-semibold text-slate-900">Welcome / hero</h2>
-            <p className="mt-1 text-xs text-slate-500">
+          <Card className="bg-charcoal">
+            <h2 className="font-bold text-ivory text-base font-display">Welcome / hero</h2>
+            <p className="mt-1 text-xs text-ivory-dim">
               The first screen a guest sees. Leave the title blank to use the
               restaurant name from Settings.
             </p>
 
-            <div className="mt-3 grid gap-3">
+            <div className="mt-3.5 grid gap-3.5">
               <div className="grid gap-3 sm:grid-cols-2">
                 <Field
                   label="Small line above the title"
@@ -298,14 +384,14 @@ const AdminContent = () => {
             </div>
           </Card>
 
-          <Card>
-            <h2 className="font-semibold text-slate-900">Banner</h2>
-            <p className="mt-1 text-xs text-slate-500">
+          <Card className="bg-charcoal">
+            <h2 className="font-bold text-ivory text-base font-display">Banner</h2>
+            <p className="mt-1 text-xs text-ivory-dim">
               A single promotional line beneath the hero. Leave it blank and the
               strip disappears entirely.
             </p>
 
-            <div className="mt-3">
+            <div className="mt-3.5">
               <Field
                 label="Banner text"
                 name="bannerText"
@@ -315,14 +401,14 @@ const AdminContent = () => {
             </div>
           </Card>
 
-          <Card>
-            <h2 className="font-semibold text-slate-900">Featured section</h2>
-            <p className="mt-1 text-xs text-slate-500">
+          <Card className="bg-charcoal">
+            <h2 className="font-bold text-ivory text-base font-display">Featured section</h2>
+            <p className="mt-1 text-xs text-ivory-dim">
               The wording around the chef's recommendations. Which dishes appear
               is set on the Menu screen with the ★ Feature button.
             </p>
 
-            <div className="mt-3 grid gap-3">
+            <div className="mt-3.5 grid gap-3.5">
               <div className="grid gap-3 sm:grid-cols-2">
                 <Field
                   label="Small line above"
@@ -348,12 +434,12 @@ const AdminContent = () => {
             </div>
           </Card>
 
-          <Card>
-            <h2 className="font-semibold text-slate-900">
+          <Card className="bg-charcoal">
+            <h2 className="font-bold text-ivory text-base font-display">
               About / restaurant description
             </h2>
 
-            <div className="mt-3 grid gap-3">
+            <div className="mt-3.5 grid gap-3.5">
               <div className="grid gap-3 sm:grid-cols-2">
                 <Field
                   label="Small line above"
@@ -380,10 +466,10 @@ const AdminContent = () => {
             </div>
           </Card>
 
-          <Card>
-            <h2 className="font-semibold text-slate-900">Footer</h2>
+          <Card className="bg-charcoal">
+            <h2 className="font-bold text-ivory text-base font-display">Footer</h2>
 
-            <div className="mt-3">
+            <div className="mt-3.5">
               <Field
                 label="Closing note"
                 name="footerNote"
@@ -398,7 +484,7 @@ const AdminContent = () => {
             <Button
               type="submit"
               disabled={saveContent.isPending}
-              className="justify-self-start"
+              className="justify-self-start font-bold uppercase tracking-wider"
             >
               {saveContent.isPending ? "Saving…" : "Save content"}
             </Button>
@@ -408,7 +494,7 @@ const AdminContent = () => {
 
       {/* ---------------- Reviews ---------------- */}
       {tab === "reviews" && (
-        <div className="mt-4 grid gap-3">
+        <div className="grid gap-3">
           {(toggleVisibility.isError || removeReview.isError) && (
             <ErrorBox
               message={getErrorMessage(toggleVisibility.error ?? removeReview.error)}
@@ -431,40 +517,40 @@ const AdminContent = () => {
             return (
               <Card
                 key={review.id}
-                className={`flex flex-wrap items-start gap-3 p-3.5 sm:flex-nowrap sm:gap-4 sm:p-4 ${
-                  review.isVisible ? "" : "bg-slate-50"
+                className={`flex flex-wrap items-start gap-3 p-4 bg-charcoal border border-smoke ${
+                  review.isVisible ? "" : "opacity-60"
                 }`}
               >
                 {portrait ? (
                   <img
                     src={portrait}
                     alt=""
-                    className={`h-12 w-12 shrink-0 rounded-full object-cover ${
+                    className={`h-12 w-12 shrink-0 rounded-full object-cover border border-smoke ${
                       review.isVisible ? "" : "grayscale"
                     }`}
                   />
                 ) : (
-                  <div className="flex h-12 w-12 shrink-0 items-center justify-center rounded-full bg-slate-100 text-sm font-bold text-slate-500">
+                  <div className="flex h-12 w-12 shrink-0 items-center justify-center rounded-full bg-graphite border border-smoke text-sm font-bold text-gold">
                     {review.customerName.slice(0, 1).toUpperCase()}
                   </div>
                 )}
 
                 <div className="min-w-0 flex-1">
                   <div className="flex flex-wrap items-center gap-2">
-                    <p className="font-semibold text-slate-900">
+                    <p className="font-semibold text-ivory text-base">
                       {review.customerName}
                     </p>
                     <StarRow rating={review.rating} />
                     {!review.isVisible && (
-                      <span className="rounded-full bg-slate-200 px-2 py-0.5 text-[10px] font-bold uppercase text-slate-600">
+                      <span className="rounded-full bg-graphite border border-smoke px-2.5 py-0.5 text-[10px] font-bold uppercase text-ivory-faint">
                         hidden
                       </span>
                     )}
                   </div>
 
-                  <p className="mt-1 text-sm text-slate-600">{review.comment}</p>
+                  <p className="mt-1 text-sm text-ivory-dim">{review.comment}</p>
 
-                  <p className="mt-1 text-xs text-slate-400">
+                  <p className="mt-1 text-xs text-ivory-faint">
                     order {review.sortOrder}
                     {review.visitedOn
                       ? ` · dined ${new Date(review.visitedOn).toLocaleDateString(
@@ -487,6 +573,7 @@ const AdminContent = () => {
                             isVisible: !review.isVisible,
                           })
                         }
+                        className="font-bold text-xs"
                       >
                         {review.isVisible ? "Hide" : "Publish"}
                       </Button>
@@ -497,6 +584,7 @@ const AdminContent = () => {
                           setReviewForm(review);
                           setImageFile(null);
                         }}
+                        className="font-bold text-xs"
                       >
                         Edit
                       </Button>
@@ -504,7 +592,7 @@ const AdminContent = () => {
                   )}
 
                   {can("review:delete") && (
-                    <Button variant="ghost" onClick={() => setConfirmDelete(review)}>
+                    <Button variant="ghost" onClick={() => setConfirmDelete(review)} className="font-bold text-xs">
                       Delete
                     </Button>
                   )}
@@ -533,7 +621,7 @@ const AdminContent = () => {
           />
 
           <label className="flex flex-col gap-1.5">
-            <span className="text-sm font-medium text-slate-700">Customer name</span>
+            <span className="text-sm font-medium text-ivory-dim">Customer name</span>
             <input
               name="customerName"
               required
@@ -545,7 +633,7 @@ const AdminContent = () => {
 
           <div className="grid gap-4 sm:grid-cols-2">
             <label className="flex flex-col gap-1.5">
-              <span className="text-sm font-medium text-slate-700">Rating</span>
+              <span className="text-sm font-medium text-ivory-dim">Rating</span>
               <select
                 name="rating"
                 required
@@ -561,7 +649,7 @@ const AdminContent = () => {
             </label>
 
             <label className="flex flex-col gap-1.5">
-              <span className="text-sm font-medium text-slate-700">
+              <span className="text-sm font-medium text-ivory-dim">
                 Date (optional)
               </span>
               <input
@@ -574,7 +662,7 @@ const AdminContent = () => {
           </div>
 
           <label className="flex flex-col gap-1.5">
-            <span className="text-sm font-medium text-slate-700">Review</span>
+            <span className="text-sm font-medium text-ivory-dim">Review</span>
             <textarea
               name="comment"
               required
@@ -586,27 +674,27 @@ const AdminContent = () => {
           </label>
 
           <label className="flex flex-col gap-1.5">
-            <span className="text-sm font-medium text-slate-700">Display order</span>
+            <span className="text-sm font-medium text-ivory-dim">Display order</span>
             <input
               name="sortOrder"
               inputMode="numeric"
               defaultValue={editingReview?.sortOrder ?? 0}
               className={inputClass}
             />
-            <span className="text-xs text-slate-400">
+            <span className="text-xs text-ivory-faint">
               Lower numbers appear first on the welcome page.
             </span>
           </label>
 
-          <label className="flex items-center gap-3 rounded-xl bg-slate-50 px-3 py-2.5">
+          <label className="flex items-center gap-3 rounded-xl bg-graphite border border-smoke px-3 py-2.5">
             <input
               type="checkbox"
               name="isVisible"
               value="true"
               defaultChecked={editingReview?.isVisible ?? true}
-              className="h-4 w-4"
+              className="h-4 w-4 accent-gold"
             />
-            <span className="text-sm font-medium text-slate-700">
+            <span className="text-sm font-medium text-ivory">
               Visible on the welcome page
             </span>
           </label>
@@ -614,7 +702,7 @@ const AdminContent = () => {
           {saveReview.isError && <ErrorBox message={getErrorMessage(saveReview.error)} />}
         </form>
 
-        <div className="mt-5 flex justify-end gap-2 border-t border-slate-200 pt-4">
+        <div className="mt-5 flex justify-end gap-2 border-t border-smoke pt-4">
           <Button
             variant="secondary"
             onClick={() => {
@@ -628,7 +716,7 @@ const AdminContent = () => {
             type="submit"
             form="review-form"
             disabled={saveReview.isPending}
-            className="rounded-xl bg-orange-500 px-4 py-2.5 text-sm font-semibold text-white transition hover:bg-orange-600 disabled:bg-orange-300"
+            className="rounded-xl bg-gold px-5 py-2.5 text-sm font-bold text-obsidian shadow-sm transition hover:bg-gold-light disabled:opacity-50"
           >
             {saveReview.isPending ? "Saving…" : "Save"}
           </button>
@@ -641,14 +729,12 @@ const AdminContent = () => {
         onClose={() => setConfirmDelete(null)}
         title="Delete this review?"
       >
-        <p className="text-sm text-slate-600">
-          <strong className="text-slate-900">{confirmDelete?.customerName}</strong>'s
+        <p className="text-sm text-ivory-dim">
+          <strong className="text-ivory font-bold">{confirmDelete?.customerName}</strong>'s
           review will be removed permanently.
         </p>
 
-        {/* Steers towards the reversible option, which is nearly always what
-            the admin actually wants. */}
-        <p className="mt-2 text-sm text-slate-500">
+        <p className="mt-2 text-sm text-ivory-faint">
           If you only want it off the site for now, hide it instead — a hidden
           review can be published again at any time.
         </p>
@@ -659,7 +745,7 @@ const AdminContent = () => {
           </div>
         )}
 
-        <div className="mt-5 flex justify-end gap-2 border-t border-slate-200 pt-4">
+        <div className="mt-5 flex justify-end gap-2 border-t border-smoke pt-4">
           <Button variant="secondary" onClick={() => setConfirmDelete(null)}>
             Keep it
           </Button>

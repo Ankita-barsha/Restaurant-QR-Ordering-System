@@ -236,7 +236,7 @@ const CustomerMenu = () => {
                       </div>
                     )}
 
-                    <div className="absolute inset-0 bg-gradient-to-t from-charcoal/70 to-transparent" />
+                    <div className="absolute inset-0 bg-gradient-to-t from-charcoal/70 to-transparent opacity-0 dark:opacity-100 transition-opacity" />
 
                     {quantity > 0 && (
                       <span className="absolute left-3 top-3 flex h-7 min-w-7 items-center justify-center rounded-full bg-gold px-2 text-xs font-medium text-obsidian">
@@ -301,7 +301,7 @@ const CustomerMenu = () => {
                           type="button"
                           onClick={() => addItem(food)}
                           aria-label={`Add ${food.name} to your order`}
-                          className="min-h-11 rounded-full border border-gold/40 px-6 py-2.5 text-[10px] uppercase tracking-[0.2em] text-gold transition-all duration-500 hover:bg-gold hover:text-obsidian font-bold"
+                          className="min-h-11 rounded-full border border-gold/40 px-6 py-2.5 text-[10px] uppercase tracking-[0.2em] text-slate transition-all duration-500 hover:bg-gold hover:text-obsidian font-bold"
                         >
                           Add
                         </button>
@@ -311,11 +311,11 @@ const CustomerMenu = () => {
                             type="button"
                             onClick={() => decrease(food.id)}
                             aria-label={`Decrease ${food.name} quantity`}
-                            className="flex h-8 w-8 items-center justify-center rounded-full bg-gold/20 text-gold transition hover:bg-gold hover:text-obsidian font-bold text-base"
+                            className="flex h-8 w-8 items-center justify-center rounded-full bg-gold/20 text-slate transition hover:bg-gold hover:text-obsidian font-bold text-base"
                           >
                             −
                           </button>
-                          <span className="min-w-6 text-center font-bold text-sm text-gold tabular-nums">
+                          <span className="min-w-6 text-center font-bold text-sm text-slate tabular-nums">
                             {quantity}
                           </span>
                           <button
@@ -353,7 +353,7 @@ const CustomerMenu = () => {
               </span>
             </span>
 
-            <span className="text-[11px] uppercase tracking-[0.24em] text-gold">
+            <span className="text-[11px] uppercase tracking-[0.24em] text-gold font-bold">
               View order →
             </span>
           </Link>
@@ -402,10 +402,10 @@ const FilterPill = ({
     type="button"
     onClick={onClick}
     aria-pressed={active}
-    className={`flex min-h-11 shrink-0 items-center gap-2 whitespace-nowrap rounded-full border px-5 py-2 text-[11px] uppercase tracking-[0.18em] transition-all duration-500 ${
+    className={`flex min-h-11 shrink-0 items-center gap-2 whitespace-nowrap rounded-full border px-5 py-2 text-[11px] uppercase tracking-[0.18em] transition-all duration-300 font-bold ${
       active
-        ? "border-gold bg-gold text-obsidian"
-        : "border-smoke text-ivory-dim hover:border-gold/40 hover:text-gold"
+        ? "border-gold bg-gold text-obsidian shadow-md"
+        : "border-smoke bg-graphite/40 text-ivory-dim hover:border-gold/50 hover:text-ivory"
     }`}
   >
     {children}

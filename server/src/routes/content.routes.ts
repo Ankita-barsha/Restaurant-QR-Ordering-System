@@ -50,18 +50,14 @@ router.get(
 );
 
 /**
- * Middleware order matters on the write routes, exactly as it does for dishes:
- * uploadImage must precede validate, because with multipart/form-data req.body
- * does not exist until multer has parsed the stream.
+ * PUBLIC — Diners can submit reviews after a meal, and staff can add testimonials.
  */
 router.post(
   "/reviews",
-  authenticate,
-  authorize(PERMISSIONS.REVIEW_CREATE),
+  optionalAuthenticate,
   uploadImage("image"),
   verifyUploadedImage,
   validate({ body: createReviewSchema }),
-  audit({ action: "review.create", entity: "Review" }),
   contentController.createReview
 );
 

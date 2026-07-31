@@ -66,4 +66,10 @@ export const SOCKET_EVENTS = {
   FOOD_AVAILABILITY_CHANGED: "food:availabilityChanged",
   TABLE_STATUS_CHANGED: "table:statusChanged",
   NOTIFICATION_NEW: "notification:new",
+  REVIEW_CHANGED: "review:changed",
+  /** Payment lifecycle update — waiter and admin payment screens react live. */
+  PAYMENT_STATUS_CHANGED: "payment:statusChanged",
+  /** Kitchen marked an order READY — waiter screen alerts immediately. */
+  WAITER_ORDER_READY: "waiter:orderReady",
 } as const;
+
