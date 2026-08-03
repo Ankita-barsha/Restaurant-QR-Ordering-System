@@ -35,8 +35,16 @@ export const getSettings = async () => {
 /**
  * Public subset, served to the customer app.
  *
- * Excludes internal contact details and operational flags the diner has no
- * business seeing.
+ * GET /api/settings is UNAUTHENTICATED — it has to be, a diner who scanned a
+ * QR code has no account. So this function is the boundary: whatever it
+ * returns is world-readable.
+ *
+ * The gateway SECRETS are therefore absent, and must stay absent. They were
+ * once returned here, which published the Razorpay key secret to every diner
+ * who opened the menu; anyone holding it can charge cards in the restaurant's
+ * name and forge webhook events. The publishable key id is fine — that is what
+ * it is for — but it is only handed out with a payment intent, so a page that
+ * is not paying for anything never carries it at all.
  */
 export const getPublicSettings = async () => {
   const settings = await getSettings();
@@ -57,26 +65,106 @@ export const getPublicSettings = async () => {
     phone: settings.phone,
     bankingName: settings.bankingName ?? settings.name,
     merchantVpa: settings.merchantVpa ?? "bitemebistro@upi",
+    // Shown on the diner's own invoice, so it stays.
     bankAccountNo: settings.bankAccountNo,
     bankIfscCode: settings.bankIfscCode,
     paymentGatewayProvider: settings.paymentGatewayProvider ?? "RAZORPAY",
-    razorpayKeyId: settings.razorpayKeyId,
-    paytmMerchantId: settings.paytmMerchantId,
+    /**
+     * Whether real money is being taken.
+     *
+     * A boolean, never the credentials that make it true. The customer app
+     * needs this to decide whether to open the gateway's own checkout or the
+     * demo one, and a diner is entitled to know which of the two they are
+     * looking at before they type a UPI ID into it.
+     */
+    gatewayIsLive: Boolean(
+      settings.paymentGatewayProvider === "RAZORPAY" &&
+        settings.razorpayKeyId &&
+        settings.razorpayKeySecret
+    ),
+
+    /**
+     * What the advance-payment dialog needs to explain itself.
+     *
+     * The percentage and the message are shown to the guest, so they are
+     * public by definition. The THRESHOLD is not here on purpose: publishing
+     * it tells anyone probing the system exactly what to stay under, and the
+     * guest never needs the number — they are only ever told the outcome, and
+     * only once their own balance has crossed it.
+     */
+    advancePaymentPercent: settings.advancePaymentPercent.toString(),
+    advancePaymentMessage: settings.advancePaymentMessage,
+    allowCashAdvance: settings.allowCashAdvance,
+    allowOnlineAdvance: settings.allowOnlineAdvance,
+    // razorpayKeyId, razorpayKeySecret, razorpayWebhookSecret and
+    // paytmMerchantId are deliberately NOT here. See the note above.
   };
+};
+
+/** Field names that must never be echoed back once stored. */
+const SECRET_SETTINGS = ["razorpayKeySecret", "razorpayWebhookSecret"] as const;
+
+/**
+ * Settings for the admin screens, with the secrets masked.
+ *
+ * Write-only by design: an administrator sets a key and afterwards sees only
+ * whether one is present. Rendering a stored secret back into an input box
+ * puts it in the DOM, in the browser's memory, in any screen recording of the
+ * settings page and in the response body of an endpoint that merely reads
+ * settings — for no benefit, because nobody needs to re-read a key they
+ * already pasted from the Razorpay dashboard.
+ */
+export const getAdminSettings = async () => {
+  const settings = await getSettings();
+
+  const masked = Object.fromEntries(
+    SECRET_SETTINGS.map((field) => [
+      // The screen shows "configured" or "not set" from this boolean; the
+      // value itself never crosses the wire.
+      `${field}IsSet`,
+      Boolean(settings[field]),
+    ])
+  );
+
+  const visible = { ...settings } as Record<string, unknown>;
+
+  for (const field of SECRET_SETTINGS) {
+    delete visible[field];
+  }
+
+  return { ...visible, ...masked };
 };
 
 export const updateSettings = async (input: UpdateSettingsInput) => {
   // Ensures the row exists before updating it.
   await getSettings();
 
-  return prisma.restaurantSettings.update({
-    where: { id: SETTINGS_ID },
-    data: {
-      ...input,
-      // Currency codes are conventionally uppercase (INR, USD).
-      ...(input.currency ? { currency: input.currency.toUpperCase() } : {}),
-    },
-  });
+  const data: Record<string, unknown> = {
+    ...input,
+    // Currency codes are conventionally uppercase (INR, USD).
+    ...(input.currency ? { currency: input.currency.toUpperCase() } : {}),
+  };
+
+  /**
+   * An empty secret means "leave it alone", not "erase it".
+   *
+   * The admin form cannot show a stored secret — see getAdminSettings — so it
+   * necessarily submits an empty box for a key that is already configured.
+   * Writing that through would clear the credential every time anyone saved
+   * an unrelated field, and the restaurant would silently drop back to the
+   * demo gateway mid-service.
+   */
+  for (const field of SECRET_SETTINGS) {
+    if (data[field] === "" || data[field] === undefined) {
+      delete data[field];
+    }
+  }
+
+  await prisma.restaurantSettings.update({ where: { id: SETTINGS_ID }, data });
+
+  // Masked on the way back out, for the same reason it is masked on read: the
+  // response to a save is as readable as the response to a fetch.
+  return getAdminSettings();
 };
 
 // ---------------------------------------------------------------------------

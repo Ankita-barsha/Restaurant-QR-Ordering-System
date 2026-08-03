@@ -88,3 +88,35 @@ export const quoteTotals = (
     total: fromMinor(subtotalMinor + taxMinor + serviceMinor),
   };
 };
+
+/**
+ * Calculates dynamic advance payment details for orders > ₹3,000.
+ *
+ * Rules:
+ * - Orders <= ₹3,000: No advance required (0%).
+ * - Orders > ₹3,000: Base 20% advance + 10% for every additional ₹1,000 above ₹3,000 (capped at 100%).
+ */
+export const calculateAdvanceDetails = (totalMinor: number, thresholdTaka = 3000) => {
+  const totalTaka = totalMinor / 100;
+  if (totalTaka <= thresholdTaka) {
+    return {
+      isAdvanceRequired: false,
+      advancePercent: 0,
+      advanceMinor: 0,
+      remainingMinor: totalMinor,
+    };
+  }
+
+  const extraThousands = Math.floor((totalTaka - thresholdTaka) / 1000);
+  const rawPercent = 20 + extraThousands * 10;
+  const advancePercent = Math.min(rawPercent, 100);
+  const advanceMinor = Math.round((totalMinor * advancePercent) / 100);
+  const remainingMinor = totalMinor - advanceMinor;
+
+  return {
+    isAdvanceRequired: true,
+    advancePercent,
+    advanceMinor,
+    remainingMinor,
+  };
+};

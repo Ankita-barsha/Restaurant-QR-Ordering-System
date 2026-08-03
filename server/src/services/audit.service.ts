@@ -35,6 +35,11 @@ const REDACTED_KEYS = new Set([
   "jwtSecret",
   "apiKey",
   "qrToken",
+  // The per-order secret that authorises tracking, the invoice and payment.
+  // Order snapshots routinely carry the whole row, and an audit trail is read
+  // by every administrator — this must not be one of the places it survives.
+  "trackingToken",
+  "razorpayKeySecret",
 ]);
 
 /**

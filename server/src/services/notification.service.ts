@@ -166,6 +166,40 @@ export const notifyOrderPlaced = (order: {
   });
 };
 
+/**
+ * A large order is being held before the kitchen is told about it.
+ *
+ * Worth a notification of its own, and an urgent one: unlike a placed order,
+ * NOTHING happens next until a member of staff acts. A guest is sitting at a
+ * table waiting, and the kitchen has not even been told.
+ */
+export const notifyOrderHeld = (order: {
+  id: string;
+  orderNumber: string;
+  status: string;
+  totalAmount: { toString(): string };
+  table: { tableNumber: string } | null;
+}): void => {
+  const where = order.table ? `table ${order.table.tableNumber}` : "a takeaway order";
+
+  void recordNotification({
+    type: "ORDER_PLACED",
+    title:
+      order.status === "AWAITING_PAYMENT"
+        ? "Large order — deposit required"
+        : "Large order — needs approval",
+    message:
+      order.status === "AWAITING_PAYMENT"
+        ? `${order.orderNumber} (${order.totalAmount.toString()}) on ${where} is waiting for its deposit`
+        : `${order.orderNumber} (${order.totalAmount.toString()}) on ${where} needs a member of staff before the kitchen starts`,
+    metadata: {
+      orderId: order.id,
+      orderNumber: order.orderNumber,
+      held: order.status,
+    },
+  });
+};
+
 export const notifyOrderStatus = (order: {
   id: string;
   orderNumber: string;

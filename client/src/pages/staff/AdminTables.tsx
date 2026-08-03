@@ -13,8 +13,11 @@ import { Button, Card, ErrorBox, Spinner } from "../../components/ui";
 import { config } from "../../config/env";
 import { useAuth } from "../../context/auth";
 import { queryKeys } from "../../hooks/useLiveOrders";
+import defaultLogo from "../../assets/image/logo.png";
 import { api, getAccessToken, getErrorMessage, unwrap } from "../../lib/api";
-import type { ApiResponse, Table, TableStatus } from "../../types/api";
+import { imageUrl } from "../../lib/format";
+import { buildQrPoster, downloadBlob } from "../../lib/qrPoster";
+import type { ApiResponse, PublicSettings, Table, TableStatus } from "../../types/api";
 
 const STATUS_STYLES: Record<TableStatus, string> = {
   AVAILABLE: "bg-emerald-100 text-emerald-700",
@@ -30,11 +33,20 @@ const AdminTables = () => {
   const [newCapacity, setNewCapacity] = useState("4");
 
   const [qrBlobs, setQrBlobs] = useState<Record<string, string>>({});
+  const [posterBusy, setPosterBusy] = useState<string | null>(null);
+  const [posterError, setPosterError] = useState<string | null>(null);
 
   const tablesQuery = useQuery({
     queryKey: queryKeys.tables,
     queryFn: async () =>
       unwrap(await api.get<ApiResponse<Table[]>>("/tables?includeInactive=true&limit=100")),
+  });
+
+  // The poster prints the restaurant's own name, so it comes from settings
+  // rather than being hardcoded per deployment.
+  const settingsQuery = useQuery({
+    queryKey: ["settings", "public"],
+    queryFn: async () => unwrap(await api.get<ApiResponse<PublicSettings>>("/settings")),
   });
 
   const invalidate = () => {
@@ -90,6 +102,36 @@ const AdminTables = () => {
       created.forEach((url) => URL.revokeObjectURL(url));
     };
   }, [tables]);
+
+  /**
+   * Frames the plain QR into the branded card and saves it.
+   *
+   * Composed on demand instead of at fetch time so the grid still paints its
+   * previews immediately, and so a failure here costs the download only.
+   */
+  const downloadPoster = async (table: Table, qrSrc: string) => {
+    setPosterBusy(table.id);
+    setPosterError(null);
+
+    const logoSrc = settingsQuery.data?.logoUrl
+      ? imageUrl(settingsQuery.data.logoUrl, config.apiUrl)
+      : defaultLogo;
+
+    try {
+      const poster = await buildQrPoster({
+        qrSrc,
+        restaurantName: settingsQuery.data?.name ?? "Bite me Bistro",
+        tableNumber: table.tableNumber,
+        logoSrc,
+      });
+
+      downloadBlob(poster, `qr-${table.tableNumber}.png`);
+    } catch (error) {
+      setPosterError(getErrorMessage(error));
+    } finally {
+      setPosterBusy(null);
+    }
+  };
 
   if (tablesQuery.isLoading) return <Spinner label="Loading tables" />;
 
@@ -162,51 +204,60 @@ const AdminTables = () => {
         </Card>
       )}
 
+      {posterError && (
+        <div className="mt-4">
+          <ErrorBox message={posterError} />
+        </div>
+      )}
+
       <div className="mt-4 grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
         {tables?.map((table) => {
           const qr = qrBlobs[table.id] ?? null;
 
           return (
             <Card key={table.id}>
-              <div className="flex items-center justify-between">
-                <span className="text-lg font-black text-white-900">
-                  {table.tableNumber}
-                </span>
-                <span
-                  className={`rounded-full px-2.5 py-1 text-xs font-semibold ${
-                    STATUS_STYLES[table.status]
-                  }`}
-                >
-                  {table.status}
-                </span>
-              </div>
+              <div>
+                <div className="flex items-center justify-between">
+                  <span className="text-lg font-black text-white-900">
+                    {table.tableNumber}
+                  </span>
+                  <span
+                    className={`rounded-full px-2.5 py-1 text-xs font-semibold ${
+                      STATUS_STYLES[table.status]
+                    }`}
+                  >
+                    {table.status}
+                  </span>
+                </div>
 
-              <p className="mt-0.5 text-xs text-white-500">Seats {table.capacity}</p>
+                <p className="mt-0.5 text-xs text-white-500">Seats {table.capacity}</p>
 
-              {qr && (
-                <a href={qr} target="_blank" rel="noreferrer" className="mt-3 block">
-                  <img
-                    src={qr}
-                    alt={`QR code for table ${table.tableNumber}`}
-                    className="mx-auto h-40 w-40 rounded-lg border border-slate-200"
-                  />
-                </a>
-              )}
-
-              {/* The scan URL is shown so it can be verified against what a
-                  phone opens, and copied into a print template. */}
-              <p className="mt-2 truncate text-center text-[11px] text-white-400">
-                /t/{table.qrToken}
-              </p>
-
-              <div className="mt-3">
                 {qr && (
-                  <a href={qr} download={`qr-${table.tableNumber}.png`} className="block w-full">
-                    <Button variant="secondary" className="w-full">
-                      Download QR Code
-                    </Button>
+                  <a href={qr} target="_blank" rel="noreferrer" className="mt-3 block">
+                    <img
+                      src={qr}
+                      alt={`QR code for table ${table.tableNumber}`}
+                      className="mx-auto h-40 w-40 rounded-lg border border-slate-200"
+                    />
                   </a>
                 )}
+
+                <p className="mt-2 truncate text-center text-[11px] text-white-400">
+                  /t/{table.qrToken}
+                </p>
+
+                <div className="mt-3">
+                  {qr && (
+                    <Button
+                      variant="secondary"
+                      className="w-full"
+                      disabled={posterBusy === table.id}
+                      onClick={() => void downloadPoster(table, qr)}
+                    >
+                      {posterBusy === table.id ? "Preparing…" : "Download QR Code"}
+                    </Button>
+                  )}
+                </div>
               </div>
             </Card>
           );

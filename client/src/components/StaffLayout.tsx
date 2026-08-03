@@ -17,10 +17,16 @@ import { useLiveOrders, useSocketStatus } from "../hooks/useLiveOrders";
 import NotificationBell from "./NotificationBell";
 import { MonkDeveloperBrand } from "./MonkDeveloperBrand";
 
+import defaultLogo from "../assets/image/logo.png";
+import { config } from "../config/env";
+import { imageUrl } from "../lib/format";
+import { useQuery } from "@tanstack/react-query";
+import { api, unwrap } from "../lib/api";
+import type { ApiResponse, PublicSettings } from "../types/api";
+
 interface NavItem {
   to: string;
   label: string;
-  /** Permission required to see the link; omitted means "any signed-in user". */
   permission?: string;
 }
 
@@ -42,14 +48,6 @@ const NAV_ITEMS: NavItem[] = [
   { to: "/admin/banking", label: "Banking", permission: "settings:read" },
 ];
 
-/**
- * Some roles are deliberately single-purpose.
- *
- * A chef works only the kitchen display; a waiter works only the serving
- * screen. Showing them the rest would be noise on a device used at speed
- * during service. This narrows what each sees in the nav — it is not a
- * security boundary, which the API enforces separately on every route.
- */
 const ROLE_NAV_LOCK: Record<string, string[]> = {
   KITCHEN: ["/kitchen"],
   STAFF: ["/serve"],
@@ -61,11 +59,16 @@ const StaffLayout = () => {
   const navigate = useNavigate();
   const connected = useSocketStatus();
 
-  // Mounted once at the shell, so every staff screen shares one subscription.
+  const settingsQuery = useQuery({
+    queryKey: ["settings", "public"],
+    queryFn: async () => unwrap(await api.get<ApiResponse<PublicSettings>>("/settings")),
+  });
+
+  const restaurantName = settingsQuery.data?.name || "Bite me Bistro";
+  const logoSrc = (settingsQuery.data?.logoUrl ? imageUrl(settingsQuery.data.logoUrl, config.apiUrl) : null) || defaultLogo;
+
   useLiveOrders();
 
-  // A single-purpose role sees only its own screen; everyone else sees every
-  // nav item their permissions allow.
   const roleLock = user ? ROLE_NAV_LOCK[user.role.name] : undefined;
 
   const visibleNav = NAV_ITEMS.filter((item) => {
@@ -80,21 +83,18 @@ const StaffLayout = () => {
 
   return (
     <div className="flex min-h-screen flex-col bg-obsidian">
-      {/**
-       * Two rows on a phone, one on a laptop.
-       *
-       * Seven things shared a single flex row — wordmark, nav, bell, live
-       * badge, name, role, sign-out — and below about 700px they simply ran
-       * out of width: the nav lost its scroll room, the wordmark truncated to
-       * nothing and "Sign out" was pushed off the right edge. Splitting the
-       * identity strip from the navigation gives the nav the FULL width to
-       * scroll in, which is what it needs on the device it is most used on.
-       */}
       <header className="sticky top-0 z-40 border-b border-smoke bg-obsidian/90 backdrop-blur-xl">
         <div className="mx-auto flex max-w-[1600px] flex-wrap items-center gap-x-4 gap-y-2 px-3 py-2.5 sm:px-5 sm:py-3 lg:flex-nowrap lg:gap-5">
-          <span className="font-display shrink-0 text-lg tracking-wide text-ivory sm:text-xl">
-            Bite me Bistro
-          </span>
+          <div className="flex items-center gap-2.5 shrink-0">
+            <img
+              src={logoSrc}
+              alt={restaurantName}
+              className="h-8 w-8 object-contain rounded-full border border-gold/40 p-0.5 bg-graphite"
+            />
+            <span className="font-display shrink-0 text-lg tracking-wide text-ivory sm:text-xl">
+              {restaurantName}
+            </span>
+          </div>
 
           {/* Pushed to the far right of row one on small screens; inline from
               lg. `order` keeps the DOM order sensible for screen readers. */}

@@ -12,34 +12,65 @@ import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useState, type FormEvent } from "react";
 
 import { api, getErrorMessage, unwrap } from "../../lib/api";
-import type { ApiResponse, PublicSettings } from "../../types/api";
+import type { ApiResponse } from "../../types/api";
 import { LuxeButton, LuxeError, LuxeSkeleton } from "../../components/luxe";
+
+/**
+ * What the admin settings endpoint returns.
+ *
+ * Note the shape of the secrets: booleans, not values. They are write-only —
+ * see getAdminSettings on the server.
+ */
+interface AdminSettings {
+  name: string;
+  bankingName: string | null;
+  merchantVpa: string | null;
+  bankAccountNo: string | null;
+  bankIfscCode: string | null;
+  paymentGatewayProvider: string | null;
+  razorpayKeyId: string | null;
+  razorpayKeySecretIsSet: boolean;
+  razorpayWebhookSecretIsSet: boolean;
+  paytmMerchantId: string | null;
+}
+
+/** Says whether a write-only credential is stored, without revealing it. */
+const SecretState = ({ isSet }: { isSet?: boolean }) => (
+  <span
+    className={`rounded-full px-2 py-0.5 text-[10px] font-bold uppercase tracking-wider ${
+      isSet
+        ? "bg-emerald-500/15 text-emerald-400"
+        : "bg-amber-500/15 text-amber-300"
+    }`}
+  >
+    {isSet ? "Saved" : "Not set"}
+  </span>
+);
 
 const AdminBanking = () => {
   const queryClient = useQueryClient();
   const [saved, setSaved] = useState(false);
 
+  /**
+   * The ADMIN settings endpoint, not the public one.
+   *
+   * The public endpoint no longer returns gateway credentials at all — it once
+   * returned the Razorpay key SECRET to anyone who opened the menu. This one
+   * returns the key id plus a boolean saying whether each secret is set; the
+   * secrets themselves are write-only and never come back.
+   */
   const settingsQuery = useQuery({
-    queryKey: ["settings"],
-    queryFn: async () => unwrap(await api.get<ApiResponse<PublicSettings>>("/settings")),
+    queryKey: ["admin", "settings"],
+    queryFn: async () => unwrap(await api.get<ApiResponse<AdminSettings>>("/admin/settings")),
   });
 
   const updateSettings = useMutation({
-    mutationFn: async (payload: {
-      bankingName: string;
-      merchantVpa: string;
-      bankAccountNo: string;
-      bankIfscCode: string;
-      paymentGatewayProvider: string;
-      razorpayKeyId: string;
-      razorpayKeySecret: string;
-      paytmMerchantId: string;
-    }) =>
-      unwrap(
-        await api.patch<ApiResponse<PublicSettings>>("/admin/settings", payload)
-      ),
+    mutationFn: async (payload: Record<string, string>) =>
+      unwrap(await api.patch<ApiResponse<AdminSettings>>("/admin/settings", payload)),
     onSuccess: () => {
       setSaved(true);
+      void queryClient.invalidateQueries({ queryKey: ["admin", "settings"] });
+      // The customer app reads gatewayIsLive from the public endpoint.
       void queryClient.invalidateQueries({ queryKey: ["settings"] });
       setTimeout(() => setSaved(false), 3000);
     },
@@ -49,16 +80,32 @@ const AdminBanking = () => {
     e.preventDefault();
     const fd = new FormData(e.currentTarget);
 
-    updateSettings.mutate({
-      bankingName: String(fd.get("bankingName") ?? "").trim(),
-      merchantVpa: String(fd.get("merchantVpa") ?? "").trim(),
-      bankAccountNo: String(fd.get("bankAccountNo") ?? "").trim(),
-      bankIfscCode: String(fd.get("bankIfscCode") ?? "").trim().toUpperCase(),
-      paymentGatewayProvider: String(fd.get("paymentGatewayProvider") ?? "RAZORPAY").trim(),
-      razorpayKeyId: String(fd.get("razorpayKeyId") ?? "").trim(),
-      razorpayKeySecret: String(fd.get("razorpayKeySecret") ?? "").trim(),
-      paytmMerchantId: String(fd.get("paytmMerchantId") ?? "").trim(),
-    });
+    const value = (field: string) => String(fd.get(field) ?? "").trim();
+
+    const payload: Record<string, string> = {
+      bankingName: value("bankingName"),
+      merchantVpa: value("merchantVpa"),
+      bankAccountNo: value("bankAccountNo"),
+      bankIfscCode: value("bankIfscCode").toUpperCase(),
+      paymentGatewayProvider: value("paymentGatewayProvider") || "RAZORPAY",
+      razorpayKeyId: value("razorpayKeyId"),
+      paytmMerchantId: value("paytmMerchantId"),
+    };
+
+    /**
+     * Secrets are sent ONLY when retyped.
+     *
+     * The boxes start empty because the server will not send a stored secret
+     * back. Submitting that empty value would wipe a working key every time
+     * anyone saved an unrelated field on this page — so an untouched box is
+     * omitted from the request entirely. The server treats an empty secret the
+     * same way, belt and braces.
+     */
+    for (const field of ["razorpayKeySecret", "razorpayWebhookSecret"]) {
+      if (value(field)) payload[field] = value(field);
+    }
+
+    updateSettings.mutate(payload);
   };
 
   const data = settingsQuery.data;
@@ -87,7 +134,7 @@ const AdminBanking = () => {
         <LuxeError message={getErrorMessage(updateSettings.error)} />
       )}
 
-      <form onSubmit={handleSubmit} className="space-y-6 rounded-2xl border border-smoke bg-charcoal p-6 sm:p-8">
+      <form key={data ? "banking-loaded" : "banking-loading"} onSubmit={handleSubmit} className="space-y-6 rounded-2xl border border-smoke bg-charcoal p-6 sm:p-8">
         {/* Section 1: Merchant UPI & Payee Name */}
         <div className="space-y-4">
           <h2 className="text-base font-bold text-gold flex items-center gap-2">
@@ -176,17 +223,49 @@ const AdminBanking = () => {
             </div>
 
             <div className="space-y-1.5">
-              <label className="text-xs font-medium text-ivory-dim">
-                Razorpay Key Secret
+              <label className="flex items-center justify-between text-xs font-medium text-ivory-dim">
+                <span>Razorpay Key Secret</span>
+                <SecretState isSet={data?.razorpayKeySecretIsSet} />
               </label>
               <input
                 type="password"
                 name="razorpayKeySecret"
-                defaultValue={data?.razorpayKeySecret ?? ""}
-                placeholder="Key Secret"
+                autoComplete="new-password"
+                placeholder={
+                  data?.razorpayKeySecretIsSet
+                    ? "Saved — leave blank to keep it"
+                    : "Paste the key secret"
+                }
                 className="w-full rounded-xl border border-smoke bg-obsidian px-3.5 py-2.5 text-xs text-ivory placeholder-ivory-faint focus:border-gold focus:outline-none font-mono"
               />
+              <p className="text-[10px] text-ivory-faint">
+                Write-only — never shown again once saved.
+              </p>
             </div>
+          </div>
+
+          <div className="space-y-1.5">
+            <label className="flex items-center justify-between text-xs font-medium text-ivory-dim">
+              <span>Razorpay Webhook Secret</span>
+              <SecretState isSet={data?.razorpayWebhookSecretIsSet} />
+            </label>
+            <input
+              type="password"
+              name="razorpayWebhookSecret"
+              autoComplete="new-password"
+              placeholder={
+                data?.razorpayWebhookSecretIsSet
+                  ? "Saved — leave blank to keep it"
+                  : "Paste the webhook secret"
+              }
+              className="w-full rounded-xl border border-smoke bg-obsidian px-3.5 py-2.5 text-xs text-ivory placeholder-ivory-faint focus:border-gold focus:outline-none font-mono"
+            />
+            <p className="text-[10px] text-ivory-faint">
+              A <strong>different</strong> secret from the key secret — you
+              choose it when creating the webhook in Razorpay Dashboard ➔
+              Settings ➔ Webhooks. Without it, gateway callbacks are rejected
+              and payments only settle from the diner's own browser.
+            </p>
           </div>
 
           <div className="space-y-1.5">

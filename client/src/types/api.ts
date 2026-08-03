@@ -11,13 +11,27 @@
  *     Format it for display, do arithmetic in paise.
  */
 
+/**
+ * The order workflow.
+ *
+ * The two AWAITING_ states are holds placed on a large order BEFORE the
+ * kitchen is told about it — one waiting on a deposit, one waiting on a member
+ * of staff to confirm the table is real. Neither appears on the Kitchen
+ * Display; that is the point of them.
+ */
 export type OrderStatus =
+  | "NEEDS_APPROVAL"
+  | "AWAITING_ADVANCE_PAYMENT"
   | "PENDING"
   | "CONFIRMED"
   | "PREPARING"
   | "READY"
   | "SERVED"
   | "CANCELLED";
+
+/** Statuses in which nothing moves until a person or a payment intervenes. */
+export const isHeldStatus = (status: OrderStatus): boolean =>
+  status === "NEEDS_APPROVAL" || status === "AWAITING_ADVANCE_PAYMENT";
 
 export type OrderType = "DINE_IN" | "TAKEAWAY";
 export type PaymentStatus = "UNPAID" | "PAID" | "REFUNDED";
@@ -116,6 +130,13 @@ export interface Order {
   discountAmount: string;
   totalAmount: string;
   notes: string | null;
+  /**
+   * The advance owed before this order reaches the kitchen.
+   *
+   * Set only on a high-value order the gate caught; null on everything else,
+   * which is how the staff screens know whether to show an advance at all.
+   */
+  advanceAmount: string | null;
   placedAt: string;
   confirmedAt: string | null;
   preparedAt: string | null;
@@ -123,6 +144,8 @@ export interface Order {
   servedAt: string | null;
   cancelledAt: string | null;
   cancelReason: string | null;
+  /** Who released a held order, and when. Null if it was never held. */
+  approvedAt: string | null;
   items: OrderItem[];
   table: { id: string; tableNumber: string } | null;
   customer: { id: string; name: string | null; phone: string | null } | null;
@@ -143,6 +166,12 @@ export interface TrackedOrder {
   status: OrderStatus;
   type: OrderType;
   totalAmount: string;
+  /**
+   * The advance that must be collected before the kitchen is told, when this
+   * order was held. Null on an ordinary order — which is how the tracking
+   * screen knows not to show the advance dialog at all.
+   */
+  advanceAmount: string | null;
   placedAt: string;
   confirmedAt: string | null;
   preparedAt: string | null;
@@ -178,7 +207,14 @@ export interface DashboardSummary {
     orders: number;
     averageOrderValue: string;
   };
-  live: { openOrders: number; pending: number; preparing: number; ready: number };
+  live: {
+    openOrders: number;
+    pending: number;
+    preparing: number;
+    ready: number;
+    /** Large orders the kitchen has NOT been told about, waiting on someone. */
+    held: number;
+  };
   tables: { total: number; occupied: number; free: number };
   menu: { total: number; soldOut: number };
   customers: number;
@@ -201,9 +237,29 @@ export interface PublicSettings {
   bankAccountNo?: string | null;
   bankIfscCode?: string | null;
   paymentGatewayProvider?: string | null;
-  razorpayKeyId?: string | null;
-  razorpayKeySecret?: string | null;
+  /**
+   * Whether the restaurant is taking real money.
+   *
+   * A boolean, and deliberately the ONLY gateway fact the public endpoint
+   * exposes. The key id, key secret, webhook secret and Paytm merchant id used
+   * to be returned here — meaning the Razorpay key SECRET was readable by
+   * anyone who opened the menu. They are gone; the publishable key now arrives
+   * with a payment intent, and only when there is something to pay.
+   */
+  gatewayIsLive?: boolean;
   paytmMerchantId?: string | null;
+
+  /**
+   * High-value order policy, as much of it as a guest is entitled to see.
+   *
+   * The THRESHOLD is deliberately absent: publishing it tells anyone probing
+   * the system exactly what to stay under, and a guest never needs the number
+   * — they are told the outcome, and only once their own balance crosses it.
+   */
+  advancePaymentPercent?: string;
+  advancePaymentMessage?: string | null;
+  allowCashAdvance?: boolean;
+  allowOnlineAdvance?: boolean;
 }
 
 /**

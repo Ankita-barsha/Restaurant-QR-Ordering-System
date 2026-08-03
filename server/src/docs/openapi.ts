@@ -28,6 +28,7 @@ import {
   createRoleSchema,
   createUserSchema,
   customerListQuerySchema,
+  orderExportQuerySchema,
   reportQuerySchema,
   resetPasswordSchema,
   revenuePeriodSchema,
@@ -63,6 +64,7 @@ import {
   cancelOrderSchema,
   orderListQuerySchema,
   placeOrderSchema,
+  rejectOrderSchema,
   updatePaymentSchema,
   updateStatusSchema,
 } from "../validations/order.validation.js";
@@ -1372,7 +1374,7 @@ const paths: Record<string, Record<string, JsonSchema>> = {
       operationId: "confirmOnlinePayment",
       summary: "Confirm an online payment",
       description:
-        "DEMO: the outcome is whatever the payer chose on the checkout screen. A real gateway replaces this with signature verification of a webhook — the same method on the provider interface, so this flow does not change. On success the order is marked paid in the SAME transaction as the payment, so the ledger and the summary cannot disagree.",
+        "What authorises this depends on the active gateway.\n\n**Live (Razorpay configured):** the body must carry `razorpayPaymentId` and `signature` exactly as Razorpay's checkout returned them. The signature is an HMAC over `order_id|payment_id` keyed with the merchant secret, so only Razorpay can produce it — the diner's browser merely relays it. `outcome` is ignored entirely.\n\n**Demo (no keys configured):** `outcome: \"success\"` is accepted on trust, because no money exists to steal. This is why the demo checkout must never be presented as a real charge.\n\nThe order is settled in the SAME transaction as the payment, so the ledger and the summary cannot disagree. A deposit does NOT mark the order paid — `paymentStatus` becomes PAID only once the captured total covers the bill.",
       limit: "public-write",
       parameters: [idParam],
       requestBody: jsonBody(confirmPaymentSchema),
@@ -1384,6 +1386,112 @@ const paths: Record<string, Record<string, JsonSchema>> = {
         400: errorResponse("The payment was not completed."),
         ...notFound,
         409: errorResponse("This payment was already completed."),
+        ...rateLimited,
+      },
+    }),
+  },
+
+  "/orders/{id}/approve": {
+    post: operation({
+      tag: "Orders",
+      operationId: "approveOrder",
+      summary: "Release a held large order",
+      description:
+        "An order whose table's open balance crosses `approvalThresholdAmount` is placed in `AWAITING_APPROVAL` and is NOT shown to the kitchen. This endpoint releases it to `PENDING`, recording who did so on the order and in the audit trail.\n\nBehind `order:approve`, which waiting staff hold and the kitchen does not: the control being exercised is a named person walking to the table and seeing a real party sitting at it, which a chef at the pass cannot do.\n\nAn order still in `AWAITING_PAYMENT` cannot be waved through here — it releases itself when its deposit is collected. Refusing an order is an ordinary cancellation, with a reason.",
+      permission: PERMISSIONS.ORDER_APPROVE,
+      parameters: [idParam],
+      responses: {
+        200: ok("Released to the kitchen.", ref("Order")),
+        ...notFound,
+        409: errorResponse(
+          "The order is awaiting its deposit, or was never held."
+        ),
+      },
+    }),
+  },
+
+  "/orders/{id}/reject": {
+    post: operation({
+      tag: "Orders",
+      operationId: "rejectOrder",
+      summary: "Decline a held high-value order",
+      description:
+        "The counterpart to approve, behind the SAME permission: a waiter who can only say yes is not performing a check. Cancels the order with a mandatory reason and records the rejection — who, when, which table, why — in the audit trail.\n\nThere is no separate REJECTED state. A rejected order is simply one that will never be cooked, and inventing a second terminal state would mean every report, filter and total had to learn about both.\n\nRefused once the order has left its hold; a live order is voided through `/orders/{id}/cancel`, which is a manager's act rather than the floor's.",
+      permission: PERMISSIONS.ORDER_APPROVE,
+      parameters: [idParam],
+      requestBody: jsonBody(rejectOrderSchema),
+      responses: {
+        200: ok("Rejected.", ref("Order")),
+        ...validationError,
+        ...notFound,
+        409: errorResponse("This order is no longer held."),
+      },
+    }),
+  },
+
+  "/orders/track/{token}/cancel": {
+    post: operation({
+      tag: "Orders",
+      operationId: "cancelHeldOrderByGuest",
+      summary: "Guest abandons their own held order",
+      description:
+        "PUBLIC, authorised by the tracking token — the same secret that authorises viewing the order. This is the 'Cancel Order' button in the advance-payment dialog.\n\nRestricted to HELD orders on purpose: a guest may walk away from an advance they have decided not to pay, but must not be able to void food the kitchen has already started cooking.",
+      limit: "public-write",
+      parameters: [trackingTokenParam],
+      responses: {
+        200: ok("Cancelled.", {
+          type: "object",
+          properties: { orderNumber: { type: "string" }, status: { type: "string" } },
+        }),
+        ...notFound,
+        409: errorResponse("The order has already gone to the kitchen."),
+        ...rateLimited,
+      },
+    }),
+  },
+
+  "/payments/cash-advance": {
+    post: operation({
+      tag: "Payments",
+      operationId: "recordCashAdvance",
+      summary: "Waiter took the advance in cash",
+      description:
+        "Records exactly the OUTSTANDING ADVANCE — not the whole bill — and releases the order to the kitchen in the same transaction. The order stays UNPAID with the remainder to collect after the meal, which is what the guest actually owes.\n\nBehind `order:approve` rather than `order:updateStatus`: this releases a held high-value order, which is the judgement the approval gate exists to capture.\n\nRefused when `allowCashAdvance` is off, and refused a second time once the advance is covered — otherwise a double tap books the same money twice and leaves the guest owed a refund.",
+      permission: PERMISSIONS.ORDER_APPROVE,
+      requestBody: jsonBody(cashPaymentSchema),
+      responses: {
+        200: ok("Advance recorded.", ref("Payment")),
+        ...validationError,
+        ...notFound,
+        409: errorResponse(
+          "Cash advances are disabled, the advance is already paid, or the order is not awaiting one."
+        ),
+      },
+    }),
+  },
+
+  "/payments/razorpay-webhook": {
+    post: operation({
+      tag: "Payments",
+      operationId: "razorpayWebhook",
+      summary: "Razorpay payment event",
+      description:
+        "Called by Razorpay, not by any client of this API. Settles the matching payment when the gateway reports it captured, which is what lets the diner's tracking screen flip to PAID without anyone tapping a confirmation button.\n\n**Authenticated by signature.** The `X-Razorpay-Signature` header is verified as an HMAC over the RAW request body, keyed with the webhook secret configured in Admin → Banking. The body is read as raw bytes for exactly this reason — a re-serialised JSON object never matches. Without a configured secret every event is rejected, because an endpoint that marks bills paid must fail closed.\n\nOnly capture events settle an order. `payment.failed` marks the attempt FAILED; an authorisation that has not been captured is ignored until its capture event arrives.",
+      limit: "public-write",
+      requestBody: {
+        required: true,
+        content: {
+          "application/json": {
+            schema: {
+              type: "object",
+              description: "The provider's own event envelope, passed through as sent.",
+            },
+          },
+        },
+      },
+      responses: {
+        200: ok("Event processed."),
+        400: errorResponse("The event could not be matched to a payment."),
         ...rateLimited,
       },
     }),
@@ -2131,6 +2239,29 @@ const paths: Record<string, Record<string, JsonSchema>> = {
       permission: PERMISSIONS.AUDIT_LOG_READ,
       parameters: toParameters(auditListQuerySchema, "query"),
       responses: { 200: okList("Audit entries.", { type: "object" }), ...validationError },
+    }),
+  },
+
+  "/admin/exports/orders": {
+    get: operation({
+      tag: "Administration",
+      operationId: "exportOrders",
+      summary: "Download the order book as Excel",
+      description:
+        "An .xlsx workbook of three sheets over the same window: **Orders** (one row per order, oldest first, with the timestamp, the diner's name and phone, the items, the plate count, the payment mode and the gateway transaction id), **Order Items** (one row per dish, which is where per-dish counts are pivoted from) and **Customer Summary** (one row per diner, with what they ordered and how often).\n\nBehind `order:export`, which only ADMIN and SUPER_ADMIN hold — deliberately NOT `order:read`. Waiting staff and the kitchen read orders all shift; taking the whole customer list off the system in a file is a different act, and it is audited as `order.export` with the filters used.\n\nRefuses a range covering more than 10,000 orders: the workbook is built in memory.",
+      permission: PERMISSIONS.ORDER_EXPORT,
+      parameters: toParameters(orderExportQuerySchema, "query"),
+      responses: {
+        200: {
+          description: "The workbook. The filename is in `Content-Disposition`.",
+          content: {
+            "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet": {
+              schema: { type: "string", format: "binary" },
+            },
+          },
+        },
+        ...validationError,
+      },
     }),
   },
 };

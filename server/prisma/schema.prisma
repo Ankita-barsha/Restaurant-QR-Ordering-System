@@ -28,7 +28,16 @@ datasource db {
 // ===========================================================================
 
 /// Lifecycle of an order. Drives the Kitchen Display System columns.
+/// The order workflow.
+///
+/// The two AWAITING_ states are HOLDS placed on a large order before the
+/// kitchen ever sees it. They exist because the restaurant's real loss on a
+/// walk-out is the food it already cooked — so the gate belongs before the
+/// pan goes on, not at the door. An order in either state is invisible to the
+/// Kitchen Display by design.
 enum OrderStatus {
+  NEEDS_APPROVAL // held: a member of staff must eyeball the table first
+  AWAITING_ADVANCE_PAYMENT // held: the advance must land before the kitchen is told
   PENDING // placed by customer, not yet acknowledged
   CONFIRMED // accepted by staff
   PREPARING // in the kitchen
@@ -119,6 +128,7 @@ model User {
   notifications     Notification[]
   notificationReads NotificationRead[]
   handledOrders     Order[]            @relation("OrderHandledBy")
+  approvedOrders    Order[]            @relation("OrderApprovedBy")
   refreshTokens     RefreshToken[]
 
   createdAt DateTime  @default(now())
@@ -425,6 +435,24 @@ model Order {
   handledById String?
   handledBy   User?   @relation("OrderHandledBy", fields: [handledById], references: [id], onDelete: SetNull)
 
+  /// The advance that must be collected before this order reaches the kitchen.
+  ///
+  /// Set only when the advance gate fires, and PERSISTED rather than
+  /// recomputed: the threshold and the percentage are settings a manager can
+  /// change at any moment, and an order must be released on the terms the
+  /// guest agreed to, not on whatever the settings say later that evening.
+  advanceAmount Decimal? @db.Decimal(10, 2)
+
+  /// Who released a held order, and when.
+  ///
+  /// The whole value of the approval gate is that a named person walked to the
+  /// table and looked at it. An approval nobody is attached to is a rubber
+  /// stamp, so this is recorded separately from handledById — which is set by
+  /// whoever first advanced the order and answers a different question.
+  approvedById String?
+  approvedBy   User?     @relation("OrderApprovedBy", fields: [approvedById], references: [id], onDelete: SetNull)
+  approvedAt   DateTime?
+
   items    OrderItem[]
   payments Payment[]
 
@@ -597,6 +625,50 @@ model RestaurantSettings {
 
   /// Master switch for accepting new orders.
   isAcceptingOrders Boolean @default(true)
+
+  // -------------------------------------------------------------------------
+  // High-value order controls
+  //
+  // ONE threshold drives both gates, measured against the table's OPEN
+  // BALANCE — every unsettled order on it this sitting, never the single order
+  // being placed. A per-order limit is defeated by splitting ₹3,300 into
+  // ₹1,800 + ₹1,500, which is the first thing anybody tries.
+  // -------------------------------------------------------------------------
+
+  /// Open balance at or above which an order is treated as high value.
+  highValueThreshold Decimal @default(3000) @db.Decimal(10, 2)
+
+  /// Share of the order taken up front once the threshold is crossed. The
+  /// remainder is settled after the meal, as normal.
+  advancePaymentPercent Decimal @default(20) @db.Decimal(5, 2)
+
+  /// Master switches. Both on by default; turning both off restores the plain
+  /// dine-in flow with no gate at all.
+  approvalRequired       Boolean @default(true)
+  advancePaymentRequired Boolean @default(true)
+
+  /// Which advance payments the house accepts. A restaurant that will not take
+  /// cash up front turns the first off; one with no gateway turns the second
+  /// off and relies on the waiter.
+  allowCashAdvance   Boolean @default(true)
+  allowOnlineAdvance Boolean @default(true)
+
+  /// The wording shown to the guest in the advance-payment dialog. Null falls
+  /// back to the house copy in the client, so an untouched setting still reads
+  /// as a finished product.
+  advancePaymentMessage String?
+
+  // -------------------------------------------------------------------------
+  // DEPRECATED — superseded by highValueThreshold / advancePaymentPercent.
+  //
+  // Retained by request rather than dropped. NOTHING READS THESE: the two
+  // gates above are the only ones the order service consults, so editing them
+  // has no effect. They are kept only so the columns are not destroyed, and
+  // can be removed in a later migration once that is definitely wanted.
+  // -------------------------------------------------------------------------
+  approvalThresholdAmount Decimal @default(0) @db.Decimal(10, 2)
+  prepayThresholdAmount   Decimal @default(0) @db.Decimal(10, 2)
+  prepayDepositPercent    Decimal @default(30) @db.Decimal(5, 2)
   /// "HH:mm" local time. Stored as text because these are wall-clock hours,
   /// not instants, and must not shift with timezones or DST.
   openingTime       String?
@@ -609,9 +681,18 @@ model RestaurantSettings {
   bankIfscCode  String?
 
   /// Real-world Online Gateway Credentials (Razorpay / Paytm Merchant API)
+  ///
+  /// SECRETS. razorpayKeySecret signs API calls and razorpayWebhookSecret
+  /// authenticates incoming webhooks — anyone holding either can charge in the
+  /// restaurant's name or forge a "payment received" event. Neither is ever
+  /// returned by the public settings endpoint, and neither is sent back to the
+  /// admin screen that sets them; see settings.service.
   paymentGatewayProvider String? @default("RAZORPAY")
   razorpayKeyId          String?
-  razorpayKeySecret       String?
+  razorpayKeySecret      String?
+  /// Set in the Razorpay dashboard when creating the webhook. DIFFERENT from
+  /// the key secret — Razorpay signs webhook bodies with this one.
+  razorpayWebhookSecret  String?
   paytmMerchantId        String?
 
   updatedAt DateTime @updatedAt

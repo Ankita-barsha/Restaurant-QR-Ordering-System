@@ -12,6 +12,7 @@ import {
   addItemsSchema,
   cancelOrderSchema,
   orderListQuerySchema,
+  rejectOrderSchema,
   trackingTokenParamSchema,
   placeOrderSchema,
   updatePaymentSchema,
@@ -139,6 +140,53 @@ router.post(
   validate({ params: idParamSchema }),
   audit({ action: "order.serve", entity: "Order" }),
   orderController.serve
+);
+
+/**
+ * Releasing a held high-value order.
+ *
+ * Behind order:approve, which waiting staff hold and the kitchen does not: the
+ * control is a person walking to the table and seeing a real party at it, and
+ * a chef at the pass cannot do that. Always audited — the order records who
+ * vouched for it.
+ *
+ * Where it goes next is the server's decision, not the caller's: to the
+ * kitchen if nothing is owed, or on to the advance gate if it is.
+ */
+router.post(
+  "/:id/approve",
+  authenticate,
+  authorize(PERMISSIONS.ORDER_APPROVE),
+  validate({ params: idParamSchema }),
+  orderController.approve
+);
+
+/**
+ * Declining a held order.
+ *
+ * Same permission as approving, deliberately: the judgement being exercised is
+ * the same one, and a waiter who can only say yes is not performing a check.
+ * The reason is mandatory.
+ */
+router.post(
+  "/:id/reject",
+  authenticate,
+  authorize(PERMISSIONS.ORDER_APPROVE),
+  validate({ params: idParamSchema, body: rejectOrderSchema }),
+  orderController.reject
+);
+
+/**
+ * PUBLIC — the guest walking away from an order they have not paid for.
+ *
+ * Authorised by the tracking token, and refused once the order has left its
+ * hold. Rate limited as a public write.
+ */
+router.post(
+  "/track/:token/cancel",
+  publicWriteLimiter,
+  validate({ params: trackingTokenParamSchema }),
+  orderController.cancelByGuest
 );
 
 /**

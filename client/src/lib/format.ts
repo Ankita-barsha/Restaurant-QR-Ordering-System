@@ -51,5 +51,9 @@ export const formatTime = (iso: string): string =>
   new Date(iso).toLocaleTimeString("en-IN", { hour: "2-digit", minute: "2-digit" });
 
 /** Resolves a server-relative image path to an absolute URL. */
-export const imageUrl = (path: string | null, apiUrl: string): string | null =>
-  path ? `${apiUrl}${path}` : null;
+export const imageUrl = (path: string | null, apiUrl: string): string | null => {
+  if (!path) return null;
+  if (path.startsWith("http://") || path.startsWith("https://") || path.startsWith("data:")) return path;
+  if (path.startsWith("/uploads/")) return `${apiUrl}${path}`;
+  return path;
+};

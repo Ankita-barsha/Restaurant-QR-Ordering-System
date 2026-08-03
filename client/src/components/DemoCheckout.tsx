@@ -14,14 +14,21 @@ import { useEffect, useState } from "react";
 import { useDialog } from "../hooks/useDialog";
 import { api, getErrorMessage, unwrap } from "../lib/api";
 import { formatMoney } from "../lib/format";
+import { openRazorpayCheckout } from "../lib/razorpay";
 import type { ApiResponse, PublicSettings } from "../types/api";
 import { LuxeButton, LuxeError } from "./luxe";
 
 interface Intent {
   paymentId: string;
   amount: string;
+  amountMinor: number;
+  currency: string;
   provider: string;
   isDemo: boolean;
+  /** Razorpay's order id. Present only on a live gateway. */
+  providerRef: string;
+  /** Publishable key for the browser checkout. Never the key secret. */
+  publicKey: string | null;
 }
 
 type PaymentMethod = "UPI" | "CARD" | "CASH";
@@ -93,11 +100,21 @@ const UPI_BRAND_LOGOS: Record<UpiApp, { name: string; logoUrl: string }> = {
 const DemoCheckout = ({
   trackingToken,
   amount,
+  depositOf,
   onPaid,
   onClose,
 }: {
   trackingToken: string;
   amount: string;
+  /**
+   * The full bill, when `amount` is only a deposit on a held order.
+   *
+   * Present solely so the sheet can say what the deposit is OF. A guest asked
+   * for ₹1,800 against a ₹6,000 order needs to see both figures, or the
+   * smaller one reads as the whole bill and the rest feels like a surprise
+   * charge later.
+   */
+  depositOf?: string;
   onPaid: (receiptNumber: string | null) => void;
   onClose: () => void;
 }) => {
@@ -128,6 +145,16 @@ const DemoCheckout = ({
   const restaurantName = settingsQuery.data?.name ?? "Bite me Bistro";
   const bankingName = settingsQuery.data?.bankingName ?? restaurantName;
   const merchantVpa = settingsQuery.data?.merchantVpa ?? "bitemebistro@upi";
+
+  /**
+   * Which checkout to show.
+   *
+   * Defaults to DEMO while settings are still loading, so a slow response can
+   * never briefly present the demo flow as if it were taking real money. The
+   * server decides this independently when the payment is confirmed; this only
+   * chooses which UI to draw.
+   */
+  const isDemoGateway = !settingsQuery.data?.gatewayIsLive;
 
   const start = useMutation({
     mutationFn: async () =>
@@ -162,21 +189,76 @@ const DemoCheckout = ({
     },
   });
 
-  // Automatically process verification in background when authorizing
+  /**
+   * The real gateway.
+   *
+   * Creates the intent, hands Razorpay's own checkout the order id, and posts
+   * back the SIGNED result. The signature is what the server verifies; nothing
+   * this component says about the payment is trusted on its own.
+   */
+  const payWithRazorpay = useMutation({
+    mutationFn: async () => {
+      const intent = await start.mutateAsync();
+
+      if (!intent.publicKey || !intent.providerRef) {
+        throw new Error(
+          "The payment gateway is not configured. Please ask a member of staff."
+        );
+      }
+
+      const result = await openRazorpayCheckout({
+        publicKey: intent.publicKey,
+        orderId: intent.providerRef,
+        amountMinor: intent.amountMinor,
+        currency: intent.currency,
+        restaurantName: bankingName,
+        description: depositOf ? "Order deposit" : "Restaurant bill",
+        // Carries the diner's choice from the tabs and tiles above, so the
+        // gateway opens where they already were rather than making them pick
+        // a method twice.
+        method: method === "CARD" ? "card" : "upi",
+        vpa: method === "UPI" && upiId.trim() ? upiId.trim() : undefined,
+      });
+
+      // The diner closed the sheet. Not an error — they may simply have
+      // decided to pay cash instead.
+      if (!result) return null;
+
+      return unwrap(
+        await api.post<ApiResponse<{ receiptNumber: string | null }>>(
+          `/payments/${intent.paymentId}/confirm`,
+          {
+            razorpayPaymentId: result.razorpay_payment_id,
+            signature: result.razorpay_signature,
+          }
+        )
+      );
+    },
+    onSuccess: (data) => {
+      setIsAuthorizing(false);
+      if (data) onPaid(data.receiptNumber);
+    },
+    onError: (error) => {
+      setIsAuthorizing(false);
+      setFormError(getErrorMessage(error));
+    },
+  });
+
+  /**
+   * DEMO ONLY — pretends the gateway called back.
+   *
+   * Guarded on `isDemo` so it cannot run against a live gateway. Without that
+   * guard this timer marked every order PAID four seconds after a diner tapped
+   * a UPI icon, whether or not a rupee moved — which is what made tapping any
+   * UPI app instantly "verify" the payment.
+   */
   useEffect(() => {
-    let timer: ReturnType<typeof setTimeout>;
+    if (!isAuthorizing || !isDemoGateway) return;
 
-    if (isAuthorizing) {
-      // Auto confirm after authorization pipeline (simulating instant gateway webhook callback)
-      timer = setTimeout(() => {
-        confirm.mutate("success");
-      }, 4000);
-    }
+    const timer = setTimeout(() => confirm.mutate("success"), 4000);
 
-    return () => {
-      if (timer) clearTimeout(timer);
-    };
-  }, [isAuthorizing, confirm]);
+    return () => clearTimeout(timer);
+  }, [isAuthorizing, isDemoGateway, confirm]);
 
   // Card Number auto spacing (xxxx xxxx xxxx xxxx)
   const handleCardNumberChange = (val: string) => {
@@ -218,7 +300,8 @@ const DemoCheckout = ({
       return;
     }
 
-    // UPI METHOD
+    // UPI METHOD — the same validation on both gateways, so a typo is caught
+    // here rather than three screens later.
     if (method === "UPI") {
       if (upiId.trim() !== "") {
         if (!UPI_REGEX.test(upiId.trim())) {
@@ -227,7 +310,26 @@ const DemoCheckout = ({
         }
       }
 
-      // Trigger native mobile app
+      /**
+       * LIVE — hand the diner's choice to Razorpay.
+       *
+       * The app they picked and the UPI ID they typed are carried across as
+       * prefill, so the gateway sheet opens straight on UPI with their details
+       * already filled in. The tiles above are doing real work: they decide
+       * what Razorpay opens with.
+       *
+       * The `upi://` deep link below cannot do this on its own — it launches
+       * the app but gives us no way to learn whether any money moved, which is
+       * exactly why tapping an icon used to "verify" a payment that never
+       * happened.
+       */
+      if (!isDemoGateway) {
+        setIsAuthorizing(true);
+        payWithRazorpay.mutate();
+        return;
+      }
+
+      // Demo: launch the app and simulate the callback.
       triggerUpiDeepLink(selectedUpiApp);
       setIsAuthorizing(true);
       return;
@@ -235,6 +337,14 @@ const DemoCheckout = ({
 
     // CARD METHOD
     if (method === "CARD") {
+      // Live: the card itself is entered on the gateway's own screen, so there
+      // is nothing to validate here — see the note rendered in that tab.
+      if (!isDemoGateway) {
+        setIsAuthorizing(true);
+        payWithRazorpay.mutate();
+        return;
+      }
+
       const rawCardNum = cardNumber.replace(/\s/g, "");
 
       if (!rawCardNum || rawCardNum.length < 15) {
@@ -292,10 +402,16 @@ const DemoCheckout = ({
         {/* Header */}
         <div className="flex items-center justify-between border-b border-smoke pb-4">
           <div>
-            <p className="eyebrow">Checkout Payment</p>
+            <p className="eyebrow">{depositOf ? "Deposit Payment" : "Checkout Payment"}</p>
             <p className="font-display text-2xl text-slate-gradient mt-0.5">
               {formatMoney(amount)}
             </p>
+            {depositOf && (
+              <p className="text-xs text-gold mt-0.5">
+                Deposit on a {formatMoney(depositOf)} order — the balance is
+                settled at your table.
+              </p>
+            )}
             <p className="text-xs text-ivory-dim mt-1">
               Payee: <strong className="text-gold">{bankingName}</strong> <span className="text-ivory-faint">({merchantVpa})</span>
             </p>
@@ -341,6 +457,34 @@ const DemoCheckout = ({
           </div>
         ) : (
           <>
+            {/*
+              A one-line banner, and nothing else changes between the two
+              gateways. The method tabs, the UPI app tiles, the UPI ID box and
+              the card form below are the SAME screen either way — what differs
+              is only what the Pay button does with them.
+            */}
+            {isDemoGateway ? (
+              <div className="mt-4 rounded-xl border border-amber-500/40 bg-amber-500/10 p-3">
+                <p className="text-[11px] font-bold uppercase tracking-wider text-amber-300">
+                  ⚠ Demo mode — no real payment
+                </p>
+                <p className="mt-1 text-[11px] leading-relaxed text-amber-200/90">
+                  No gateway is configured, so this checkout only simulates a
+                  payment. Add Razorpay keys in Admin → Banking to take real money.
+                </p>
+              </div>
+            ) : (
+              <div className="mt-4 rounded-xl border border-emerald-500/30 bg-emerald-500/10 p-3">
+                <p className="text-[11px] font-bold uppercase tracking-wider text-emerald-300">
+                  🔒 Secure payment via {bankingName}
+                </p>
+                <p className="mt-1 text-[11px] leading-relaxed text-emerald-200/90">
+                  Choose your app or enter your UPI ID below — the payment is
+                  completed and verified through the secure gateway.
+                </p>
+              </div>
+            )}
+
             {/* Payment Method Selector Tabs */}
             <div className="mt-4 grid grid-cols-3 gap-2 rounded-xl bg-obsidian p-1 border border-smoke">
               <button
@@ -455,8 +599,33 @@ const DemoCheckout = ({
               </div>
             )}
 
-            {/* -------------------------------------------------- METHOD 2: CARD */}
-            {method === "CARD" && (
+            {/* ------------------------------------ METHOD 2: CARD (live) */}
+            {/*
+              The one place the two gateways differ, and it is not cosmetic: a
+              real card number must be typed on Razorpay's page, not ours.
+              Collecting a PAN here would put this restaurant inside PCI-DSS
+              scope for data it cannot even use — the gateway will ask for the
+              card again regardless, because we never send it one.
+            */}
+            {method === "CARD" && !isDemoGateway && (
+              <div className="mt-5 rounded-xl border border-smoke bg-obsidian p-4 text-center animate-fade">
+                <span className="text-3xl">💳</span>
+                <p className="mt-2 text-sm font-bold text-ivory">
+                  Card, Netbanking & Wallets
+                </p>
+                <p className="mt-1.5 text-xs leading-relaxed text-ivory-dim">
+                  Tap Pay below and enter your card on the secure gateway
+                  screen. Your card number never touches this restaurant's
+                  system.
+                </p>
+                <p className="mt-3 text-[10px] text-ivory-faint flex items-center gap-1.5 justify-center">
+                  🔒 256-Bit SSL Encrypted &amp; PCI-DSS Secure Gateway
+                </p>
+              </div>
+            )}
+
+            {/* ------------------------------------ METHOD 2: CARD (demo) */}
+            {method === "CARD" && isDemoGateway && (
               <div className="mt-5 space-y-3.5 animate-fade">
                 <div className="space-y-1">
                   <label className="text-xs text-ivory-dim font-medium">Card Number *</label>
@@ -534,10 +703,14 @@ const DemoCheckout = ({
             <div className="mt-6 space-y-2">
               <LuxeButton
                 className="w-full py-3 font-bold"
-                disabled={confirm.isPending || start.isPending}
+                disabled={
+                  confirm.isPending || start.isPending || payWithRazorpay.isPending
+                }
                 onClick={validateFormAndPay}
               >
-                {method === "CASH"
+                {payWithRazorpay.isPending || start.isPending
+                  ? "Opening secure checkout…"
+                  : method === "CASH"
                   ? "Request Cash Collection"
                   : method === "CARD"
                   ? `Pay ${formatMoney(amount)} via Credit/Debit Card`

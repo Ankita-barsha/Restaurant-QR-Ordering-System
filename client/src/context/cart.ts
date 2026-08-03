@@ -71,6 +71,35 @@ export const saveOrderToken = (token: string) => {
   }
 };
 
+/**
+ * Forgets a cancelled order.
+ *
+ * Called when a guest abandons a held order rather than paying its advance.
+ * Without this, the tracking screen would keep redirecting them straight back
+ * to the order they just walked away from every time they opened the app.
+ */
+export const forgetOrderToken = (token: string) => {
+  if (sessionStorage.getItem(LAST_ORDER_KEY) === token) {
+    sessionStorage.removeItem(LAST_ORDER_KEY);
+  }
+
+  if (localStorage.getItem(LAST_ORDER_KEY) === token) {
+    localStorage.removeItem(LAST_ORDER_KEY);
+  }
+
+  try {
+    const raw = localStorage.getItem(MY_ORDERS_LIST_KEY);
+    const existing: string[] = raw ? JSON.parse(raw) : [];
+
+    localStorage.setItem(
+      MY_ORDERS_LIST_KEY,
+      JSON.stringify(existing.filter((entry) => entry !== token))
+    );
+  } catch {
+    // Ignore storage parse errors
+  }
+};
+
 /** Returns array of tracking tokens for orders placed on this device. */
 export const getMyOrderTokens = (): string[] => {
   try {

@@ -11,6 +11,7 @@
 import { useQuery } from "@tanstack/react-query";
 import { useState } from "react";
 
+import ExportOrdersButton from "../../components/ExportOrdersButton";
 import { Card, ErrorBox, Spinner } from "../../components/ui";
 import { api, getErrorMessage, unwrap } from "../../lib/api";
 import { formatMoney } from "../../lib/format";
@@ -60,8 +61,28 @@ const formatBucket = (iso: string, period: Period): string => {
   return date.toLocaleDateString("en-IN", { day: "numeric", month: "short" });
 };
 
+/** yyyy-mm-dd in the browser's own timezone, which is what a date input wants. */
+const isoDay = (date: Date): string =>
+  new Date(date.getTime() - date.getTimezoneOffset() * 60_000)
+    .toISOString()
+    .slice(0, 10);
+
 const AdminReports = () => {
   const [period, setPeriod] = useState<Period>("daily");
+
+  /**
+   * The export window, defaulted to the current month.
+   *
+   * A month is the unit these figures are actually reconciled in, and it keeps
+   * the first download small enough to open instantly. Both boxes clear to
+   * "everything", which the server caps rather than refuses outright.
+   */
+  const [exportFrom, setExportFrom] = useState(() => {
+    const now = new Date();
+
+    return isoDay(new Date(now.getFullYear(), now.getMonth(), 1));
+  });
+  const [exportTo, setExportTo] = useState(() => isoDay(new Date()));
 
   const revenueQuery = useQuery({
     queryKey: ["reports", "revenue", period],
@@ -127,6 +148,69 @@ const AdminReports = () => {
           ))}
         </div>
       </div>
+
+      {/* ---------------------------------------------------- excel export ---- */}
+      {/*
+        Its own dates rather than the period buttons above. The buttons pick how
+        the CHART is bucketed; an accountant exporting a quarter does not want
+        that decision made for them by whichever tab happened to be open.
+      */}
+      <Card>
+        <div className="flex flex-wrap items-end justify-between gap-4">
+          <div>
+            <p className="text-xs font-medium uppercase tracking-wide text-ivory-dim">
+              Order book export
+            </p>
+            <p className="mt-1 text-xs text-ivory-faint">
+              Three sheets — every order in sequence, every dish with its plate
+              count, and a summary per diner.
+            </p>
+
+            <div className="mt-3 flex flex-wrap items-center gap-2">
+              <label className="text-xs text-ivory-dim">
+                From{" "}
+                <input
+                  type="date"
+                  value={exportFrom}
+                  max={exportTo || undefined}
+                  onChange={(event) => setExportFrom(event.target.value)}
+                  className="ml-1 rounded-lg border border-smoke bg-graphite px-2 py-1.5 text-xs text-ivory outline-none focus:border-gold"
+                />
+              </label>
+              <label className="text-xs text-ivory-dim">
+                To{" "}
+                <input
+                  type="date"
+                  value={exportTo}
+                  min={exportFrom || undefined}
+                  onChange={(event) => setExportTo(event.target.value)}
+                  className="ml-1 rounded-lg border border-smoke bg-graphite px-2 py-1.5 text-xs text-ivory outline-none focus:border-gold"
+                />
+              </label>
+              <button
+                type="button"
+                onClick={() => {
+                  setExportFrom("");
+                  setExportTo("");
+                }}
+                className="text-[11px] uppercase tracking-wider text-ivory-faint hover:text-ivory"
+              >
+                Clear
+              </button>
+            </div>
+          </div>
+
+          <ExportOrdersButton
+            from={exportFrom || undefined}
+            to={exportTo || undefined}
+            label={
+              exportFrom || exportTo
+                ? `${exportFrom || "the beginning"} → ${exportTo || "today"}`
+                : "Every order on record"
+            }
+          />
+        </div>
+      </Card>
 
       {/* ------------------------------------------------------- headline ---- */}
       <div className="grid grid-cols-2 gap-2.5 sm:gap-3 lg:grid-cols-4">

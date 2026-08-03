@@ -245,10 +245,11 @@ const CustomerMenu = () => {
             const quantity = inCart.get(food.id) ?? 0;
             const badge = offerBadge(food);
             const listPrice = strikethroughPrice(food);
+            const isSoldOut = !food.isAvailable;
 
             return (
               <Reveal key={food.id} delay={Math.min(index, 5) * 70}>
-                <article className="group relative flex h-full flex-col overflow-hidden rounded-luxe border border-smoke bg-charcoal transition-colors duration-500 hover:border-gold/30">
+                <article className={`group relative flex h-full flex-col overflow-hidden rounded-luxe border bg-charcoal transition-colors duration-500 ${isSoldOut ? "border-red-500/20 opacity-85" : "border-smoke hover:border-gold/30"}`}>
                   <button
                     type="button"
                     onClick={() => setOpenDish(food)}
@@ -260,7 +261,7 @@ const CustomerMenu = () => {
                         src={image}
                         alt={food.name}
                         loading="lazy"
-                        className="h-full w-full object-cover transition-transform duration-[1200ms] ease-[cubic-bezier(0.22,1,0.36,1)] group-hover:scale-105"
+                        className={`h-full w-full object-cover transition-transform duration-[1200ms] ease-[cubic-bezier(0.22,1,0.36,1)] ${isSoldOut ? "grayscale" : "group-hover:scale-105"}`}
                       />
                     ) : (
                       <div className="flex h-full w-full items-center justify-center bg-graphite text-3xl">
@@ -270,16 +271,25 @@ const CustomerMenu = () => {
 
                     <div className="absolute inset-0 bg-gradient-to-t from-charcoal/70 to-transparent opacity-0 dark:opacity-100 transition-opacity" />
 
-                    {quantity > 0 && (
+                    {isSoldOut ? (
+                      <div className="absolute inset-0 z-10 flex flex-col items-center justify-center bg-obsidian/75 backdrop-blur-[2px]">
+                        <span className="rounded-full border border-red-500/60 bg-red-500/20 px-4 py-1.5 text-xs font-black uppercase tracking-[0.2em] text-red-400 shadow-xl">
+                          🚫 Sold Out
+                        </span>
+                        <span className="mt-1 text-[10px] font-bold text-red-300/80 uppercase tracking-wider">
+                          Out of Stock
+                        </span>
+                      </div>
+                    ) : quantity > 0 ? (
                       <span className="absolute left-3 top-3 flex h-7 min-w-7 items-center justify-center rounded-full bg-gold px-2 text-xs font-medium text-obsidian">
                         {quantity}
                       </span>
-                    )}
+                    ) : null}
                   </button>
 
                   {/* Bottom-left of the photo, clear of the quantity pill above
                       it and the favourite button opposite. */}
-                  {badge && (
+                  {!isSoldOut && badge && (
                     <OfferBadge
                       label={badge}
                       className="pointer-events-none absolute bottom-3 left-3"
@@ -297,7 +307,7 @@ const CustomerMenu = () => {
                         ? `Remove ${food.name} from favourites`
                         : `Save ${food.name} to favourites`
                     }
-                    className="glass absolute right-3 top-3 flex h-11 w-11 items-center justify-center rounded-full transition-transform duration-500 hover:scale-110"
+                    className="glass absolute right-3 top-3 z-20 flex h-11 w-11 items-center justify-center rounded-full transition-transform duration-500 hover:scale-110"
                   >
                     <HeartIcon filled={isFavourite(food.id)} />
                   </button>
@@ -308,8 +318,13 @@ const CustomerMenu = () => {
                         <DietMark vegetarian={food.isVegetarian} />
                       </span>
 
-                      <h3 className="flex-1 text-2xl leading-tight text-ivory">
+                      <h3 className={`flex-1 text-2xl leading-tight ${isSoldOut ? "text-ivory-dim/60" : "text-ivory"}`}>
                         {food.name}
+                        {isSoldOut && (
+                          <span className="ml-2 text-xs font-bold text-red-400 uppercase tracking-wider">
+                            (Sold Out)
+                          </span>
+                        )}
                       </h3>
                     </div>
 
@@ -328,7 +343,15 @@ const CustomerMenu = () => {
                         listPrice={listPrice && formatMoney(listPrice)}
                       />
 
-                      {quantity === 0 ? (
+                      {isSoldOut ? (
+                        <button
+                          type="button"
+                          disabled
+                          className="min-h-11 rounded-full border border-red-500/40 bg-red-500/10 px-5 py-2.5 text-[10px] font-extrabold uppercase tracking-[0.18em] text-red-400 cursor-not-allowed opacity-90"
+                        >
+                          🚫 Sold Out
+                        </button>
+                      ) : quantity === 0 ? (
                         <button
                           type="button"
                           onClick={() => addItem(food)}

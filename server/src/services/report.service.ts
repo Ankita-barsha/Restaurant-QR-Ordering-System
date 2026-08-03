@@ -14,16 +14,39 @@
  * disagree, and figures on the same screen must not.
  */
 
-import type { Prisma } from "../generated/prisma/client.js";
+// A value import, not `import type`: Prisma.sql builds the shared status
+// filter used by the raw-SQL reports below.
+import { Prisma } from "../generated/prisma/client.js";
 import { config } from "../config/env.js";
 import { prisma } from "../config/prisma.js";
 import { fromMinorUnits, toMinorUnits } from "../utils/money.js";
 import { startOfTradingDay, tradingDayKey } from "../utils/tradingDay.js";
 
-/** Orders that represent real revenue. */
+/**
+ * Orders that represent real revenue.
+ *
+ * The two held statuses are excluded alongside cancellations. An order waiting
+ * on a deposit or on a member of staff has not been accepted by anyone — the
+ * kitchen has not been told it exists, and the guest may walk away from the
+ * deposit. Counting it as takings would report money the restaurant has not
+ * agreed to earn, and would make the figure jump backwards when the hold is
+ * eventually abandoned.
+ */
+const HELD_STATUSES = ["NEEDS_APPROVAL", "AWAITING_ADVANCE_PAYMENT"] as const;
+
 const REVENUE_STATUSES: Prisma.EnumOrderStatusFilter = {
-  notIn: ["CANCELLED"],
+  notIn: ["CANCELLED", ...HELD_STATUSES],
 };
+
+/**
+ * The same exclusion for the raw-SQL reports below.
+ *
+ * Two fragments because the queries alias the orders table differently, and
+ * one shared constant because four hand-written copies of this list is how a
+ * new status ends up counted as revenue in three reports and not the fourth.
+ */
+const REVENUE_ONLY = Prisma.sql`status NOT IN ('CANCELLED', 'NEEDS_APPROVAL', 'AWAITING_ADVANCE_PAYMENT')`;
+const REVENUE_ONLY_JOINED = Prisma.sql`o.status NOT IN ('CANCELLED', 'NEEDS_APPROVAL', 'AWAITING_ADVANCE_PAYMENT')`;
 
 const dateRange = (from?: Date, to?: Date): Prisma.DateTimeFilter | undefined => {
   if (!from && !to) {
@@ -50,6 +73,7 @@ export const getDashboardSummary = async () => {
     pendingCount,
     preparingCount,
     readyCount,
+    heldCount,
     totalTables,
     occupiedTables,
     menuItems,
@@ -69,6 +93,11 @@ export const getDashboardSummary = async () => {
     prisma.order.count({ where: { status: "PENDING" } }),
     prisma.order.count({ where: { status: "PREPARING" } }),
     prisma.order.count({ where: { status: "READY" } }),
+    // Orders the kitchen has NOT been told about, waiting on a deposit or on a
+    // member of staff. Surfaced on the dashboard because nothing moves them on
+    // its own — a held order nobody notices is a guest sitting at a table
+    // watching a screen that never changes.
+    prisma.order.count({ where: { status: { in: [...HELD_STATUSES] } } }),
     prisma.table.count({ where: { isActive: true } }),
     prisma.table.count({ where: { status: "OCCUPIED" } }),
     prisma.food.count({ where: { deletedAt: null } }),
@@ -99,6 +128,7 @@ export const getDashboardSummary = async () => {
       pending: pendingCount,
       preparing: preparingCount,
       ready: readyCount,
+      held: heldCount,
     },
     tables: { total: totalTables, occupied: occupiedTables, free: totalTables - occupiedTables },
     menu: { total: menuItems, soldOut: soldOutItems },
@@ -136,7 +166,7 @@ export const getSalesReport = async (from?: Date, to?: Date) => {
       COUNT(*)                      AS orders,
       SUM("totalAmount")            AS revenue
     FROM orders
-    WHERE status <> 'CANCELLED'
+    WHERE ${REVENUE_ONLY}
       AND ("placedAt" >= ${from ?? new Date(0)})
       AND ("placedAt" <= ${to ?? new Date(8.64e15)})
     GROUP BY 1
@@ -217,7 +247,7 @@ export const getTopSellingItems = async ({
       SUM(oi."lineTotal") AS revenue
     FROM order_items oi
     JOIN orders o ON o.id = oi."orderId"
-    WHERE o.status <> 'CANCELLED'
+    WHERE ${REVENUE_ONLY_JOINED}
       AND (${!completedOnly}::boolean OR o.status = 'SERVED')
       AND o."placedAt" >= ${from ?? new Date(0)}
       AND o."placedAt" <= ${to ?? new Date(8.64e15)}
@@ -265,7 +295,7 @@ export const getTopCustomers = async (limit = 10) => {
       SUM(o."totalAmount") AS spent
     FROM customers c
     JOIN orders o ON o."customerId" = c.id
-    WHERE o.status <> 'CANCELLED'
+    WHERE ${REVENUE_ONLY_JOINED}
     GROUP BY c.id, c.name, c.phone
     ORDER BY spent DESC
     LIMIT ${limit}
@@ -333,7 +363,8 @@ export const getRevenueBreakdown = async (period: RevenuePeriod) => {
        COUNT(*)                                     AS orders,
        SUM("totalAmount")                           AS revenue
      FROM orders
-     WHERE status <> 'CANCELLED' AND "placedAt" >= $1
+     WHERE status NOT IN ('CANCELLED', 'NEEDS_APPROVAL', 'AWAITING_ADVANCE_PAYMENT')
+       AND "placedAt" >= $1
      GROUP BY 1
      ORDER BY 1 DESC`,
     since,

@@ -12,6 +12,7 @@ import * as admin from "../controllers/admin.controller.js";
 import { audit } from "../middleware/audit.js";
 import { authenticate } from "../middleware/authenticate.js";
 import { authorize } from "../middleware/authorize.js";
+import { uploadImage, verifyUploadedImage } from "../middleware/upload.js";
 import { validate } from "../middleware/validate.js";
 import { idParamSchema } from "../validations/common.validation.js";
 import {
@@ -19,6 +20,7 @@ import {
   createRoleSchema,
   createUserSchema,
   customerListQuerySchema,
+  orderExportQuerySchema,
   reportQuerySchema,
   revenuePeriodSchema,
   resetPasswordSchema,
@@ -174,6 +176,8 @@ router.get("/settings", authorize(PERMISSIONS.SETTINGS_READ), admin.getSettings)
 router.patch(
   "/settings",
   authorize(PERMISSIONS.SETTINGS_UPDATE),
+  uploadImage("logo"),
+  verifyUploadedImage,
   validate({ body: updateSettingsSchema }),
   audit({ action: "settings.update", entity: "RestaurantSettings" }),
   admin.updateSettings
@@ -228,6 +232,25 @@ router.get(
   authorize(PERMISSIONS.AUDIT_LOG_READ),
   validate({ query: auditListQuerySchema }),
   admin.listAuditLogs
+);
+
+// ---------------------------------------------------------------------------
+// Exports
+// ---------------------------------------------------------------------------
+
+/**
+ * The order book as a spreadsheet.
+ *
+ * order:export, not order:read — the whole point of the separate capability is
+ * that the kitchen and waiting staff read orders all shift without being able
+ * to walk out with the customer list. The handler writes its own audit entry;
+ * the audit middleware cannot see a binary response.
+ */
+router.get(
+  "/exports/orders",
+  authorize(PERMISSIONS.ORDER_EXPORT),
+  validate({ query: orderExportQuerySchema }),
+  admin.exportOrders
 );
 
 export default router;

@@ -326,6 +326,32 @@ export const emitWaiterOrderReady = (order: unknown): void => {
 };
 
 /**
+ * Announces that a large order is being held pending a member of staff.
+ *
+ * Goes to the floor and to managers, NOT to the kitchen: the whole point of
+ * the hold is that the kitchen has not been told about this order yet, and a
+ * ticket appearing on the pass would defeat it.
+ *
+ * The diner is told separately, through the ordinary status emit — their
+ * tracking screen explains the hold in their own terms.
+ */
+export const emitOrderNeedsApproval = (order: EmittableOrder): void => {
+  emitToRooms(
+    [ROOMS.WAITER, ROOMS.STAFF, ROOMS.ADMIN],
+    SOCKET_EVENTS.ORDER_NEEDS_APPROVAL,
+    order
+  );
+
+  if (order.trackingToken) {
+    emitToRooms(
+      [ROOMS.order(order.trackingToken)],
+      SOCKET_EVENTS.ORDER_STATUS_CHANGED,
+      toCustomerView(order)
+    );
+  }
+};
+
+/**
  * Broadcasts a payment lifecycle change to staff rooms.
  *
  * Waiter and admin dashboards both react: waiter sees their order paid, admin

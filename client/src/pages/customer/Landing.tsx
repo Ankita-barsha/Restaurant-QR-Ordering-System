@@ -19,6 +19,7 @@ import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useEffect, useState } from "react";
 import { Link } from "react-router-dom";
 
+import defaultLogo from "../../assets/image/logo.png";
 import Modal from "../../components/Modal";
 import { MonkDeveloperBrand } from "../../components/MonkDeveloperBrand";
 import {
@@ -142,19 +143,19 @@ const Landing = () => {
         setReviewSubmitted(false);
         setCustomerName("");
         setComment("");
-        setRating(5);
       }, 2000);
     },
   });
 
   const content = contentQuery.data;
   const restaurantName = settingsQuery.data?.name ?? "Bite me Bistro";
+  const logoSrc = (settingsQuery.data?.logoUrl
+    ? imageUrl(settingsQuery.data.logoUrl, config.apiUrl)
+    : null) || defaultLogo;
   const signatures = signatureQuery.data ?? [];
   const featured = featuredQuery.data ?? [];
   const reviews = reviewsQuery.data ?? [];
 
-  // The lead recommendation gets the full-width treatment; if nothing is
-  // featured, the most expensive dish stands in so the section is never empty.
   const special = featured[0] ?? signatures[0];
 
   return (
@@ -168,18 +169,24 @@ const Landing = () => {
             className="animate-kenburns h-full w-full object-cover"
             fetchPriority="high"
           />
-          {/* Two gradients — vertical wash for legibility, radial vignette for focus.
-              Dark mode: deep obsidian overlay. Light mode: soft warm-cream overlay. */}
           <div className="absolute inset-0 bg-gradient-to-b from-obsidian/90 via-obsidian/60 to-obsidian html-light:from-slate-100/80 html-light:via-slate-50/50 html-light:to-white" />
           <div className="absolute inset-0 bg-[radial-gradient(ellipse_at_center,transparent_20%,rgba(10,10,11,0.80)_100%)]" />
         </div>
 
         <div className="relative z-10 mx-auto max-w-3xl px-6 text-center">
+          <div className="animate-rise delay-1 mb-4 flex justify-center">
+            <img
+              src={logoSrc}
+              alt={restaurantName}
+              className="h-20 w-20 sm:h-24 sm:w-24 object-contain rounded-full border-2 border-gold/50 p-1 bg-obsidian/60 shadow-2xl shadow-gold/20"
+            />
+          </div>
+
           <p className="animate-rise eyebrow delay-1">
             {text(content?.heroEyebrow, "Est. 2019 · Fine Dining")}
           </p>
 
-          <h1 className="animate-rise delay-2 mt-7 text-[clamp(2.25rem,10vw,7rem)] leading-[0.92] text-ivory">
+          <h1 className="animate-rise delay-2 mt-4 text-[clamp(2.25rem,10vw,7rem)] leading-[0.92] text-ivory">
             {text(content?.heroTitle, restaurantName)}
           </h1>
 
@@ -395,25 +402,35 @@ const Landing = () => {
             <div className="mt-16 grid gap-6 sm:grid-cols-2 md:grid-cols-3">
               {featured.map((food, index) => {
                 const image = imageUrl(food.imageUrl, config.apiUrl);
+                const isSoldOut = !food.isAvailable;
 
                 return (
                   <Reveal key={food.id} delay={index * 90}>
-                    <article className="glass rounded-luxe relative flex h-full flex-col overflow-hidden">
-                      {offerBadge(food) && (
+                    <article className={`glass rounded-luxe relative flex h-full flex-col overflow-hidden ${isSoldOut ? "opacity-80" : ""}`}>
+                      {!isSoldOut && offerBadge(food) && (
                         <OfferBadge
                           label={offerBadge(food) as string}
                           className="absolute left-4 top-4 z-10"
                         />
                       )}
 
-                      {image && (
-                        <img
-                          src={image}
-                          alt={food.name}
-                          loading="lazy"
-                          className="h-48 w-full object-cover"
-                        />
-                      )}
+                      <div className="relative">
+                        {image && (
+                          <img
+                            src={image}
+                            alt={food.name}
+                            loading="lazy"
+                            className={`h-48 w-full object-cover ${isSoldOut ? "grayscale" : ""}`}
+                          />
+                        )}
+                        {isSoldOut && (
+                          <div className="absolute inset-0 z-10 flex flex-col items-center justify-center bg-obsidian/75 backdrop-blur-[2px]">
+                            <span className="rounded-full border border-red-500/60 bg-red-500/20 px-3.5 py-1 text-xs font-black uppercase tracking-[0.2em] text-red-400">
+                              🚫 Sold Out
+                            </span>
+                          </div>
+                        )}
+                      </div>
 
                       <div className="flex flex-1 flex-col p-6">
                         <div className="flex items-center gap-2.5">
@@ -421,8 +438,13 @@ const Landing = () => {
                           <span className="eyebrow">{food.category.name}</span>
                         </div>
 
-                        <h3 className="mt-3 text-2xl leading-tight text-ivory">
+                        <h3 className={`mt-3 text-2xl leading-tight ${isSoldOut ? "text-ivory-dim/60" : "text-ivory"}`}>
                           {food.name}
+                          {isSoldOut && (
+                            <span className="ml-2 text-xs font-bold text-red-400 uppercase tracking-wider">
+                              (Sold Out)
+                            </span>
+                          )}
                         </h3>
 
                         {food.description && (
@@ -439,12 +461,18 @@ const Landing = () => {
                               formatMoney(strikethroughPrice(food) as string)
                             }
                           />
-                          <Link
-                            to="/menu"
-                            className="text-[10px] uppercase tracking-[0.24em] text-ivory-dim transition-colors hover:text-slate"
-                          >
-                            Order →
-                          </Link>
+                          {isSoldOut ? (
+                            <span className="text-[10px] uppercase font-bold tracking-[0.2em] text-red-400">
+                              Sold Out
+                            </span>
+                          ) : (
+                            <Link
+                              to="/menu"
+                              className="text-[10px] uppercase tracking-[0.24em] text-ivory-dim transition-colors hover:text-slate"
+                            >
+                              Order →
+                            </Link>
+                          )}
                         </div>
                       </div>
                     </article>

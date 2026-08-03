@@ -4,10 +4,14 @@
  * The request sends only foodId, quantity and notes. It deliberately carries
  * NO prices — the server recalculates every line from the database, so the
  * totals shown here are indicative and cannot be tampered with.
+ *
+ * Name and phone are REQUIRED. They are checked here so the diner is told
+ * which field is wrong before the round trip, and again on the server, which
+ * is where the rule actually lives — this screen is convenience, not the gate.
  */
 
 import { useMutation, useQuery } from "@tanstack/react-query";
-import { useState } from "react";
+import { useRef, useState } from "react";
 import { Link, useNavigate } from "react-router-dom";
 
 import CustomerFooter from "../../components/CustomerFooter";
@@ -16,11 +20,46 @@ import { config } from "../../config/env";
 import { saveOrderToken, useCart } from "../../context/cart";
 import { api, getErrorMessage, unwrap } from "../../lib/api";
 import { formatMoney, imageUrl } from "../../lib/format";
-import { fromMinor, quoteTotals, toMinor } from "../../lib/money";
+import { calculateAdvanceDetails, fromMinor, quoteTotals, toMinor } from "../../lib/money";
 import type { ApiResponse, Order, PublicSettings } from "../../types/api";
 
 const fieldClass =
   "w-full rounded-xl border border-smoke bg-charcoal px-4 py-3 text-base text-ivory placeholder:text-ivory-faint transition-colors focus:border-gold/50 focus:outline-none sm:text-sm";
+
+/** Applied on top of fieldClass once a required field has failed. */
+const fieldErrorClass = "border-ember focus:border-ember";
+
+/**
+ * Strips the punctuation people type into a phone box.
+ *
+ * "+91 98765-43210" and "9876543210" are the same person. The server
+ * normalises identically before matching a returning diner on their number,
+ * so doing it here keeps the message this screen shows honest.
+ */
+const normalisePhone = (value: string): string => value.replace(/[\s()\-.]/g, "");
+
+/**
+ * Validates the contact details.
+ *
+ * Returns a message per bad field rather than a boolean, so the diner is told
+ * WHICH box is wrong. "Please check your details" makes them re-read both.
+ */
+const contactProblems = (
+  name: string,
+  phone: string
+): { name?: string; phone?: string } => {
+  const problems: { name?: string; phone?: string } = {};
+
+  if (name.trim().length < 2) {
+    problems.name = "Please tell us your name";
+  }
+
+  if (!/^\+?\d{10,15}$/.test(normalisePhone(phone))) {
+    problems.phone = "Enter a valid phone number (at least 10 digits)";
+  }
+
+  return problems;
+};
 
 const CustomerCart = () => {
   const navigate = useNavigate();
@@ -42,6 +81,20 @@ const CustomerCart = () => {
   const [orderNotes, setOrderNotes] = useState("");
   const [includeServiceCharge, setIncludeServiceCharge] = useState(true);
 
+  /**
+   * Errors are held back until the diner tries to order.
+   *
+   * Marking a field red the moment the screen opens scolds someone who has not
+   * typed anything yet. From the first failed attempt onwards they update
+   * live, which is what makes the message useful while it is being fixed.
+   */
+  const [attempted, setAttempted] = useState(false);
+  const nameRef = useRef<HTMLInputElement>(null);
+  const phoneRef = useRef<HTMLInputElement>(null);
+
+  const problems = contactProblems(name, phone);
+  const showProblems = attempted ? problems : {};
+
   const settingsQuery = useQuery({
     queryKey: ["settings", "public"],
     queryFn: async () => unwrap(await api.get<ApiResponse<PublicSettings>>("/settings")),
@@ -51,10 +104,9 @@ const CustomerCart = () => {
     mutationFn: async () => {
       const payload = {
         qrToken: qrToken ?? undefined,
-        customer:
-          name || phone
-            ? { name: name || undefined, phone: phone || undefined }
-            : undefined,
+        // Always sent, never conditional: both fields are mandatory, and the
+        // server rejects the order outright without them.
+        customer: { name: name.trim(), phone: normalisePhone(phone) },
         notes: orderNotes || undefined,
         items: items.map((item) => ({
           foodId: item.foodId,
@@ -71,6 +123,30 @@ const CustomerCart = () => {
       navigate(`/track/${order.trackingToken}`);
     },
   });
+
+  /**
+   * Guards the send on the required details.
+   *
+   * The button stays ENABLED when the form is incomplete, and refuses on tap
+   * instead. A greyed-out "Place order" tells a diner nothing about why the
+   * app has stopped working; this one scrolls the offending box into view,
+   * focuses it and says what is missing.
+   */
+  const submit = () => {
+    const found = contactProblems(name, phone);
+
+    if (found.name || found.phone) {
+      setAttempted(true);
+
+      const field = found.name ? nameRef.current : phoneRef.current;
+      field?.scrollIntoView({ behavior: "smooth", block: "center" });
+      field?.focus({ preventScroll: true });
+
+      return;
+    }
+
+    placeOrder.mutate();
+  };
 
   if (itemCount === 0) {
     return (
@@ -226,25 +302,51 @@ const CustomerCart = () => {
             <section className="mt-12 md:mt-0">
               <h2 className="text-2xl text-ivory">Your details</h2>
               <p className="mt-1.5 text-[13px] text-ivory-faint">
-                Optional. A number lets us recognise you next time.
+                Required — so the waiter knows whose order this is, and can
+                reach you if anything about it needs checking.
               </p>
 
               <div className="mt-5 grid gap-4 sm:grid-cols-2 md:grid-cols-1">
-                <input
-                  value={name}
-                  onChange={(event) => setName(event.target.value)}
-                  placeholder="Name"
-                  aria-label="Your name"
-                  className={fieldClass}
-                />
-                <input
-                  value={phone}
-                  onChange={(event) => setPhone(event.target.value)}
-                  placeholder="Phone"
-                  inputMode="tel"
-                  aria-label="Your phone number"
-                  className={fieldClass}
-                />
+                <div>
+                  <input
+                    ref={nameRef}
+                    value={name}
+                    onChange={(event) => setName(event.target.value)}
+                    placeholder="Name *"
+                    aria-label="Your name"
+                    autoComplete="name"
+                    required
+                    aria-invalid={Boolean(showProblems.name)}
+                    aria-describedby={showProblems.name ? "cart-name-error" : undefined}
+                    className={`${fieldClass} ${showProblems.name ? fieldErrorClass : ""}`}
+                  />
+                  {showProblems.name && (
+                    <p id="cart-name-error" className="mt-1.5 text-[12px] text-ember">
+                      {showProblems.name}
+                    </p>
+                  )}
+                </div>
+
+                <div>
+                  <input
+                    ref={phoneRef}
+                    value={phone}
+                    onChange={(event) => setPhone(event.target.value)}
+                    placeholder="Phone *"
+                    inputMode="tel"
+                    aria-label="Your phone number"
+                    autoComplete="tel"
+                    required
+                    aria-invalid={Boolean(showProblems.phone)}
+                    aria-describedby={showProblems.phone ? "cart-phone-error" : undefined}
+                    className={`${fieldClass} ${showProblems.phone ? fieldErrorClass : ""}`}
+                  />
+                  {showProblems.phone && (
+                    <p id="cart-phone-error" className="mt-1.5 text-[12px] text-ember">
+                      {showProblems.phone}
+                    </p>
+                  )}
+                </div>
               </div>
 
               <textarea
@@ -305,6 +407,21 @@ const CustomerCart = () => {
                 </span>
               </div>
 
+              {(() => {
+                const totalMinor = toMinor(quote.total);
+                const advanceInfo = calculateAdvanceDetails(totalMinor);
+
+                if (!advanceInfo.isAdvanceRequired) return null;
+
+                return (
+                  <div className="mt-4 rounded-xl border border-gold/40 bg-gold/10 p-3 text-xs leading-relaxed text-gold">
+                    <span className="font-bold">⚡ Advance Required (&gt; ₹3,000):</span> An advance of{" "}
+                    <strong>{advanceInfo.advancePercent}% ({money(fromMinor(advanceInfo.advanceMinor))})</strong>{" "}
+                    is required for orders over ₹3,000 to start kitchen preparation.
+                  </div>
+                );
+              })()}
+
               <p className="mt-3 text-[11px] leading-relaxed text-ivory-faint">
                 Service charge is voluntary (CCPA guidelines). Payment is settled at the table.
               </p>
@@ -337,7 +454,7 @@ const CustomerCart = () => {
           <LuxeButton
             className="flex-1"
             disabled={placeOrder.isPending}
-            onClick={() => placeOrder.mutate()}
+            onClick={submit}
           >
             {placeOrder.isPending ? "Sending to the kitchen…" : "Place order"}
           </LuxeButton>

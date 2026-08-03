@@ -141,6 +141,30 @@ const AdminDashboard = () => {
             accent="text-gold font-bold"
           />
         </div>
+
+        {/*
+          Held orders get their own banner rather than a stat tile, and only
+          when there are any. A tile reading "0" every day trains the eye to
+          skip it — and this is the one number where the cost of not noticing
+          is a guest sitting at a table waiting for food nobody is cooking.
+        */}
+        {summary.live.held > 0 && (
+          <Link
+            to="/staff"
+            className="mt-3 flex items-center justify-between gap-3 rounded-xl border border-violet-500/40 bg-violet-500/10 px-4 py-3 transition hover:border-violet-400"
+          >
+            <span className="text-sm text-violet-200">
+              <strong className="font-bold">
+                {summary.live.held} large{" "}
+                {summary.live.held === 1 ? "order is" : "orders are"} held
+              </strong>{" "}
+              — the kitchen has not been told. Waiting on staff or a deposit.
+            </span>
+            <span className="shrink-0 text-xs font-bold uppercase tracking-wider text-violet-300">
+              Review →
+            </span>
+          </Link>
+        )}
       </section>
 
       <section>

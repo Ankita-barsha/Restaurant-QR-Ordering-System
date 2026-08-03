@@ -27,6 +27,14 @@ export const SOCKET_EVENTS = {
   PAYMENT_STATUS_CHANGED: "payment:statusChanged",
   /** An order just became READY — waiter screens flash the alert immediately. */
   WAITER_ORDER_READY: "waiter:orderReady",
+  /**
+   * A large order is being HELD and needs a member of staff at the table.
+   *
+   * Its own event rather than a generic status change because nothing else
+   * happens until somebody acts: the kitchen has not been told, and the guest
+   * is sitting there waiting. It must interrupt, not blend into the feed.
+   */
+  ORDER_NEEDS_APPROVAL: "order:needsApproval",
 } as const;
 
 /**

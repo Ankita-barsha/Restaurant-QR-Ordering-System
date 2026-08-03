@@ -22,6 +22,7 @@ import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useEffect, useState } from "react";
 
 import InvoiceSheet from "../../components/InvoiceSheet";
+import { ThermalReceiptSheet } from "../../components/ThermalReceiptSheet";
 import { EmptyState, ErrorBox, Spinner, StatusBadge } from "../../components/ui";
 import { useAuth } from "../../context/auth";
 import { queryKeys } from "../../hooks/useLiveOrders";
@@ -221,12 +222,14 @@ const OrderCard = ({
   order,
   onServe,
   onInvoice,
+  onThermalBill,
   onCashPay,
   isServePending,
 }: {
   order: Order;
   onServe: (id: string) => void;
   onInvoice: (id: string) => void;
+  onThermalBill?: (id: string) => void;
   onCashPay: (order: Order) => void;
   isServePending: boolean;
 }) => {
@@ -345,10 +348,19 @@ const OrderCard = ({
         )}
 
         {(isServed || isPaid) && (
-          <div className="grid grid-cols-2 gap-2">
+          <div className="flex flex-wrap gap-2">
+            {onThermalBill && (
+              <button
+                onClick={() => onThermalBill(order.id)}
+                className="flex-1 items-center justify-center gap-1.5 rounded-xl border border-gold/40 bg-gold/10 py-2.5 text-xs font-bold text-gold transition hover:bg-gold/20"
+              >
+                🖨️ Thermal Bill
+              </button>
+            )}
+
             <button
               onClick={() => onInvoice(order.id)}
-              className="flex items-center justify-center gap-1.5 rounded-xl border border-smoke bg-obsidian/60 py-2.5 text-xs font-semibold text-ivory-dim transition hover:border-slate hover:text-ivory"
+              className="flex-1 items-center justify-center gap-1.5 rounded-xl border border-smoke bg-obsidian/60 py-2.5 text-xs font-semibold text-ivory-dim transition hover:border-slate hover:text-ivory"
             >
               🧾 Invoice
             </button>
@@ -356,12 +368,12 @@ const OrderCard = ({
             {!isPaid ? (
               <button
                 onClick={() => onCashPay(order)}
-                className="flex items-center justify-center gap-1.5 rounded-xl bg-emerald-700 py-2.5 text-xs font-bold text-white transition hover:bg-emerald-600 active:scale-95"
+                className="w-full flex items-center justify-center gap-1.5 rounded-xl bg-emerald-700 py-2.5 text-xs font-bold text-white transition hover:bg-emerald-600 active:scale-95 mt-1"
               >
                 💵 Cash Paid
               </button>
             ) : (
-              <div className="flex items-center justify-center gap-1.5 rounded-xl border border-emerald-500/30 bg-emerald-500/10 py-2.5 text-xs font-bold text-emerald-400">
+              <div className="w-full flex items-center justify-center gap-1.5 rounded-xl border border-emerald-500/30 bg-emerald-500/10 py-2.5 text-xs font-bold text-emerald-400 mt-1">
                 ✓ Paid
               </div>
             )}
@@ -383,7 +395,10 @@ const WaiterDashboard = () => {
   const [alertCount, setAlertCount] = useState(0);
   const [soundOn, setSoundOn] = useState(true);
   const [invoiceOrderId, setInvoiceOrderId] = useState<string | null>(null);
+  const [thermalOrderId, setThermalOrderId] = useState<string | null>(null);
   const [cashOrder, setCashOrder] = useState<Order | null>(null);
+  const [rejecting, setRejecting] = useState<string | null>(null);
+  const [rejectReason, setRejectReason] = useState("");
 
   // ---- queries ----
 
@@ -406,8 +421,37 @@ const WaiterDashboard = () => {
     refetchInterval: 15_000,
   });
 
+  /**
+   * Large orders the kitchen has NOT been told about.
+   *
+   * Fetched regardless of which tab is open and pinned above them, because a
+   * held order is the one thing on this screen where nothing happens until the
+   * waiter acts — a guest is sitting at a table watching a screen that will
+   * not move on its own.
+   *
+   * Both hold types are loaded. The waiter cannot release a deposit hold, but
+   * they are the person the guest will ask about it, so hiding it would leave
+   * them unable to answer.
+   */
+  const heldQuery = useQuery({
+    queryKey: [...queryKeys.orders, "waiter-held"],
+    queryFn: async () => {
+      const [approval, advance] = await Promise.all([
+        api.get<ApiResponse<Order[]>>("/orders?status=NEEDS_APPROVAL&limit=50"),
+        api.get<ApiResponse<Order[]>>(
+          "/orders?status=AWAITING_ADVANCE_PAYMENT&limit=50"
+        ),
+      ]);
+
+      return [...unwrap(approval), ...unwrap(advance)];
+    },
+    refetchInterval: 15_000,
+  });
+
   const orders = ordersQuery.data ?? [];
   const readyCount = (readyCountQuery.data ?? []).length;
+  const heldOrders = heldQuery.data ?? [];
+  const needsApproval = heldOrders.filter((o) => o.status === "NEEDS_APPROVAL");
 
   // ---- real-time ----
 
@@ -436,6 +480,10 @@ const WaiterDashboard = () => {
     };
 
     socket.on(SOCKET_EVENTS.WAITER_ORDER_READY,     onOrderReady);
+    // A held order gets the same alert treatment as a ready one: both mean
+    // "go to a table now", and a held order is the more urgent of the two,
+    // because until someone goes, nothing is cooking.
+    socket.on(SOCKET_EVENTS.ORDER_NEEDS_APPROVAL,   onOrderReady);
     socket.on(SOCKET_EVENTS.ORDER_STATUS_CHANGED,   onRefresh);
     socket.on(SOCKET_EVENTS.ORDER_UPDATED,          onRefresh);
     socket.on(SOCKET_EVENTS.ORDER_CANCELLED,        onRefresh);
@@ -443,6 +491,7 @@ const WaiterDashboard = () => {
 
     return () => {
       socket.off(SOCKET_EVENTS.WAITER_ORDER_READY,     onOrderReady);
+      socket.off(SOCKET_EVENTS.ORDER_NEEDS_APPROVAL,   onOrderReady);
       socket.off(SOCKET_EVENTS.ORDER_STATUS_CHANGED,   onRefresh);
       socket.off(SOCKET_EVENTS.ORDER_UPDATED,          onRefresh);
       socket.off(SOCKET_EVENTS.ORDER_CANCELLED,        onRefresh);
@@ -454,6 +503,39 @@ const WaiterDashboard = () => {
 
   const serveMutation = useMutation({
     mutationFn: (id: string) => api.post(`/orders/${id}/serve`),
+    onSuccess: () => {
+      void queryClient.invalidateQueries({ queryKey: queryKeys.orders });
+    },
+  });
+
+  /**
+   * Releases a held order to the kitchen.
+   *
+   * The server records who did this on the order itself. That is the control:
+   * a named person confirmed a real party is sitting at that table.
+   */
+  const approveMutation = useMutation({
+    mutationFn: (id: string) => api.post(`/orders/${id}/approve`),
+    onSuccess: () => {
+      void queryClient.invalidateQueries({ queryKey: queryKeys.orders });
+    },
+  });
+
+  /** Declines an order the waiter could not verify. Reason is mandatory. */
+  const rejectMutation = useMutation({
+    mutationFn: ({ id, why }: { id: string; why: string }) =>
+      api.post(`/orders/${id}/reject`, { reason: why }),
+    onSuccess: () => {
+      setRejecting(null);
+      setRejectReason("");
+      void queryClient.invalidateQueries({ queryKey: queryKeys.orders });
+    },
+  });
+
+  /** The waiter counted the advance in cash; releases the order to the kitchen. */
+  const cashAdvanceMutation = useMutation({
+    mutationFn: (orderId: string) =>
+      api.post("/payments/cash-advance", { orderId }),
     onSuccess: () => {
       void queryClient.invalidateQueries({ queryKey: queryKeys.orders });
     },
@@ -499,9 +581,9 @@ const WaiterDashboard = () => {
         <div className="mt-5 grid grid-cols-2 gap-3 sm:grid-cols-4">
           {[
             { label: "Ready Now",       value: readyCount,   color: "text-amber-400",   bg: "bg-amber-400/5  border-amber-400/20" },
-            { label: "Orders Loaded",   value: orders.length, color: "text-blue-400",    bg: "bg-blue-400/5   border-blue-400/20" },
+            { label: "Needs Approval",  value: needsApproval.length, color: "text-violet-400", bg: "bg-violet-400/5 border-violet-400/20" },
             { label: "New Alerts",      value: alertCount,   color: "text-red-400",     bg: "bg-red-400/5    border-red-400/20" },
-            { label: "Payment Pending", value: orders.filter(o => o.status === "SERVED" && o.paymentStatus === "UNPAID").length, color: "text-violet-400", bg: "bg-violet-400/5 border-violet-400/20" },
+            { label: "Payment Pending", value: orders.filter(o => o.status === "SERVED" && o.paymentStatus === "UNPAID").length, color: "text-blue-400", bg: "bg-blue-400/5 border-blue-400/20" },
           ].map(({ label, value, color, bg }) => (
             <div key={label} className={`rounded-xl border ${bg} px-4 py-3`}>
               <p className="text-[11px] uppercase tracking-wider text-ivory-faint">{label}</p>
@@ -510,6 +592,166 @@ const WaiterDashboard = () => {
           ))}
         </div>
       </div>
+
+      {/* -------------------------------------------------------- held orders */}
+      {/*
+        Pinned ABOVE the tabs, not inside one. A held order is not a stage of
+        service the waiter browses to — it is a job that has to be done now,
+        and burying it behind a tab is how a guest ends up waiting twenty
+        minutes for food nobody has started.
+      */}
+      {heldOrders.length > 0 && (
+        <section className="mb-6 rounded-2xl border border-orange-500/40 bg-orange-500/10 p-4 sm:p-5">
+          <div className="flex flex-wrap items-center justify-between gap-2">
+            <div>
+              <p className="text-[11px] font-bold uppercase tracking-wider text-orange-300">
+                ⚠ High-value orders — the kitchen has not been told
+              </p>
+              <p className="mt-1 text-xs text-ivory-dim">
+                Go to the table, check the guests are there and the order looks
+                genuine, then approve or reject it.
+              </p>
+            </div>
+            <span className="rounded-full bg-orange-500/20 px-3 py-1 text-sm font-bold text-orange-200">
+              {heldOrders.length}
+            </span>
+          </div>
+
+          {(approveMutation.isError ||
+            rejectMutation.isError ||
+            cashAdvanceMutation.isError) && (
+            <div className="mt-3">
+              <ErrorBox
+                message={getErrorMessage(
+                  approveMutation.error ??
+                    rejectMutation.error ??
+                    cashAdvanceMutation.error
+                )}
+              />
+            </div>
+          )}
+
+          <div className="mt-4 space-y-2.5">
+            {heldOrders.map((order) => {
+              const awaitingAdvance = order.status === "AWAITING_ADVANCE_PAYMENT";
+              const plates = order.items.reduce((sum, item) => sum + item.quantity, 0);
+
+              return (
+                <div
+                  key={order.id}
+                  className="rounded-xl border border-smoke bg-charcoal p-3.5"
+                >
+                  <div className="flex flex-wrap items-center justify-between gap-3">
+                    <div className="min-w-0">
+                      <div className="flex flex-wrap items-center gap-2">
+                        <span className="font-display text-lg font-bold text-ivory">
+                          {order.orderNumber}
+                        </span>
+                        <StatusBadge status={order.status} />
+                        <span className="text-sm font-bold text-gold">
+                          {formatMoney(order.totalAmount)}
+                        </span>
+                        {order.advanceAmount && (
+                          <span className="rounded-full bg-blue-500/15 px-2.5 py-0.5 text-xs font-bold text-blue-300">
+                            Advance {formatMoney(order.advanceAmount)}
+                          </span>
+                        )}
+                      </div>
+
+                      <p className="mt-1 text-xs text-ivory-dim">
+                        {order.table ? `Table ${order.table.tableNumber}` : "Takeaway"}
+                        {" · "}
+                        {plates} {plates === 1 ? "plate" : "plates"}
+                        {order.customer?.name ? ` · ${order.customer.name}` : ""}
+                        {order.customer?.phone ? ` · ${order.customer.phone}` : ""}
+                        {" · "}
+                        {timeAgo(order.placedAt)}
+                      </p>
+                    </div>
+
+                    <div className="flex shrink-0 flex-wrap gap-2">
+                      {awaitingAdvance ? (
+                        <button
+                          type="button"
+                          disabled={cashAdvanceMutation.isPending}
+                          onClick={() => cashAdvanceMutation.mutate(order.id)}
+                          className="min-h-11 rounded-xl bg-blue-500 px-4 text-sm font-bold text-obsidian transition hover:brightness-110 disabled:opacity-50"
+                        >
+                          💵 Advance Cash Received
+                        </button>
+                      ) : (
+                        <>
+                          <button
+                            type="button"
+                            disabled={approveMutation.isPending}
+                            onClick={() => approveMutation.mutate(order.id)}
+                            className="min-h-11 rounded-xl bg-emerald-500 px-4 text-sm font-bold text-obsidian transition hover:brightness-110 disabled:opacity-50"
+                          >
+                            ✓ Approve
+                          </button>
+                          <button
+                            type="button"
+                            disabled={rejectMutation.isPending}
+                            onClick={() => setRejecting(order.id)}
+                            className="min-h-11 rounded-xl border border-red-500/50 px-4 text-sm font-bold text-red-400 transition hover:bg-red-500/10 disabled:opacity-50"
+                          >
+                            ✕ Reject
+                          </button>
+                        </>
+                      )}
+                    </div>
+                  </div>
+
+                  {awaitingAdvance && (
+                    <p className="mt-2.5 text-[11px] text-blue-300">
+                      Approved. The guest is paying online — this releases on its
+                      own. Tap the button only if you took the advance in cash.
+                    </p>
+                  )}
+
+                  {rejecting === order.id && (
+                    <div className="mt-3 rounded-lg border border-red-500/40 bg-red-500/10 p-3">
+                      <input
+                        value={rejectReason}
+                        onChange={(event) => setRejectReason(event.target.value)}
+                        placeholder="Why can this order not be verified?"
+                        className="w-full rounded-lg border border-smoke bg-graphite px-3 py-2 text-sm text-ivory outline-none focus:border-red-500"
+                      />
+                      <div className="mt-2 flex gap-2">
+                        <button
+                          type="button"
+                          disabled={
+                            rejectReason.trim().length < 3 || rejectMutation.isPending
+                          }
+                          onClick={() =>
+                            rejectMutation.mutate({
+                              id: order.id,
+                              why: rejectReason.trim(),
+                            })
+                          }
+                          className="min-h-10 rounded-lg bg-red-500 px-4 text-xs font-bold text-ivory transition hover:brightness-110 disabled:opacity-50"
+                        >
+                          {rejectMutation.isPending ? "Rejecting…" : "Confirm reject"}
+                        </button>
+                        <button
+                          type="button"
+                          onClick={() => {
+                            setRejecting(null);
+                            setRejectReason("");
+                          }}
+                          className="min-h-10 rounded-lg border border-smoke px-4 text-xs font-semibold text-ivory-dim transition hover:text-ivory"
+                        >
+                          Keep it
+                        </button>
+                      </div>
+                    </div>
+                  )}
+                </div>
+              );
+            })}
+          </div>
+        </section>
+      )}
 
       {/* ---------------------------------------------------------------- tabs */}
       <div className="mb-6 flex gap-1 rounded-xl border border-smoke bg-charcoal p-1">
@@ -575,6 +817,7 @@ const WaiterDashboard = () => {
               order={order}
               onServe={(id) => serveMutation.mutate(id)}
               onInvoice={setInvoiceOrderId}
+              onThermalBill={setThermalOrderId}
               onCashPay={setCashOrder}
               isServePending={
                 serveMutation.isPending && serveMutation.variables === order.id
@@ -614,6 +857,17 @@ const WaiterDashboard = () => {
             </div>
           </div>
         </div>
+      )}
+
+      {thermalOrderId && (
+        <ThermalReceiptSheet
+          source={{ orderId: thermalOrderId }}
+          onClose={() => setThermalOrderId(null)}
+          onSwitchToA4={() => {
+            setInvoiceOrderId(thermalOrderId);
+            setThermalOrderId(null);
+          }}
+        />
       )}
 
       {/* ---------------------------------------------------------------- cash modal */}

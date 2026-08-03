@@ -31,6 +31,25 @@ export const PERMISSIONS = {
   ORDER_CREATE: "order:create",
   ORDER_UPDATE_STATUS: "order:updateStatus",
   ORDER_CANCEL: "order:cancel",
+  /**
+   * Releasing a large order that is being held before the kitchen sees it.
+   *
+   * Held by waiting staff, deliberately — the control IS a person walking to
+   * the table and seeing a real party sitting at it, and the waiter is the one
+   * who does that. The kitchen does not hold it: a chef cannot see the floor,
+   * so approving from the pass would be a rubber stamp.
+   */
+  ORDER_APPROVE: "order:approve",
+  /**
+   * Downloading the order book as a spreadsheet.
+   *
+   * Separate from order:read because it is a different act. Reading an order
+   * on screen serves one guest; exporting takes the whole book — every diner's
+   * name, phone number, spend and transaction reference — off the system in a
+   * file that can be copied anywhere. Waiting staff and the kitchen read
+   * orders all shift and must not hold this.
+   */
+  ORDER_EXPORT: "order:export",
 
   // Kitchen display
   KITCHEN_ACCESS: "kitchen:access",
@@ -102,6 +121,14 @@ export const PERMISSION_METADATA: Record<
   [PERMISSIONS.ORDER_CREATE]: { group: "Orders", description: "Create orders" },
   [PERMISSIONS.ORDER_UPDATE_STATUS]: { group: "Orders", description: "Change order status" },
   [PERMISSIONS.ORDER_CANCEL]: { group: "Orders", description: "Cancel orders" },
+  [PERMISSIONS.ORDER_APPROVE]: {
+    group: "Orders",
+    description: "Release a held large order to the kitchen",
+  },
+  [PERMISSIONS.ORDER_EXPORT]: {
+    group: "Orders",
+    description: "Download the order book as an Excel spreadsheet",
+  },
 
   [PERMISSIONS.KITCHEN_ACCESS]: { group: "Kitchen", description: "Access the kitchen display" },
 
@@ -178,6 +205,11 @@ export const DEFAULT_ROLE_PERMISSIONS: Record<string, readonly string[]> = {
     PERMISSIONS.ORDER_CREATE,
     PERMISSIONS.ORDER_UPDATE_STATUS,
     PERMISSIONS.ORDER_CANCEL,
+    PERMISSIONS.ORDER_APPROVE,
+    // The manager runs the books, so the export is theirs. It is granted to
+    // ADMIN and SUPER_ADMIN only — deliberately absent from KITCHEN and STAFF
+    // below, who read the same orders all day but may not take them away.
+    PERMISSIONS.ORDER_EXPORT,
     PERMISSIONS.TABLE_READ,
     PERMISSIONS.TABLE_CREATE,
     PERMISSIONS.TABLE_UPDATE,
@@ -211,6 +243,8 @@ export const DEFAULT_ROLE_PERMISSIONS: Record<string, readonly string[]> = {
     PERMISSIONS.ORDER_READ,
     PERMISSIONS.ORDER_CREATE,
     PERMISSIONS.ORDER_UPDATE_STATUS,
+    // Held orders are released by the person who can actually see the table.
+    PERMISSIONS.ORDER_APPROVE,
     PERMISSIONS.FOOD_READ,
     PERMISSIONS.CATEGORY_READ,
     PERMISSIONS.TABLE_READ,

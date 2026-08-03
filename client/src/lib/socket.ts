@@ -71,5 +71,12 @@ export const SOCKET_EVENTS = {
   PAYMENT_STATUS_CHANGED: "payment:statusChanged",
   /** Kitchen marked an order READY — waiter screen alerts immediately. */
   WAITER_ORDER_READY: "waiter:orderReady",
+  /**
+   * A large order is HELD and needs a member of staff at the table.
+   *
+   * Never reaches the kitchen room: the hold exists precisely so no ticket
+   * appears on the pass until somebody has vouched for the table.
+   */
+  ORDER_NEEDS_APPROVAL: "order:needsApproval",
 } as const;
 

@@ -22,6 +22,10 @@ import { formatMoney, imageUrl } from "../lib/format";
 import type { ApiResponse, Invoice } from "../types/api";
 import { LuxeButton, LuxeError, LuxeLoader } from "./luxe";
 
+import defaultLogo from "../assets/image/logo.png";
+import { useState } from "react";
+import { ThermalReceiptSheet } from "./ThermalReceiptSheet";
+
 type Source = { orderId: string } | { trackingToken: string };
 
 const invoicePath = (source: Source): string =>
@@ -97,7 +101,21 @@ const InvoiceSheet = ({
   const invoice = invoiceQuery.data;
   const currency = invoice?.restaurant.currency ?? "INR";
   const money = (value: string) => formatMoney(value, currency);
-  const logo = imageUrl(invoice?.restaurant.logoUrl ?? null, config.apiUrl);
+  const logo = invoice?.restaurant.logoUrl
+    ? imageUrl(invoice.restaurant.logoUrl, config.apiUrl)
+    : defaultLogo;
+
+  const [showThermal, setShowThermal] = useState(false);
+
+  if (showThermal) {
+    return (
+      <ThermalReceiptSheet
+        source={source}
+        onClose={() => setShowThermal(false)}
+        onSwitchToA4={() => setShowThermal(false)}
+      />
+    );
+  }
 
   return (
     <div
@@ -363,6 +381,14 @@ const InvoiceSheet = ({
 
               <button
                 type="button"
+                onClick={() => setShowThermal(true)}
+                className="rounded-xl border border-slate-300 bg-slate-100 px-4 py-2.5 text-sm font-bold text-slate-800 transition hover:bg-slate-200"
+              >
+                🖨️ Thermal Slip (80mm)
+              </button>
+
+              <button
+                type="button"
                 onClick={() => window.print()}
                 className="rounded-xl bg-slate-900 px-4 py-2.5 text-sm font-semibold text-white transition hover:bg-slate-700"
               >
@@ -374,7 +400,7 @@ const InvoiceSheet = ({
                 onClick={() => window.print()}
                 className="rounded-xl bg-orange-600 px-4 py-2.5 text-sm font-semibold text-white transition hover:bg-orange-700"
               >
-                Print Tax Invoice
+                Print GST Invoice
               </button>
             </div>
           </>

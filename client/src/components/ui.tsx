@@ -54,6 +54,12 @@ export const EmptyState = ({
 
 /** Colour-codes an order status consistently everywhere it appears in dark mode. */
 const STATUS_STYLES: Record<OrderStatus, string> = {
+  // The two holds are colour-coded to what is BLOCKING them, so a manager
+  // scanning the floor knows which need a person and which need money:
+  //   orange — a waiter has to go to the table
+  //   blue   — the guest has to pay
+  NEEDS_APPROVAL: "bg-orange-500/15 text-orange-300 ring-orange-500/30",
+  AWAITING_ADVANCE_PAYMENT: "bg-blue-500/15 text-blue-300 ring-blue-500/30",
   PENDING: "bg-amber-500/15 text-amber-300 ring-amber-500/30",
   CONFIRMED: "bg-blue-500/15 text-blue-300 ring-blue-500/30",
   PREPARING: "bg-orange-500/15 text-orange-300 ring-orange-500/30",
@@ -62,11 +68,17 @@ const STATUS_STYLES: Record<OrderStatus, string> = {
   CANCELLED: "bg-red-500/15 text-red-300 ring-red-500/30",
 };
 
+/** Wording staff read, where the raw enum value would not be self-explanatory. */
+const STATUS_LABELS: Partial<Record<OrderStatus, string>> = {
+  NEEDS_APPROVAL: "NEEDS APPROVAL",
+  AWAITING_ADVANCE_PAYMENT: "AWAITING ADVANCE",
+};
+
 export const StatusBadge = ({ status }: { status: OrderStatus }) => (
   <span
     className={`inline-flex items-center rounded-full px-2.5 py-1 text-xs font-semibold ring-1 ring-inset ${STATUS_STYLES[status]}`}
   >
-    {status}
+    {STATUS_LABELS[status] ?? status}
   </span>
 );
 

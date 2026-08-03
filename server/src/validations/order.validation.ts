@@ -4,6 +4,26 @@ import { paginationQuerySchema } from "./common.validation.js";
 
 /** Mirrors the OrderStatus enum in schema.prisma. */
 export const orderStatusSchema = z.enum([
+  "NEEDS_APPROVAL",
+  "AWAITING_ADVANCE_PAYMENT",
+  "PENDING",
+  "CONFIRMED",
+  "PREPARING",
+  "READY",
+  "SERVED",
+  "CANCELLED",
+]);
+
+/**
+ * The statuses staff may drive an order into by hand.
+ *
+ * The two held states are absent deliberately. An order enters a hold because
+ * a threshold was crossed, and leaves it either by the deposit landing or
+ * through the approval endpoint, which records who released it. Allowing
+ * "set status to AWAITING_APPROVAL" would let anyone with order:updateStatus
+ * bypass the approval trail entirely.
+ */
+export const settableStatusSchema = z.enum([
   "PENDING",
   "CONFIRMED",
   "PREPARING",
@@ -33,10 +53,34 @@ const orderItemSchema = z.object({
   notes: z.string().trim().max(200).optional(),
 });
 
-/** Optional contact details for a guest diner. */
+/**
+ * A diner's phone number.
+ *
+ * Normalised before it is checked, so "+91 98765-43210" and "9876543210" are
+ * not stored as two different customers. Customer.phone is unique and is what
+ * repeat visits are matched on, so the normalisation is what makes that key
+ * mean anything.
+ */
+const phoneSchema = z
+  .string()
+  .trim()
+  .transform((value) => value.replace(/[\s()\-.]/g, ""))
+  .refine((value) => /^\+?\d{10,15}$/.test(value), {
+    message: "Enter a valid phone number (at least 10 digits)",
+  });
+
+/**
+ * Who is ordering.
+ *
+ * Name and phone are REQUIRED, not a courtesy. Every order is a financial
+ * record the restaurant has to be able to account for afterwards — who ordered
+ * it, what they were charged, how they paid — and an anonymous row cannot be
+ * reconciled, exported or followed up on. It is also how the waiter finds the
+ * right guest when the phone rings about a wrong order.
+ */
 const customerSchema = z.object({
-  name: z.string().trim().min(1).max(80).optional(),
-  phone: z.string().trim().min(6).max(20).optional(),
+  name: z.string().trim().min(2, "Please enter your name").max(80),
+  phone: phoneSchema,
   email: z.string().email().optional(),
 });
 
@@ -50,7 +94,7 @@ const customerSchema = z.object({
 export const placeOrderSchema = z.object({
   qrToken: z.string().min(1).optional(),
   type: orderTypeSchema.optional(),
-  customer: customerSchema.optional(),
+  customer: customerSchema,
   items: z
     .array(orderItemSchema)
     .min(1, "An order must contain at least one item")
@@ -64,11 +108,26 @@ export const addItemsSchema = z.object({
 });
 
 export const updateStatusSchema = z.object({
-  status: orderStatusSchema,
+  status: settableStatusSchema,
 });
 
 export const cancelOrderSchema = z.object({
   reason: z.string().trim().min(1, "A cancellation reason is required").max(300),
+});
+
+/**
+ * Declining a high-value order at the table.
+ *
+ * The reason is mandatory and a little longer than a free-text minimum would
+ * allow: "no" is not an audit entry anybody can act on six weeks later, and
+ * this is the record that explains why a guest's order was refused.
+ */
+export const rejectOrderSchema = z.object({
+  reason: z
+    .string()
+    .trim()
+    .min(3, "Say why the order is being rejected")
+    .max(300),
 });
 
 /**

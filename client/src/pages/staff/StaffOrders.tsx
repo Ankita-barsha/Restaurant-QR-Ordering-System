@@ -11,14 +11,16 @@
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useState } from "react";
 
+import ExportOrdersButton from "../../components/ExportOrdersButton";
 import InvoiceSheet from "../../components/InvoiceSheet";
 import { KitchenTicketPrint } from "../../components/KitchenTicketPrint";
+import { ThermalReceiptSheet } from "../../components/ThermalReceiptSheet";
 import { Button, EmptyState, ErrorBox, Spinner, StatusBadge } from "../../components/ui";
 import { useAuth } from "../../context/auth";
 import { queryKeys } from "../../hooks/useLiveOrders";
 import { api, getErrorMessage, unwrap } from "../../lib/api";
 import { formatMoney, timeAgo } from "../../lib/format";
-import type { ApiResponse, Order, OrderStatus } from "../../types/api";
+import { isHeldStatus, type ApiResponse, type Order, type OrderStatus } from "../../types/api";
 
 const NEXT_ACTION: Partial<Record<OrderStatus, { next: OrderStatus; label: string }>> = {
   PENDING: { next: "CONFIRMED", label: "Accept" },
@@ -29,6 +31,8 @@ const NEXT_ACTION: Partial<Record<OrderStatus, { next: OrderStatus; label: strin
 
 const FILTERS: { label: string; value: OrderStatus | "OPEN" }[] = [
   { label: "Open", value: "OPEN" },
+  { label: "Needs approval", value: "NEEDS_APPROVAL" },
+  { label: "Advance due", value: "AWAITING_ADVANCE_PAYMENT" },
   { label: "Pending", value: "PENDING" },
   { label: "Preparing", value: "PREPARING" },
   { label: "Ready", value: "READY" },
@@ -42,7 +46,10 @@ const StaffOrders = () => {
   const [filter, setFilter] = useState<OrderStatus | "OPEN">("OPEN");
   const [cancelling, setCancelling] = useState<string | null>(null);
   const [reason, setReason] = useState("");
+  const [rejecting, setRejecting] = useState<string | null>(null);
+  const [rejectReason, setRejectReason] = useState("");
   const [invoiceFor, setInvoiceFor] = useState<string | null>(null);
+  const [thermalFor, setThermalFor] = useState<string | null>(null);
   const [kotOrder, setKotOrder] = useState<Order | null>(null);
 
   const ordersQuery = useQuery({
@@ -73,6 +80,30 @@ const StaffOrders = () => {
     onSuccess: invalidate,
   });
 
+  /** Releases a held high-value order, recording who vouched for it. */
+  const approve = useMutation({
+    mutationFn: async (id: string) => api.post(`/orders/${id}/approve`),
+    onSuccess: invalidate,
+  });
+
+  /** Declines a held order the waiter could not verify at the table. */
+  const reject = useMutation({
+    mutationFn: async ({ id, why }: { id: string; why: string }) =>
+      api.post(`/orders/${id}/reject`, { reason: why }),
+    onSuccess: () => {
+      setRejecting(null);
+      setRejectReason("");
+      invalidate();
+    },
+  });
+
+  /** The waiter counted the advance in cash; releases the order. */
+  const cashAdvance = useMutation({
+    mutationFn: async (orderId: string) =>
+      api.post("/payments/cash-advance", { orderId }),
+    onSuccess: invalidate,
+  });
+
   const cancelOrder = useMutation({
     mutationFn: async ({ id, why }: { id: string; why: string }) =>
       api.post(`/orders/${id}/cancel`, { reason: why }),
@@ -100,9 +131,14 @@ const StaffOrders = () => {
 
   return (
     <div className="space-y-6">
-      <div>
-        <h1 className="text-2xl font-bold text-ivory font-display">Orders Queue</h1>
-        <p className="text-sm text-ivory-dim mt-0.5">Live order management and billing pass</p>
+      <div className="flex flex-wrap items-start justify-between gap-4">
+        <div>
+          <h1 className="text-2xl font-bold text-ivory font-display">Orders Queue</h1>
+          <p className="text-sm text-ivory-dim mt-0.5">Live order management and billing pass</p>
+        </div>
+
+        {/* Renders only for a manager: the component checks order:export itself. */}
+        <ExportOrdersButton label="Every order, with diner details and payments" />
       </div>
 
       <div className="flex gap-2 overflow-x-auto pb-1 [scrollbar-width:none]">
@@ -186,7 +222,70 @@ const StaffOrders = () => {
                   </p>
                 )}
 
+                {/*
+                  A held order says so in plain words on the card. "Why has the
+                  kitchen not started this" is the question the manager is
+                  about to ask, and the answer belongs on the order, not in a
+                  settings screen somewhere else.
+                */}
+                {isHeldStatus(order.status) && (
+                  <p
+                    className={`mt-2.5 rounded-lg border px-3 py-2 text-xs ${
+                      order.status === "AWAITING_ADVANCE_PAYMENT"
+                        ? "border-blue-500/30 bg-blue-500/10 text-blue-200"
+                        : "border-orange-500/30 bg-orange-500/10 text-orange-200"
+                    }`}
+                  >
+                    {order.status === "AWAITING_ADVANCE_PAYMENT" ? (
+                      <>
+                        High-value order — the kitchen has not been told. It
+                        starts on its own once the{" "}
+                        <strong>
+                          {order.advanceAmount
+                            ? formatMoney(order.advanceAmount)
+                            : ""}{" "}
+                          advance
+                        </strong>{" "}
+                        is collected.
+                      </>
+                    ) : (
+                      "High-value order — the kitchen has not been told. Check the table, then approve or reject."
+                    )}
+                  </p>
+                )}
+
                 <div className="mt-3.5 flex flex-wrap gap-2 pt-2 border-t border-smoke/40">
+                  {order.status === "NEEDS_APPROVAL" && can("order:approve") && (
+                    <>
+                      <Button
+                        onClick={() => approve.mutate(order.id)}
+                        disabled={approve.isPending}
+                        className="font-bold uppercase tracking-wider text-xs"
+                      >
+                        ✓ Approve
+                      </Button>
+                      <Button
+                        variant="danger"
+                        onClick={() => setRejecting(order.id)}
+                        disabled={reject.isPending}
+                        className="font-bold uppercase tracking-wider text-xs"
+                      >
+                        ✕ Reject
+                      </Button>
+                    </>
+                  )}
+
+                  {order.status === "AWAITING_ADVANCE_PAYMENT" &&
+                    can("order:approve") && (
+                      <Button
+                        onClick={() => cashAdvance.mutate(order.id)}
+                        disabled={cashAdvance.isPending}
+                        className="font-bold uppercase tracking-wider text-xs"
+                      >
+                        💵 Advance Cash Received
+                      </Button>
+                    )}
+
                   {action && can("order:updateStatus") && (
                     <Button
                       onClick={() => advance.mutate({ id: order.id, next: action.next })}
@@ -214,8 +313,12 @@ const StaffOrders = () => {
                     🖨️ KOT
                   </Button>
 
+                  <Button variant="secondary" onClick={() => setThermalFor(order.id)} className="font-bold text-xs">
+                    📄 Thermal Bill
+                  </Button>
+
                   <Button variant="secondary" onClick={() => setInvoiceFor(order.id)} className="font-bold text-xs">
-                    Invoice
+                    GST Invoice
                   </Button>
 
                   {!["SERVED", "CANCELLED"].includes(order.status) &&
@@ -230,6 +333,49 @@ const StaffOrders = () => {
                       </Button>
                     )}
                 </div>
+
+                {/*
+                  Rejection needs its own reason box rather than reusing the
+                  cancel one. The two acts land differently in the audit trail
+                  — order.reject with the waiter attached, versus a manager
+                  voiding a live order — and a shared field would blur them.
+                */}
+                {rejecting === order.id && (
+                  <div className="mt-3 rounded-xl border border-red-500/40 bg-red-500/10 p-3">
+                    <p className="mb-2 text-xs font-semibold text-red-300">
+                      Rejecting this order will cancel it. The guest is told
+                      immediately.
+                    </p>
+                    <input
+                      value={rejectReason}
+                      onChange={(event) => setRejectReason(event.target.value)}
+                      placeholder="Why can this order not be verified?"
+                      className="w-full rounded-lg border border-smoke bg-graphite px-3 py-2 text-sm text-ivory outline-none focus:border-red-500"
+                    />
+                    <div className="mt-2 flex gap-2">
+                      <Button
+                        variant="danger"
+                        disabled={rejectReason.trim().length < 3 || reject.isPending}
+                        onClick={() =>
+                          reject.mutate({ id: order.id, why: rejectReason.trim() })
+                        }
+                        className="font-bold text-xs"
+                      >
+                        {reject.isPending ? "Rejecting…" : "Confirm reject"}
+                      </Button>
+                      <Button
+                        variant="secondary"
+                        onClick={() => {
+                          setRejecting(null);
+                          setRejectReason("");
+                        }}
+                        className="font-bold text-xs"
+                      >
+                        Keep it
+                      </Button>
+                    </div>
+                  </div>
+                )}
 
                 {cancelling === order.id && (
                   <div className="mt-3 rounded-xl bg-ember/15 border border-ember/40 p-3">
@@ -265,6 +411,17 @@ const StaffOrders = () => {
         <InvoiceSheet
           source={{ orderId: invoiceFor }}
           onClose={() => setInvoiceFor(null)}
+        />
+      )}
+
+      {thermalFor && (
+        <ThermalReceiptSheet
+          source={{ orderId: thermalFor }}
+          onClose={() => setThermalFor(null)}
+          onSwitchToA4={() => {
+            setInvoiceFor(thermalFor);
+            setThermalFor(null);
+          }}
         />
       )}
 

@@ -6,6 +6,7 @@
 import type { RequestHandler } from "express";
 
 import * as auditService from "../services/audit.service.js";
+import * as exportService from "../services/export.service.js";
 import * as reportService from "../services/report.service.js";
 import * as roleService from "../services/role.service.js";
 import * as settingsService from "../services/settings.service.js";
@@ -15,6 +16,7 @@ import type {
   CreateRoleInput,
   CreateUserInput,
   CustomerListQuery,
+  OrderExportQuery,
   ReportQuery,
   TopItemsQuery,
   UpdateCustomerInput,
@@ -171,8 +173,15 @@ export const getPublicSettings: RequestHandler = async (_req, res) => {
   res.json({ success: true, data: await settingsService.getPublicSettings() });
 };
 
+/**
+ * GET /api/admin/settings — every setting, with gateway secrets masked.
+ *
+ * getAdminSettings, not getSettings: the raw row carries the Razorpay key
+ * secret and webhook secret, and an endpoint that merely READS configuration
+ * has no reason to hand them back out.
+ */
 export const getSettings: RequestHandler = async (_req, res) => {
-  res.json({ success: true, data: await settingsService.getSettings() });
+  res.json({ success: true, data: await settingsService.getAdminSettings() });
 };
 
 export const updateSettings: RequestHandler<
@@ -180,7 +189,12 @@ export const updateSettings: RequestHandler<
   unknown,
   UpdateSettingsInput
 > = async (req, res) => {
-  const settings = await settingsService.updateSettings(req.body);
+  const payload = { ...req.body };
+  if (req.file) {
+    payload.logoUrl = `/uploads/${req.file.filename}`;
+  }
+
+  const settings = await settingsService.updateSettings(payload);
 
   res.json({ success: true, message: "Settings updated", data: settings });
 };
@@ -234,4 +248,59 @@ export const listAuditLogs: RequestHandler = async (req, res) => {
   );
 
   res.json({ success: true, data: logs, meta });
+};
+
+// ---------------------------------------------------------------------------
+// Exports
+// ---------------------------------------------------------------------------
+
+/**
+ * GET /api/admin/exports/orders — the order book as an .xlsx workbook.
+ *
+ * Behind order:export, which only ADMIN and SUPER_ADMIN hold. The file carries
+ * every diner's name, phone number, spend and transaction reference, so taking
+ * it off the system is a more consequential act than reading an order on a
+ * screen, and it is gated and logged as one.
+ */
+export const exportOrders: RequestHandler = async (req, res) => {
+  const filters = req.validatedQuery as OrderExportQuery;
+
+  const { filename, buffer, orderCount } = await exportService.buildOrderExport(filters);
+
+  /**
+   * Audited here rather than by the audit middleware.
+   *
+   * That middleware hooks res.json to snapshot the response body; this handler
+   * sends a binary buffer, so the hook would never fire and the most sensitive
+   * read in the system would leave no trace. Awaited, unlike most audit calls:
+   * a bulk export of customer data should not be reported as done until the
+   * fact that it happened has been written down.
+   */
+  await auditService.recordAudit({
+    action: "order.export",
+    entity: "Order",
+    actorId: req.user?.sub,
+    ipAddress: req.ip,
+    userAgent: req.get("user-agent"),
+    after: {
+      filename,
+      orderCount,
+      from: filters.from ?? null,
+      to: filters.to ?? null,
+      status: filters.status ?? "ALL",
+      paidOnly: filters.paidOnly ?? false,
+    },
+  });
+
+  res.setHeader(
+    "Content-Type",
+    "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
+  );
+  res.setHeader("Content-Disposition", `attachment; filename="${filename}"`);
+  // The browser fetch reads the filename off this header, and CORS hides every
+  // header it is not told to expose.
+  res.setHeader("Access-Control-Expose-Headers", "Content-Disposition");
+  res.setHeader("Content-Length", String(buffer.length));
+
+  res.send(buffer);
 };

@@ -51,6 +51,9 @@ export const useLiveOrders = (): void => {
       SOCKET_EVENTS.ORDER_STATUS_CHANGED,
       SOCKET_EVENTS.ORDER_UPDATED,
       SOCKET_EVENTS.ORDER_CANCELLED,
+      // A held order never fires ORDER_CREATED, so without this the floor
+      // would not learn a large order is sitting there waiting for them.
+      SOCKET_EVENTS.ORDER_NEEDS_APPROVAL,
     ];
 
     for (const event of events) {

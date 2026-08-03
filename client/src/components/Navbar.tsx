@@ -12,6 +12,13 @@ import { Link, NavLink, useLocation } from "react-router-dom";
 import { useCart } from "../context/cart";
 import { useTheme } from "../context/theme";
 
+import defaultLogo from "../assets/image/logo.png";
+import { config } from "../config/env";
+import { imageUrl } from "../lib/format";
+import { useQuery } from "@tanstack/react-query";
+import { api, unwrap } from "../lib/api";
+import type { ApiResponse, PublicSettings } from "../types/api";
+
 const LINKS = [
   { to: "/menu", label: "Menu" },
   { to: "/reserve", label: "Reserve" },
@@ -27,6 +34,14 @@ const Navbar = () => {
   const { pathname } = useLocation();
   const [scrolled, setScrolled] = useState(false);
   const [menuOpen, setMenuOpen] = useState(false);
+
+  const settingsQuery = useQuery({
+    queryKey: ["settings", "public"],
+    queryFn: async () => unwrap(await api.get<ApiResponse<PublicSettings>>("/settings")),
+  });
+
+  const restaurantName = settingsQuery.data?.name || "Bite me Bistro";
+  const logoSrc = (settingsQuery.data?.logoUrl ? imageUrl(settingsQuery.data.logoUrl, config.apiUrl) : null) || defaultLogo;
 
   const overHero = pathname === "/welcome";
 
@@ -64,8 +79,13 @@ const Navbar = () => {
       }`}
     >
       <nav className="mx-auto flex max-w-7xl items-center justify-between gap-3 px-4 py-3.5 sm:gap-6 sm:px-6 sm:py-4">
-        <Link to="/welcome" className="font-display truncate text-xl tracking-wide text-ivory sm:text-2xl">
-          Bite me Bistro
+        <Link to="/welcome" className="flex items-center gap-3 font-display text-xl tracking-wide text-ivory sm:text-2xl group">
+          <img
+            src={logoSrc}
+            alt={restaurantName}
+            className="h-9 w-9 sm:h-10 sm:w-10 object-contain rounded-full border border-gold/40 p-0.5 bg-obsidian/40 shadow-sm transition-transform duration-500 group-hover:scale-105"
+          />
+          <span className="truncate">{restaurantName}</span>
         </Link>
 
         <div className="hidden items-center gap-6 lg:flex xl:gap-9">

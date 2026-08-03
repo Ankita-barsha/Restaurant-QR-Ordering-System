@@ -12,10 +12,16 @@ import { useEffect, useState } from "react";
 import { Link, useNavigate, useParams } from "react-router-dom";
 
 import CustomerFooter from "../../components/CustomerFooter";
+import AdvancePaymentDialog from "../../components/AdvancePaymentDialog";
 import DemoCheckout from "../../components/DemoCheckout";
 import InvoiceSheet from "../../components/InvoiceSheet";
+import { ThermalReceiptSheet } from "../../components/ThermalReceiptSheet";
 import { LuxeButton, LuxeError, LuxeLoader } from "../../components/luxe";
-import { getMyOrderTokens, LAST_ORDER_KEY } from "../../context/cart";
+import {
+  forgetOrderToken,
+  getMyOrderTokens,
+  LAST_ORDER_KEY,
+} from "../../context/cart";
 import {
   queryKeys,
   useLiveOrderTracking,
@@ -23,7 +29,13 @@ import {
 } from "../../hooks/useLiveOrders";
 import { api, getErrorMessage, unwrap } from "../../lib/api";
 import { formatMoney, formatTime } from "../../lib/format";
-import type { ApiResponse, OrderStatus, TrackedOrder } from "../../types/api";
+import {
+  isHeldStatus,
+  type ApiResponse,
+  type OrderStatus,
+  type PublicSettings,
+  type TrackedOrder,
+} from "../../types/api";
 
 const STEPS: { status: OrderStatus; label: string; hint: string }[] = [
   { status: "PENDING", label: "Received", hint: "Your order is with us" },
@@ -220,11 +232,23 @@ const DinerReviewForm = ({ customerName }: { customerName: string }) => {
 
 const TrackOrder = () => {
   const { token } = useParams();
+  const navigate = useNavigate();
   const connected = useSocketStatus();
 
   const [checkoutOpen, setCheckoutOpen] = useState(false);
   const [invoiceOpen, setInvoiceOpen] = useState(false);
+  const [thermalOpen, setThermalOpen] = useState(false);
   const [paidReceipt, setPaidReceipt] = useState<string | null>(null);
+
+  /**
+   * Whether the guest has dismissed the advance dialog.
+   *
+   * Dismissing hides it for THIS view only — it reopens on the next visit,
+   * because the order genuinely is still held and the guest genuinely does
+   * still have to decide. Persisting the dismissal would leave someone
+   * staring at a stalled order with no explanation and no way back to it.
+   */
+  const [advanceDismissed, setAdvanceDismissed] = useState(false);
 
   useEffect(() => {
     if (token) {
@@ -243,6 +267,12 @@ const TrackOrder = () => {
     // Safety net only — the socket is the primary path. This recovers from an
     // event missed while the phone was asleep or off Wi-Fi.
     refetchInterval: 30_000,
+  });
+
+  // Drives the wording and the payment options inside the advance dialog.
+  const settingsQuery = useQuery({
+    queryKey: ["settings", "public"],
+    queryFn: async () => unwrap(await api.get<ApiResponse<PublicSettings>>("/settings")),
   });
 
   if (!token) return <TrackLookup />;
@@ -269,6 +299,15 @@ const TrackOrder = () => {
   if (!order) return null;
 
   const cancelled = order.status === "CANCELLED";
+  /**
+   * A large order the kitchen has not been told about yet.
+   *
+   * Shown as its own panel rather than as a greyed-out timeline. A diner
+   * staring at five empty steps assumes the app is broken; the real answer —
+   * "this is a big order, so we take a deposit / a colleague is on their way"
+   * — is reassuring, and is the difference between waiting and complaining.
+   */
+  const held = isHeldStatus(order.status);
   const currentStep = STEPS.findIndex((step) => step.status === order.status);
 
   const timestamps: Partial<Record<OrderStatus, string | null>> = {
@@ -310,6 +349,56 @@ const TrackOrder = () => {
               This order was cancelled. Please speak to a member of staff if
               that is unexpected.
             </p>
+          </div>
+        ) : held ? (
+          <div className="glass rounded-luxe mt-12 border border-gold/30 p-8 text-center">
+            <span className="text-3xl">
+              {order.status === "AWAITING_ADVANCE_PAYMENT" ? "🔒" : "🤝"}
+            </span>
+
+            <p className="eyebrow mt-3 text-slate">
+              {order.status === "AWAITING_ADVANCE_PAYMENT"
+                ? "Advance required"
+                : "One moment"}
+            </p>
+
+            {order.status === "AWAITING_ADVANCE_PAYMENT" ? (
+              <>
+                <p className="font-display mt-3 text-3xl leading-tight text-ivory">
+                  {order.advanceAmount
+                    ? formatMoney(order.advanceAmount)
+                    : "An advance"}
+                </p>
+                <p className="mt-3 text-[15px] leading-relaxed text-ivory-dim">
+                  For an order this size we take an advance before the kitchen
+                  starts. It comes off your final bill of{" "}
+                  {formatMoney(order.totalAmount)}.
+                </p>
+                <p className="mt-4 text-[13px] text-ivory-faint">
+                  Your food is not being prepared yet. It starts the moment this
+                  is paid — usually within seconds.
+                </p>
+
+                <button
+                  type="button"
+                  onClick={() => setAdvanceDismissed(false)}
+                  className="mt-5 min-h-11 rounded-xl border border-gold/40 px-5 text-sm font-bold text-gold transition hover:bg-gold/10"
+                >
+                  Pay advance
+                </button>
+              </>
+            ) : (
+              <>
+                <p className="mt-3 text-[15px] leading-relaxed text-ivory-dim">
+                  Thank you — this is a large order, so a member of our team is
+                  coming to your table to confirm it with you.
+                </p>
+                <p className="mt-4 text-[13px] text-ivory-faint">
+                  Nothing more is needed from you. The kitchen starts as soon as
+                  they have said hello.
+                </p>
+              </>
+            )}
           </div>
         ) : (
           <ol className="mt-14">
@@ -389,33 +478,62 @@ const TrackOrder = () => {
             </span>
           </div>
 
-          {/* Payment: pay online now, or settle at the table. */}
-          {!cancelled && (
-            <div className="mt-6">
-              {order.paymentStatus === "PAID" ? (
-                <div className="rounded-2xl border border-emerald-500/40 bg-emerald-500/10 p-4 text-center">
-                  <p className="flex items-center justify-center gap-2 text-xs font-bold uppercase tracking-[0.2em] text-emerald-700 dark:text-emerald-400">
-                    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
-                      <path d="M20 6 9 17l-5-5" />
-                    </svg>
-                    Payment Completed (Paid)
+          {/* Payment: Pay online now, or settle at the table.
+              Rule: For orders <= ₹3,000, do not show payment portion upfront while food is preparing;
+              only show payment portion once the food is SERVED at the table. */}
+          {!cancelled && (() => {
+            const orderTotalNum = Number(order.totalAmount);
+            const isSmallOrder = orderTotalNum <= 3000;
+            const isServedOrCompleted = order.status === "SERVED" || (order.status as string) === "COMPLETED";
+            const isAwaitingAdvance = order.status === "AWAITING_ADVANCE_PAYMENT";
+            const isPaid = order.paymentStatus === "PAID";
+
+            const showPaymentSection = isPaid || isAwaitingAdvance || isServedOrCompleted || !isSmallOrder;
+
+            if (!showPaymentSection) {
+              return (
+                <div className="mt-6 rounded-2xl border border-smoke bg-charcoal/50 p-4 text-center">
+                  <p className="text-xs font-semibold text-ivory-dim">
+                    🍲 Your food is being prepared by our kitchen!
                   </p>
-                  <p className="mt-1 text-[11px] text-emerald-950 font-medium dark:text-emerald-200">
-                    Thank you! Your payment has been received and tax invoice is generated.
-                  </p>
-                </div>
-              ) : (
-                <div className="space-y-2">
-                  <LuxeButton className="w-full font-bold" onClick={() => setCheckoutOpen(true)}>
-                    💳 Pay Bill (UPI, Card, Cash)
-                  </LuxeButton>
-                  <p className="text-center text-[11px] text-ivory-faint">
-                    Supports GPay, PhonePe, Paytm, Credit/Debit Card & Cash.
+                  <p className="mt-1 text-[11px] text-ivory-faint">
+                    Payment options will appear here once your meal has been served at your table.
                   </p>
                 </div>
-              )}
-            </div>
-          )}
+              );
+            }
+
+            return (
+              <div className="mt-6">
+                {isPaid ? (
+                  <div className="rounded-2xl border border-emerald-500/40 bg-emerald-500/10 p-4 text-center">
+                    <p className="flex items-center justify-center gap-2 text-xs font-bold uppercase tracking-[0.2em] text-emerald-700 dark:text-emerald-400">
+                      <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
+                        <path d="M20 6 9 17l-5-5" />
+                      </svg>
+                      Payment Completed (Paid)
+                    </p>
+                    <p className="mt-1 text-[11px] text-emerald-950 font-medium dark:text-emerald-200">
+                      Thank you! Your payment has been received and tax invoice is generated.
+                    </p>
+                  </div>
+                ) : (
+                  <div className="space-y-2">
+                    <LuxeButton className="w-full font-bold" onClick={() => setCheckoutOpen(true)}>
+                      {isAwaitingAdvance && order.advanceAmount
+                        ? `🔒 Pay ${formatMoney(order.advanceAmount)} advance`
+                        : "💳 Pay Bill (UPI, Card, Cash)"}
+                    </LuxeButton>
+                    <p className="text-center text-[11px] text-ivory-faint">
+                      {isAwaitingAdvance
+                        ? "The kitchen starts as soon as this clears. The rest is settled at the table."
+                        : "Supports GPay, PhonePe, Paytm, Credit/Debit Card & Cash."}
+                    </p>
+                  </div>
+                )}
+              </div>
+            );
+          })()}
 
           {/* Post-service completion & Review Request card (#22, #26) */}
           {(order.status === "SERVED" || (order.status as string) === "COMPLETED") && (
@@ -455,15 +573,21 @@ const TrackOrder = () => {
             </div>
           )}
 
-          {/* The diner's own bill — printable, or saveable as a PDF — so they
-              never have to ask a member of staff for a copy. */}
-          <div className="mt-4">
+          {/* Bill options: 80mm thermal slip & A4 GST tax invoice */}
+          <div className="mt-4 flex flex-wrap gap-2">
             <LuxeButton
               variant="outline"
-              className="w-full"
+              className="flex-1 text-xs"
+              onClick={() => setThermalOpen(true)}
+            >
+              🖨️ Thermal Slip (80mm)
+            </LuxeButton>
+            <LuxeButton
+              variant="outline"
+              className="flex-1 text-xs"
               onClick={() => setInvoiceOpen(true)}
             >
-              View tax invoice
+              🧾 Tax Invoice
             </LuxeButton>
           </div>
         </section>
@@ -476,15 +600,61 @@ const TrackOrder = () => {
         />
       )}
 
+      {thermalOpen && (
+        <ThermalReceiptSheet
+          source={{ trackingToken: order.trackingToken }}
+          onClose={() => setThermalOpen(false)}
+          onSwitchToA4={() => {
+            setInvoiceOpen(true);
+            setThermalOpen(false);
+          }}
+        />
+      )}
+
       {checkoutOpen && (
         <DemoCheckout
           trackingToken={order.trackingToken}
-          amount={order.totalAmount}
+          // A held order is charged its ADVANCE, not the bill. The server
+          // decides this figure independently; passing it here only keeps the
+          // amount on screen honest about what is being taken.
+          amount={
+            order.status === "AWAITING_ADVANCE_PAYMENT" && order.advanceAmount
+              ? order.advanceAmount
+              : order.totalAmount
+          }
+          depositOf={
+            order.status === "AWAITING_ADVANCE_PAYMENT"
+              ? order.totalAmount
+              : undefined
+          }
           onClose={() => setCheckoutOpen(false)}
           onPaid={(receipt) => {
             setCheckoutOpen(false);
             setPaidReceipt(receipt);
             void orderQuery.refetch();
+          }}
+        />
+      )}
+
+      {/*
+        The blocking advance dialog.
+        Rendered last so it sits above the tracking screen behind it, and shown
+        for BOTH held states: a guest whose order is waiting on a waiter needs
+        the same explanation as one whose order is waiting on their money.
+      */}
+      {held && !advanceDismissed && (
+        <AdvancePaymentDialog
+          order={order}
+          settings={settingsQuery.data}
+          onClose={() => setAdvanceDismissed(true)}
+          onPaid={() => void orderQuery.refetch()}
+          onCancelled={() => {
+            // Back to the menu, which is where a guest who has just abandoned
+            // an order wants to be — not staring at the cancelled one. The
+            // token is forgotten too, or this screen would redirect them
+            // straight back to it on the next visit.
+            forgetOrderToken(order.trackingToken);
+            navigate("/menu", { replace: true });
           }}
         />
       )}

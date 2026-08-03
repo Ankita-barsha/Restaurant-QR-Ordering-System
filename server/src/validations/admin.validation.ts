@@ -115,10 +115,24 @@ const timeSchema = z
   .string()
   .regex(/^([01]\d|2[0-3]):[0-5]\d$/, "Use 24-hour HH:mm, e.g. 09:30");
 
+/**
+ * A money threshold, as a decimal string.
+ *
+ * A string rather than a number for the same reason every other amount in this
+ * system is one: binary floats cannot hold most decimal fractions exactly, and
+ * a threshold that is really 1999.9999999 compares wrongly against a bill of
+ * exactly 2000. Zero is permitted and means the gate is switched off.
+ */
+const thresholdSchema = z
+  .string()
+  .trim()
+  .regex(/^\d{1,8}(\.\d{1,2})?$/, "Use an amount like 2000 or 2000.00");
+
 export const updateSettingsSchema = z
   .object({
     name: z.string().trim().min(1).max(100).optional(),
     tagline: z.string().trim().max(200).optional(),
+    logoUrl: z.string().trim().max(500).nullable().optional(),
     email: z.string().email().optional(),
     phone: z.string().trim().min(6).max(20).optional(),
     addressLine: z.string().trim().max(200).optional(),
@@ -132,13 +146,24 @@ export const updateSettingsSchema = z
     isAcceptingOrders: booleanish.optional(),
     openingTime: timeSchema.optional(),
     closingTime: timeSchema.optional(),
+    // High-value order controls. A threshold of 0 switches the whole feature
+    // off regardless of the toggles below.
+    highValueThreshold: thresholdSchema.optional(),
+    advancePaymentPercent: percentSchema.optional(),
+    approvalRequired: booleanish.optional(),
+    advancePaymentRequired: booleanish.optional(),
+    allowCashAdvance: booleanish.optional(),
+    allowOnlineAdvance: booleanish.optional(),
+    advancePaymentMessage: z.string().trim().max(1000).optional(),
     bankingName: z.string().trim().max(100).optional(),
     merchantVpa: z.string().trim().max(100).optional(),
     bankAccountNo: z.string().trim().max(50).optional(),
     bankIfscCode: z.string().trim().max(20).optional(),
     paymentGatewayProvider: z.string().trim().max(50).optional(),
     razorpayKeyId: z.string().trim().max(100).optional(),
-    razorpayKeySecret: z.string().trim().max(100).optional(),
+    // Secrets: an empty string is "leave unchanged", which the service strips.
+    razorpayKeySecret: z.string().trim().max(200).optional(),
+    razorpayWebhookSecret: z.string().trim().max(200).optional(),
     paytmMerchantId: z.string().trim().max(100).optional(),
   })
   .refine((data) => Object.keys(data).length > 0, {
@@ -184,6 +209,37 @@ export const auditListQuerySchema = paginationQuerySchema.extend({
   to: z.coerce.date().optional(),
 });
 
+// ---------------------------------------------------------------------------
+// Exports
+// ---------------------------------------------------------------------------
+
+/**
+ * The order-book export.
+ *
+ * Unpaginated on purpose — the point of the download is the WHOLE window, and
+ * a spreadsheet delivered in pages of twenty is not a spreadsheet. The window
+ * itself is what bounds it, and the service refuses a range that would produce
+ * a file too large to build in memory.
+ */
+export const orderExportQuerySchema = z.object({
+  from: z.coerce.date().optional(),
+  to: z.coerce.date().optional(),
+  status: z
+    .enum([
+      "NEEDS_APPROVAL",
+      "AWAITING_ADVANCE_PAYMENT",
+      "PENDING",
+      "CONFIRMED",
+      "PREPARING",
+      "READY",
+      "SERVED",
+      "CANCELLED",
+    ])
+    .optional(),
+  /** Only orders that have been paid — what an accountant usually wants. */
+  paidOnly: booleanish.optional(),
+});
+
 export type CreateUserInput = z.infer<typeof createUserSchema>;
 export type UpdateUserInput = z.infer<typeof updateUserSchema>;
 export type UserListQuery = z.infer<typeof userListQuerySchema>;
@@ -196,3 +252,4 @@ export type ReportQuery = z.infer<typeof reportQuerySchema>;
 export type TopItemsQuery = z.infer<typeof topItemsQuerySchema>;
 export type RevenuePeriodQuery = z.infer<typeof revenuePeriodSchema>;
 export type AuditListQueryInput = z.infer<typeof auditListQuerySchema>;
+export type OrderExportQuery = z.infer<typeof orderExportQuerySchema>;
